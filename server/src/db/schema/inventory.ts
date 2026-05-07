@@ -1,0 +1,36 @@
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { products } from './products';
+import { branches } from './branches';
+import { users } from './users';
+
+export const inventory = sqliteTable('inventory', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id),
+  branchId: text('branch_id').notNull().references(() => branches.id),
+  quantity: integer('quantity').notNull().default(0),
+  lowStockThreshold: integer('low_stock_threshold').notNull().default(10),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const inventoryMovements = sqliteTable('inventory_movements', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id),
+  branchId: text('branch_id').notNull().references(() => branches.id),
+  batchId: text('batch_id').references(() => batches.id),
+  movementType: text('movement_type').notNull(), // sale, stock_received, stock_transfer_out, stock_transfer_in, adjustment, damaged, expired, returned
+  quantity: integer('quantity').notNull(),
+  referenceId: text('reference_id'), // sale id, transfer id, etc.
+  referenceType: text('reference_type'), // sale, transfer, purchase_order, adjustment
+  reason: text('reason'),
+  userId: text('user_id').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// Fix the circular reference by importing batches after it's defined
+import { batches } from './batches';
+
+export type Inventory = typeof inventory.$inferSelect;
+export type NewInventory = typeof inventory.$inferInsert;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type NewInventoryMovement = typeof inventoryMovements.$inferInsert;

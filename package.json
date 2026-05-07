@@ -1,0 +1,32 @@
+{
+  "name": "evaya-naturals-internal",
+  "version": "1.0.0",
+  "description": "Internal Management System for Evaya Naturals",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "check": "npm run check:server && npm run check:client",
+    "check:server": "cd server && npm run check",
+    "check:client": "cd client && npm run check",
+    "db:generate": "cd server && npm run db:generate",
+    "db:push": "cd server && npm run db:push",
+    "db:seed": "cd server && npm run db:seed",
+    "db:migrate": "cd server && npm run db:migrate",
+    "db:studio": "cd server && npx drizzle-kit studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
