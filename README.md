@@ -8,12 +8,15 @@ A modern internal operations management system for Evaya Naturals, a Uganda-base
 - **Dashboard**: Role-specific dashboards for Admin, Branch Manager, Cashier, etc.
 - **POS**: Point of Sale system with Ugandan payment methods (Cash, MTN/Airtel Mobile Money, Cards)
 - **Products**: Product catalog with categories, pricing, and wellness information
+- **Product Bundles**: Wellness bundles/packages with automatic inventory deduction
 - **Inventory**: Stock tracking with batch/expiry management
 - **Customers**: Customer database with wellness interests
 - **Suppliers**: Supplier management
 - **Deliveries**: Delivery tracking and management
+- **Shift Management**: Cashier shift tracking with opening/closing cash reconciliation
 - **Reports**: Sales, inventory, and financial reports
 - **Daily Close**: Cash-up and end-of-day reconciliation
+- **Offline Resilience**: Automatic request queuing and retry when internet drops
 
 ## Tech Stack
 
@@ -112,6 +115,9 @@ evaya-naturals-internal/
 - **deliveries**: Delivery tracking
 - **transfers**: Inter-branch transfers
 - **daily_closes**: End-of-day reconciliation
+- **shifts**: Cashier shift management with opening/closing cash
+- **bundles**: Product bundles/wellness packages
+- **bundle_items**: Items contained in each bundle
 - **audit_logs**: System audit trail
 
 ## User Roles
