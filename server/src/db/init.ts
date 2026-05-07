@@ -102,5 +102,31 @@ export async function initializeDatabase() {
     }
   }
 
+  // Create sample wellness bundles if they don't exist
+  const wellnessBundle = await db.select().from(schema.bundles).where(eq(schema.bundles.name, 'Immunity Boost Bundle'));
+  if (wellnessBundle.length === 0) {
+    await db.insert(schema.bundles).values([
+      {
+        name: 'Immunity Boost Bundle',
+        description: 'Natural supplements to strengthen your immune system',
+        sellingPrice: 85000,
+        isActive: true,
+      },
+      {
+        name: 'Skincare Essentials Bundle',
+        description: 'Complete natural skincare routine',
+        sellingPrice: 120000,
+        isActive: true,
+      },
+      {
+        name: 'Herbal Tea Collection',
+        description: 'Assorted herbal teas for wellness',
+        sellingPrice: 45000,
+        isActive: true,
+      },
+    ]);
+    console.log('Created sample wellness bundles');
+  }
+
   console.log('Database initialization complete');
 }
