@@ -261,12 +261,12 @@ export default function ProductsPage() {
           )}
 
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Product master</h2>
-                <p className="mt-1 text-sm text-slate-500">Keep the catalog light, searchable, and ready for the counter.</p>
+                <p className="mt-1 text-sm text-slate-500">Keep the catalog clean, searchable, and ready for daily operations.</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,280px)_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -285,19 +285,20 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            <form className="grid gap-4 rounded-[30px] bg-slate-50/80 p-5" onSubmit={handleProductSubmit}>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <input
-                  value={productForm.name}
-                  onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Product name"
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                  required
-                />
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Category</span>
-                    {isAdmin && (
+            <form className="grid gap-5 rounded-[30px] bg-slate-50/80 p-5 lg:grid-cols-[minmax(0,1fr)_280px]" onSubmit={handleProductSubmit}>
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    value={productForm.name}
+                    onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Product name"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    required
+                  />
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Category</span>
+                      {isAdmin && (
                       <button
                         type="button"
                         onClick={() => {
@@ -305,72 +306,56 @@ export default function ProductsPage() {
                           setCategoryForm(emptyCategoryForm);
                           setShowCategoryDialog(true);
                         }}
-                        className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                        className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700"
                       >
                         Manage Categories
                       </button>
-                    )}
+                      )}
+                    </div>
+                    <select
+                      value={productForm.categoryId}
+                      onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
                   <select
-                    value={productForm.categoryId}
-                    onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}
+                    value={productForm.unitType}
+                    onChange={(event) => setProductForm((current) => ({ ...current, unitType: event.target.value }))}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   >
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
-              </div>
-              <label className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm">
-                <span className="text-slate-500">Active</span>
-                <input
-                  type="checkbox"
-                  checked={productForm.isActive}
-                  onChange={(event) => setProductForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600"
-                />
-              </label>
-            </div>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <select
-                  value={productForm.unitType}
-                  onChange={(event) => setProductForm((current) => ({ ...current, unitType: event.target.value }))}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                >
-                  {['piece', 'kg', 'g', 'ml', 'l', 'box', 'jar', 'pack'].map((unit) => (
-                    <option key={unit} value={unit}>{unit.toUpperCase()}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min="0"
-                  value={productForm.sellingPrice}
-                  onChange={(event) => setProductForm((current) => ({ ...current, sellingPrice: event.target.value }))}
-                  placeholder="Selling price (UGX)"
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                  required
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={productForm.costPrice}
-                  onChange={(event) => setProductForm((current) => ({ ...current, costPrice: event.target.value }))}
-                  placeholder="Cost price (UGX)"
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={productForm.lowStockThreshold}
-                  onChange={(event) => setProductForm((current) => ({ ...current, lowStockThreshold: event.target.value }))}
-                  placeholder="Low-stock threshold"
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                  required
-                />
+                    {['piece', 'kg', 'g', 'ml', 'l', 'box', 'jar', 'pack'].map((unit) => (
+                      <option key={unit} value={unit}>{unit.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.sellingPrice}
+                    onChange={(event) => setProductForm((current) => ({ ...current, sellingPrice: event.target.value }))}
+                    placeholder="Selling price (UGX)"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    required
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.lowStockThreshold}
+                    onChange={(event) => setProductForm((current) => ({ ...current, lowStockThreshold: event.target.value }))}
+                    placeholder="Low-stock threshold"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+              <div className="grid gap-3">
                 <div className="rounded-3xl bg-white px-4 py-4">
                   <p className="text-sm font-medium text-slate-700">Operating branch</p>
                   <p className="mt-1 text-xs text-slate-400">Locked to Evaya Naturals.</p>
@@ -379,7 +364,17 @@ export default function ProductsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3">
+                <label className="flex items-center justify-between rounded-3xl bg-white px-4 py-4 text-sm">
+                  <span className="text-slate-500">Active</span>
+                  <input
+                    type="checkbox"
+                    checked={productForm.isActive}
+                    onChange={(event) => setProductForm((current) => ({ ...current, isActive: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                  />
+                </label>
+
+                <div className="flex flex-col gap-3 pt-1">
                   <button
                     type="submit"
                     disabled={productMutation.isPending}
@@ -407,7 +402,7 @@ export default function ProductsPage() {
               </div>
             </form>
 
-            <div className="mt-6 overflow-hidden rounded-[28px] bg-white">
+            <div className="mt-8 overflow-hidden rounded-[28px] bg-white">
               <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50/70 text-slate-500">
                   <tr>

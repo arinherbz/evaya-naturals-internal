@@ -18,10 +18,10 @@ export default function Sidebar() {
   ];
 
   const canShowItem = (permission: string | null, allowRoles?: string[]) => {
-    if (!permission) return true;
     if (!user) return false;
     if (user.role.name === 'Admin') return true;
     if (allowRoles?.includes(user.role.name)) return true;
+    if (!permission) return !allowRoles || allowRoles.length === 0;
     return user.role.permissions.includes(permission);
   };
 

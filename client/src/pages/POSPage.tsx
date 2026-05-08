@@ -291,14 +291,14 @@ export default function POSPage() {
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search product, SKU, or barcode"
+                    placeholder="Search products"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                     {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift before checkout'}
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    {products.length} sellable products
+                    {products.length} products ready
                   </div>
                 </div>
               </div>
@@ -311,7 +311,7 @@ export default function POSPage() {
                 )}
                 {!productsQuery.isLoading && products.length === 0 && (
                   <div className="md:col-span-2 rounded-[28px] border border-dashed border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500">
-                    No sellable products matched this search.
+                    No products matched this search.
                   </div>
                 )}
                 {products.map((product) => {
@@ -354,7 +354,7 @@ export default function POSPage() {
             <section className="space-y-6">
               <div className="rounded-[32px] bg-white/92 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">Review, take payment, and complete checkout.</p>
+                <p className="mt-1 text-sm text-slate-500">Review, take payment, and finish the sale.</p>
 
                 <div className="mt-5 space-y-3">
                   {cart.length === 0 && (
@@ -422,7 +422,7 @@ export default function POSPage() {
                   </select>
                   {selectedCustomer && (
                     <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      Linked customer: {selectedCustomer.name} · {selectedCustomer.phone}
+                      {selectedCustomer.name} · {selectedCustomer.phone}
                     </div>
                   )}
                   <button
@@ -545,9 +545,9 @@ export default function POSPage() {
                     setPageError('');
                     checkoutMutation.mutate();
                   }}
-                  className="mt-5 w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-5 w-full rounded-full bg-emerald-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {checkoutMutation.isPending ? 'Completing sale…' : 'Checkout'}
+                  {checkoutMutation.isPending ? 'Completing sale…' : 'Complete sale'}
                 </button>
               </div>
 

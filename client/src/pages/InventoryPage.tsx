@@ -3,13 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import type { InventoryBatch, InventoryMovement, InventoryRow } from '../types';
-
-const currencyFormatter = new Intl.NumberFormat('en-UG', {
-  style: 'currency',
-  currency: 'UGX',
-  maximumFractionDigits: 0,
-});
 
 type BatchFormState = {
   productId: string;
@@ -57,10 +50,6 @@ function getErrorMessage(error: unknown) {
   return 'Something went wrong';
 }
 
-function describeMovement(movement: InventoryMovement) {
-  return `${movement.movementType.replace('_', ' ')} • ${movement.reason || 'No reason'}`;
-}
-
 function warningBadge(count: number, label: string, color: 'amber' | 'rose') {
   if (count === 0) return null;
   const palette = color === 'amber'
@@ -81,7 +70,6 @@ export default function InventoryPage() {
   const [pageError, setPageError] = useState('');
   const [batchForm, setBatchForm] = useState<BatchFormState>(emptyBatchForm);
   const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>(emptyAdjustmentForm);
-  const [selectedInventory, setSelectedInventory] = useState<InventoryRow | null>(null);
   const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
 
   const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(user?.role.name ?? '');
@@ -118,14 +106,6 @@ export default function InventoryPage() {
     queryFn: () => api.inventory.batches({
       branchId: adjustmentForm.branchId || undefined,
       productId: adjustmentForm.productId || undefined,
-    }),
-  });
-
-  const movementsQuery = useQuery({
-    queryKey: ['catalog-movements', selectedInventory?.productId],
-    queryFn: () => api.inventory.movements({
-      branchId: primaryBranch?.id,
-      productId: selectedInventory?.productId,
     }),
   });
 
@@ -233,7 +213,6 @@ export default function InventoryPage() {
   const inventory = inventoryQuery.data?.inventory ?? [];
   const products = productsQuery.data?.products ?? [];
   const suppliers = suppliersQuery.data?.suppliers ?? [];
-  const movementRows = movementsQuery.data?.movements ?? [];
   const batchRows = batchesQuery.data?.batches ?? [];
 
   const lowStockCount = inventory.filter((row) => row.lowStock).length;
@@ -249,9 +228,9 @@ export default function InventoryPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory Ops</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Branch stock, batches, and movement history</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Branch stock and batch receiving</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Watch Evaya Naturals stock, receive new batches, adjust quantities with reasons, and inspect every movement in one place.
+                  Watch Evaya Naturals stock, receive new batches, and adjust quantities with clear reasons.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -281,7 +260,7 @@ export default function InventoryPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search product, SKU, barcode"
+              placeholder="Search products"
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             />
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
@@ -395,7 +374,7 @@ export default function InventoryPage() {
 
               <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Adjust stock</h2>
-                <p className="mt-1 text-sm text-slate-500">Record adjustments, damages, expiries, and returns with reasons and movement history.</p>
+                <p className="mt-1 text-sm text-slate-500">Record adjustments, damages, expiries, and returns with a clear reason.</p>
                 <form className="mt-5 grid gap-3" onSubmit={handleAdjustmentSubmit}>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -473,10 +452,7 @@ export default function InventoryPage() {
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Inventory overview</h2>
-                <p className="mt-1 text-sm text-slate-500">Live stock with thresholds, batch warnings, and quick movement drill-down for Evaya Naturals.</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                Tap any row to focus movement history below.
+                <p className="mt-1 text-sm text-slate-500">Live stock with thresholds and batch warnings for Evaya Naturals.</p>
               </div>
             </div>
             <div className="overflow-hidden rounded-3xl border border-slate-100">
@@ -492,11 +468,7 @@ export default function InventoryPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {inventory.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`cursor-pointer transition hover:bg-slate-50 ${selectedInventory?.id === row.id ? 'bg-emerald-50/60' : ''}`}
-                      onClick={() => setSelectedInventory(row)}
-                    >
+                    <tr key={row.id}>
                       <td className="px-4 py-4">
                         <div className="font-medium">{row.productName}</div>
                         <div className="mt-1 text-xs text-slate-400">
@@ -515,13 +487,11 @@ export default function InventoryPage() {
                               min="0"
                               value={thresholdDrafts[row.id] ?? String(row.lowStockThreshold)}
                               onChange={(event) => setThresholdDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
-                              onClick={(event) => event.stopPropagation()}
                               className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
                             />
                             <button
                               type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
+                              onClick={() => {
                                 thresholdMutation.mutate({
                                   id: row.id,
                                   threshold: Number(thresholdDrafts[row.id] ?? row.lowStockThreshold),
@@ -551,9 +521,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-4">
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedInventory(row);
+                            onClick={() => {
                               setAdjustmentForm((current) => ({
                                 ...current,
                                 branchId: row.branchId,
@@ -562,7 +530,7 @@ export default function InventoryPage() {
                             }}
                             className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            View history
+                            Adjust stock
                           </button>
                         </td>
                       )}
@@ -572,86 +540,6 @@ export default function InventoryPage() {
               </table>
             </div>
           </section>
-
-          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-              <div className="mb-5">
-                <h2 className="text-xl font-semibold">Inventory movement history</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedInventory
-                    ? `Showing movements for ${selectedInventory.productName}.`
-                    : 'Select an inventory row above to focus product history.'}
-                </p>
-              </div>
-              <div className="space-y-3">
-                {movementRows.map((movement) => (
-                  <div key={movement.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-medium text-slate-900">{movement.productName}</p>
-                        <p className="mt-1 text-sm text-slate-500">{describeMovement(movement)}</p>
-                        <p className="mt-2 text-xs text-slate-400">
-                          {movement.batchNumber || 'No batch'} · {new Date(movement.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className={`rounded-full px-3 py-1 text-sm font-medium ${movement.quantity >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                        {movement.quantity >= 0 ? '+' : ''}{movement.quantity}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-              <div className="mb-5">
-                <h2 className="text-xl font-semibold">Batch ledger</h2>
-                <p className="mt-1 text-sm text-slate-500">Supplier-linked stock by batch, with expiry visibility and remaining quantity.</p>
-              </div>
-              <div className="space-y-3">
-                {batchRows.map((batch: InventoryBatch) => {
-                  const expiry = new Date(batch.expiryDate);
-                  const now = new Date();
-                  const soon = new Date();
-                  soon.setDate(now.getDate() + 30);
-                  const expiringSoon = batch.quantityRemaining > 0 && expiry >= now && expiry <= soon;
-                  const expired = batch.quantityRemaining > 0 && expiry < now;
-
-                  return (
-                    <div key={batch.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{batch.batchNumber}</p>
-                          <p className="mt-1 text-sm text-slate-500">{batch.productName} · {primaryBranch?.name ?? batch.branchName}</p>
-                          <p className="mt-2 text-xs text-slate-400">
-                            Supplier: {batch.supplierName || '—'} · Expires {new Date(batch.expiryDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{batch.quantityRemaining} left</p>
-                          <p className="text-xs text-slate-400">
-                            {currencyFormatter.format(batch.costPrice)} cost · {batch.sellingPrice == null ? '—' : currencyFormatter.format(batch.sellingPrice)} sell
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {expiringSoon && (
-                          <span className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                            Expiring soon
-                          </span>
-                        )}
-                        {expired && (
-                          <span className="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
-                            Expired
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
         </div>
       </main>
     </div>

@@ -12,4 +12,13 @@ describe('simplified navigation', () => {
     expect(appSource).toContain("path=\"/expenses\"");
     expect(appSource).not.toContain("path=\"/suppliers\"");
   });
+
+  it('keeps role-limited items behind explicit allowRoles checks', () => {
+    const sidebarSource = readFileSync(resolve(process.cwd(), 'src/components/Sidebar.tsx'), 'utf8');
+
+    expect(sidebarSource).toContain("if (!permission) return !allowRoles || allowRoles.length === 0;");
+    expect(sidebarSource).toContain("label: 'Settings'");
+    expect(sidebarSource).toContain("label: 'Products'");
+    expect(sidebarSource).toContain("label: 'Deliveries'");
+  });
 });
