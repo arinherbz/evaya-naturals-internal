@@ -141,7 +141,6 @@ export default function InventoryPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-batches'] }),
-      queryClient.invalidateQueries({ queryKey: ['catalog-movements'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory'] }),
     ]);
   };

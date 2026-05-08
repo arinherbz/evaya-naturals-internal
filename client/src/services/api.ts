@@ -256,13 +256,6 @@ export const api = {
       const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return request<{ batches: InventoryBatch[] }>(`/catalog/inventory/batches${suffix}`);
     },
-    movements: (params?: { branchId?: string; productId?: string }) => {
-      const searchParams = new URLSearchParams();
-      if (params?.branchId) searchParams.set('branchId', params.branchId);
-      if (params?.productId) searchParams.set('productId', params.productId);
-      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
-      return request<{ movements: InventoryMovement[] }>(`/catalog/inventory/movements${suffix}`);
-    },
     createBatch: (payload: Record<string, unknown>) =>
       request<{ batch: InventoryBatch }>('/catalog/inventory/batches', {
         method: 'POST',
