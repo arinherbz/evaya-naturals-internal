@@ -100,6 +100,19 @@ async function openShift(token: string, openingCash = 10000) {
   return (await json(response)).shift;
 }
 
+async function createCustomer(token: string, payload: { name: string; phone: string; whatsappNumber?: string; email?: string; isActive?: boolean }) {
+  const response = await app.request('/api/pos/customers', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  expect(response.status).toBe(201);
+  return (await json(response)).customer;
+}
+
 describe('pos slice', () => {
   let adminToken = '';
   let branchId = '';
@@ -118,9 +131,11 @@ describe('pos slice', () => {
     await db.delete(schema.sales);
     await db.delete(schema.dailyCloses);
     await db.delete(schema.shifts);
+    await db.delete(schema.broadcasts);
     await db.delete(schema.inventoryMovements);
     await db.delete(schema.inventory);
     await db.delete(schema.batches);
+    await db.delete(schema.customers);
     await db.delete(schema.productVisibility);
     await db.delete(schema.products);
     await db.delete(schema.categories).where(eq(schema.categories.name, 'POS Category'));
@@ -491,5 +506,208 @@ describe('pos slice', () => {
       headers: { Authorization: `Bearer ${cashierToken}` },
     });
     expect(cashierApproveRes.status).toBe(403);
+  });
+
+  it('supports customer create edit deactivate and search', async () => {
+    const created = await createCustomer(adminToken, {
+      name: 'Anita Herbal',
+      phone: '+256700111222',
+      whatsappNumber: '+256700111222',
+      email: 'anita@evaya.ug',
+    });
+
+    const updateRes = await app.request(`/api/pos/customers/${created.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Anita Wellness',
+        isActive: false,
+      }),
+    });
+    expect(updateRes.status).toBe(200);
+    expect((await json(updateRes)).customer.isActive).toBe(false);
+
+    const searchRes = await app.request('/api/pos/customers?search=111222&includeInactive=true', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(searchRes.status).toBe(200);
+    const searchPayload = await json(searchRes);
+    expect(searchPayload.customers).toHaveLength(1);
+    expect(searchPayload.customers[0].name).toBe('Anita Wellness');
+  });
+
+  it('links customer to sale, supports quick customer creation, and includes customer on receipt', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const product = await createProduct(adminToken, branchId, category.id, 'Baobab Mix');
+    await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: 'BAO-B1',
+      expiryDate: new Date(Date.now() + 86400000 * 20).toISOString(),
+      quantityReceived: 10,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
+
+    const savedCustomer = await createCustomer(adminToken, {
+      name: 'Grace Active',
+      phone: '+256700555777',
+    });
+
+    const saleWithCustomerRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        customerId: savedCustomer.id,
+        paymentMethod: 'cash',
+        items: [{ productId: product.id, quantity: 1 }],
+      }),
+    });
+    expect(saleWithCustomerRes.status).toBe(201);
+    const saleWithCustomer = await json(saleWithCustomerRes);
+
+    const receiptRes = await app.request(`/api/pos/receipts/${saleWithCustomer.sale.id}`, {
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(receiptRes.status).toBe(200);
+    const receiptPayload = await json(receiptRes);
+    expect(receiptPayload.receipt.customerName).toBe('Grace Active');
+
+    const quickSaleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        quickCustomer: {
+          name: 'Quick Walkin',
+          phone: '+256700999111',
+        },
+        paymentMethod: 'mtn_mobile_money',
+        items: [{ productId: product.id, quantity: 1 }],
+      }),
+    });
+    expect(quickSaleRes.status).toBe(201);
+    const [quickCustomer] = await db.select().from(schema.customers).where(eq(schema.customers.phone, '+256700999111'));
+    expect(quickCustomer.name).toBe('Quick Walkin');
+  });
+
+  it('returns today sales history with payment filters', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const product = await createProduct(adminToken, branchId, category.id, 'History Tonic');
+    await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: 'HIS-B1',
+      expiryDate: new Date(Date.now() + 86400000 * 10).toISOString(),
+      quantityReceived: 10,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
+
+    await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({ paymentMethod: 'cash', items: [{ productId: product.id, quantity: 1 }] }),
+    });
+
+    const cardSaleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({ paymentMethod: 'bank_card', items: [{ productId: product.id, quantity: 1 }] }),
+    });
+    const cardSale = await json(cardSaleRes);
+
+    const filteredRes = await app.request(`/api/pos/sales/today?paymentMethod=bank_card&receiptSearch=${cardSale.receiptNumber}`, {
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(filteredRes.status).toBe(200);
+    const filteredPayload = await json(filteredRes);
+    expect(filteredPayload.sales).toHaveLength(1);
+    expect(filteredPayload.sales[0].paymentMethod).toBe('bank_card');
+    expect(filteredPayload.sales[0].receiptNumber).toBe(cardSale.receiptNumber);
+  });
+
+  it('prepares WhatsApp broadcast links, reports missing SMS provider, and enforces broadcast permissions', async () => {
+    const customerOne = await createCustomer(adminToken, {
+      name: 'Broadcast One',
+      phone: '+256700100100',
+      whatsappNumber: '+256700100100',
+    });
+    const customerTwo = await createCustomer(adminToken, {
+      name: 'Broadcast Two',
+      phone: '+256700200200',
+    });
+
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+
+    const whatsappRes = await app.request('/api/pos/customers/broadcasts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        channel: 'whatsapp',
+        customerIds: [customerOne.id, customerTwo.id],
+        messageBody: 'Your herbs are back in stock.',
+      }),
+    });
+    expect(whatsappRes.status).toBe(201);
+    const whatsappPayload = await json(whatsappRes);
+    expect(whatsappPayload.statusLabel).toBe('Prepared WhatsApp links');
+    expect(whatsappPayload.links).toHaveLength(2);
+    expect(whatsappPayload.links[0].url).toContain('wa.me');
+
+    const smsRes = await app.request('/api/pos/customers/broadcasts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        channel: 'sms',
+        customerIds: [customerOne.id],
+        messageBody: 'Store update.',
+      }),
+    });
+    expect(smsRes.status).toBe(201);
+    expect((await json(smsRes)).message).toBe('SMS provider not configured');
+
+    const cashierBroadcastRes = await app.request('/api/pos/customers/broadcasts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        channel: 'whatsapp',
+        customerIds: [customerOne.id],
+        messageBody: 'Not allowed.',
+      }),
+    });
+    expect(cashierBroadcastRes.status).toBe(403);
   });
 });

@@ -94,7 +94,37 @@ export interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  whatsappNumber?: string | null;
   email?: string | null;
+  isActive?: boolean;
+}
+
+export interface Customer extends CustomerOption {
+  isActive: boolean;
+}
+
+export interface CustomerHistory {
+  customer: Customer;
+  sales: PosSaleSummary[];
+  totalSpent: number;
+}
+
+export interface BroadcastLink {
+  customerId: string;
+  customerName: string;
+  phone: string;
+  url: string;
+}
+
+export interface BroadcastRecord {
+  id: string;
+  channel: 'whatsapp' | 'sms';
+  messageBody: string;
+  createdBy: string;
+  recipientCount: number;
+  status: 'prepared' | 'sent' | 'failed' | 'provider_not_configured';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InventoryBatch {

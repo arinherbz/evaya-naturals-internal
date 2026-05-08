@@ -42,10 +42,19 @@ export default function POSPage() {
   const [openingCash, setOpeningCash] = useState('0');
   const [countedCash, setCountedCash] = useState('');
   const [closeNotes, setCloseNotes] = useState('');
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [historyPaymentMethod, setHistoryPaymentMethod] = useState('');
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
+  const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
+  const [quickCustomerWhatsapp, setQuickCustomerWhatsapp] = useState('');
+  const [quickCustomerEmail, setQuickCustomerEmail] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [pageError, setPageError] = useState('');
   const [latestReceipt, setLatestReceipt] = useState<Receipt | null>(null);
+  const [activeReceipt, setActiveReceipt] = useState<Receipt | null>(null);
   const deferredSearch = useDeferredValue(search);
+  const deferredReceiptSearch = useDeferredValue(receiptSearch);
 
   const canCheckout = ['Admin', 'Cashier'].includes(user?.role.name ?? '');
 
@@ -57,12 +66,20 @@ export default function POSPage() {
   const customersQuery = useQuery({
     queryKey: ['pos-customers'],
     queryFn: () => api.pos.customers(),
-    enabled: canCheckout,
+    enabled: ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user?.role.name ?? ''),
   });
 
-  const todayQuery = useQuery({
+  const todaySummaryQuery = useQuery({
     queryKey: ['pos-today-summary'],
     queryFn: () => api.pos.today(),
+  });
+
+  const salesHistoryQuery = useQuery({
+    queryKey: ['pos-sales-history', deferredReceiptSearch, historyPaymentMethod],
+    queryFn: () => api.pos.today({
+      receiptSearch: deferredReceiptSearch || undefined,
+      paymentMethod: historyPaymentMethod || undefined,
+    }),
   });
 
   const shiftQuery = useQuery({
@@ -74,16 +91,53 @@ export default function POSPage() {
   const refreshOps = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-customers'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-sales-history'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
     ]);
   };
 
+  const receiptMutation = useMutation({
+    mutationFn: (receiptId: string) => api.pos.receipt(receiptId),
+    onSuccess: (payload) => {
+      setActiveReceipt(payload.receipt);
+      setPageError('');
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: () => api.pos.createCustomer({
+      name: quickCustomerName,
+      phone: quickCustomerPhone,
+      whatsappNumber: quickCustomerWhatsapp || null,
+      email: quickCustomerEmail || null,
+    }),
+    onSuccess: async (payload) => {
+      setCustomerId(payload.customer.id);
+      setShowQuickCustomer(false);
+      setQuickCustomerName('');
+      setQuickCustomerPhone('');
+      setQuickCustomerWhatsapp('');
+      setQuickCustomerEmail('');
+      setPageError('');
+      await refreshOps();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
   const checkoutMutation = useMutation({
     mutationFn: async () => api.pos.createSale({
       customerId: customerId || null,
+      quickCustomer: !customerId && quickCustomerName && quickCustomerPhone ? {
+        name: quickCustomerName,
+        phone: quickCustomerPhone,
+        whatsappNumber: quickCustomerWhatsapp || null,
+        email: quickCustomerEmail || null,
+      } : null,
       discount: Number(discount || 0),
       paymentMethod,
       paymentReference: paymentReference || null,
@@ -93,12 +147,18 @@ export default function POSPage() {
     onSuccess: async (payload) => {
       const receipt = await api.pos.receipt(payload.sale.id);
       setLatestReceipt(receipt.receipt);
+      setActiveReceipt(receipt.receipt);
       setCart([]);
       setCustomerId('');
       setDiscount('0');
       setPaymentMethod('cash');
       setPaymentReference('');
       setNotes('');
+      setShowQuickCustomer(false);
+      setQuickCustomerName('');
+      setQuickCustomerPhone('');
+      setQuickCustomerWhatsapp('');
+      setQuickCustomerEmail('');
       setPageError('');
       await refreshOps();
     },
@@ -131,8 +191,9 @@ export default function POSPage() {
 
   const products = productsQuery.data?.products ?? [];
   const customers = customersQuery.data?.customers ?? [];
-  const today = todayQuery.data;
+  const today = todaySummaryQuery.data;
   const currentShift = shiftQuery.data?.shift ?? null;
+  const visibleReceipt = activeReceipt ?? latestReceipt;
   const subtotal = cart.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
 
@@ -175,6 +236,8 @@ export default function POSPage() {
     await closeShiftMutation.mutateAsync();
   };
 
+  const selectedCustomer = customers.find((entry) => entry.id === customerId) ?? null;
+
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
@@ -186,7 +249,7 @@ export default function POSPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Evaya Naturals POS</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Fast cashier checkout</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Open shift, sell quickly, then close and reconcile without leaving the operational flow.
+                  Open shift, sell quickly, capture the customer when needed, then close and reconcile cleanly.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -310,12 +373,70 @@ export default function POSPage() {
                   );
                 })}
               </div>
+
+              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold">Sales history</h2>
+                    <p className="mt-1 text-sm text-slate-500">Today’s receipts with a fast receipt search and payment filter.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      value={receiptSearch}
+                      onChange={(event) => setReceiptSearch(event.target.value)}
+                      placeholder="Search receipt number"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    />
+                    <select
+                      value={historyPaymentMethod}
+                      onChange={(event) => setHistoryPaymentMethod(event.target.value)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      <option value="">All payments</option>
+                      {paymentMethodOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {salesHistoryQuery.isLoading && (
+                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                      Loading sales history…
+                    </div>
+                  )}
+                  {!salesHistoryQuery.isLoading && (salesHistoryQuery.data?.sales ?? []).length === 0 && (
+                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                      No receipts matched today’s filters.
+                    </div>
+                  )}
+                  {(salesHistoryQuery.data?.sales ?? []).map((sale) => (
+                    <button
+                      key={sale.id}
+                      type="button"
+                      onClick={() => receiptMutation.mutate(sale.id)}
+                      className="flex w-full items-center justify-between rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/50"
+                    >
+                      <div>
+                        <p className="font-medium text-slate-900">{sale.receiptNumber}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {new Date(sale.createdAt).toLocaleTimeString()} · {formatPaymentMethod(sale.paymentMethod)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-slate-900">{currencyFormatter.format(sale.total)}</p>
+                        <p className="mt-1 text-xs text-slate-400">Open receipt</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
             </section>
 
             <section className="space-y-6">
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">Review quantities, apply a discount, and complete the receipt.</p>
+                <p className="mt-1 text-sm text-slate-500">Review quantities, attach the customer, apply a discount, and complete the receipt.</p>
 
                 <div className="mt-5 space-y-3">
                   {cart.length === 0 && (
@@ -365,17 +486,79 @@ export default function POSPage() {
                 <div className="mt-5 grid gap-3">
                   <select
                     value={customerId}
-                    onChange={(event) => setCustomerId(event.target.value)}
+                    onChange={(event) => {
+                      setCustomerId(event.target.value);
+                      if (event.target.value) {
+                        setShowQuickCustomer(false);
+                      }
+                    }}
                     disabled={!canCheckout}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                   >
                     <option value="">Walk-in customer</option>
-                    {customers.map((customer) => (
+                    {customers.filter((entry) => entry.isActive).map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customer.name} · {customer.phone}
                       </option>
                     ))}
                   </select>
+                  {selectedCustomer && (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      Linked customer: {selectedCustomer.name} · {selectedCustomer.phone}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!canCheckout}
+                    onClick={() => {
+                      setShowQuickCustomer((current) => !current);
+                      setCustomerId('');
+                    }}
+                    className="justify-self-start rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {showQuickCustomer ? 'Hide quick customer' : 'Quick create customer'}
+                  </button>
+                  {showQuickCustomer && (
+                    <div className="grid gap-3 rounded-3xl border border-slate-100 bg-slate-50 p-4">
+                      <input
+                        value={quickCustomerName}
+                        onChange={(event) => setQuickCustomerName(event.target.value)}
+                        placeholder="Customer name"
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      />
+                      <input
+                        value={quickCustomerPhone}
+                        onChange={(event) => setQuickCustomerPhone(event.target.value)}
+                        placeholder="Phone number"
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input
+                          value={quickCustomerWhatsapp}
+                          onChange={(event) => setQuickCustomerWhatsapp(event.target.value)}
+                          placeholder="WhatsApp number"
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                        />
+                        <input
+                          value={quickCustomerEmail}
+                          onChange={(event) => setQuickCustomerEmail(event.target.value)}
+                          placeholder="Email"
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={createCustomerMutation.isPending || !quickCustomerName || !quickCustomerPhone}
+                        onClick={() => {
+                          setPageError('');
+                          createCustomerMutation.mutate();
+                        }}
+                        className="justify-self-start rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {createCustomerMutation.isPending ? 'Saving…' : 'Save customer'}
+                      </button>
+                    </div>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <input
                       type="number"
@@ -492,48 +675,28 @@ export default function POSPage() {
               </div>
 
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Latest receipt</h2>
-                <p className="mt-1 text-sm text-slate-500">A quick confirmation after checkout.</p>
-                {!latestReceipt && (
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold">Receipt</h2>
+                    <p className="mt-1 text-sm text-slate-500">Latest checkout or any receipt you open from today’s history.</p>
+                  </div>
+                  {visibleReceipt && (
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Print
+                    </button>
+                  )}
+                </div>
+                {!visibleReceipt && (
                   <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    No receipt yet in this session.
+                    No receipt selected yet.
                   </div>
                 )}
-                {latestReceipt && (
-                  <div className="mt-5 rounded-3xl bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Evaya Naturals</p>
-                        <p className="mt-2 text-lg font-semibold">{latestReceipt.receiptNumber}</p>
-                        <p className="mt-1 text-xs text-slate-400">{new Date(latestReceipt.createdAt).toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                        {formatPaymentMethod(latestReceipt.paymentMethod)}
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      {latestReceipt.items.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between text-sm">
-                          <span>{item.productName} × {item.quantity}</span>
-                          <span>{currencyFormatter.format(item.total)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 space-y-1 border-t border-slate-200 pt-4 text-sm">
-                      <div className="flex items-center justify-between text-slate-500">
-                        <span>Subtotal</span>
-                        <span>{currencyFormatter.format(latestReceipt.subtotal)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-500">
-                        <span>Discount</span>
-                        <span>{currencyFormatter.format(latestReceipt.discount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between font-semibold text-slate-900">
-                        <span>Total</span>
-                        <span>{currencyFormatter.format(latestReceipt.total)}</span>
-                      </div>
-                    </div>
-                  </div>
+                {visibleReceipt && (
+                  <ReceiptCard receipt={visibleReceipt} />
                 )}
               </div>
             </section>
@@ -549,6 +712,49 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl bg-slate-50 px-4 py-3">
       <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function ReceiptCard({ receipt }: { receipt: Receipt }) {
+  return (
+    <div className="mt-5 rounded-3xl bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Evaya Naturals</p>
+          <p className="mt-2 text-lg font-semibold">{receipt.receiptNumber}</p>
+          <p className="mt-1 text-xs text-slate-400">{new Date(receipt.createdAt).toLocaleString()}</p>
+          <p className="mt-3 text-sm text-slate-600">Cashier: {receipt.cashierName}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Customer: {receipt.customerName ? `${receipt.customerName}${receipt.customerPhone ? ` · ${receipt.customerPhone}` : ''}` : 'Walk-in'}
+          </p>
+        </div>
+        <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+          {formatPaymentMethod(receipt.paymentMethod)}
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {receipt.items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between text-sm">
+            <span>{item.productName} × {item.quantity}</span>
+            <span>{currencyFormatter.format(item.total)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 space-y-1 border-t border-slate-200 pt-4 text-sm">
+        <div className="flex items-center justify-between text-slate-500">
+          <span>Subtotal</span>
+          <span>{currencyFormatter.format(receipt.subtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between text-slate-500">
+          <span>Discount</span>
+          <span>{currencyFormatter.format(receipt.discount)}</span>
+        </div>
+        <div className="flex items-center justify-between font-semibold text-slate-900">
+          <span>Total</span>
+          <span>{currencyFormatter.format(receipt.total)}</span>
+        </div>
+      </div>
     </div>
   );
 }

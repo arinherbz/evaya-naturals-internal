@@ -11,6 +11,12 @@ const paymentMethods = ['cash', 'mtn_mobile_money', 'airtel_money', 'bank_card',
 
 const salePayloadSchema = z.object({
   customerId: z.string().trim().min(1).optional().nullable(),
+  quickCustomer: z.object({
+    name: z.string().trim().min(2).max(160),
+    phone: z.string().trim().min(7).max(40),
+    whatsappNumber: z.string().trim().max(40).optional().nullable(),
+    email: z.string().trim().email().max(160).optional().nullable().or(z.literal('')).optional(),
+  }).optional().nullable(),
   discount: z.number().min(0).default(0),
   paymentMethod: z.enum(paymentMethods),
   paymentReference: z.string().trim().max(120).optional().nullable(),
@@ -19,6 +25,22 @@ const salePayloadSchema = z.object({
     productId: z.string().trim().min(1),
     quantity: z.number().int().positive(),
   })).min(1),
+});
+
+const quickCustomerSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  phone: z.string().trim().min(7).max(40),
+  whatsappNumber: z.string().trim().max(40).optional().nullable(),
+  email: z.string().trim().email().max(160).optional().nullable().or(z.literal('')).optional(),
+  isActive: z.boolean().optional(),
+});
+
+const customerUpdateSchema = quickCustomerSchema.partial();
+
+const broadcastSchema = z.object({
+  customerIds: z.array(z.string().trim().min(1)).min(1),
+  messageBody: z.string().trim().min(2).max(1000),
+  channel: z.enum(['whatsapp', 'sms']),
 });
 
 const shiftOpenSchema = z.object({
@@ -34,11 +56,23 @@ function canViewPos(user: AuthUser) {
   return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
 }
 
+function canViewCustomers(user: AuthUser) {
+  return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
+}
+
+function canManageCustomers(user: AuthUser) {
+  return ['Admin', 'Cashier', 'Branch Manager'].includes(user.role.name);
+}
+
 function canCheckout(user: AuthUser) {
   return ['Admin', 'Cashier'].includes(user.role.name);
 }
 
 function canApproveClose(user: AuthUser) {
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
+}
+
+function canBroadcast(user: AuthUser) {
   return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
@@ -63,6 +97,15 @@ function normalizeText(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+function normalizePhone(value: string) {
+  return value.trim().replace(/\s+/g, '');
+}
+
+function toWhatsappLink(phone: string, message: string) {
+  const digits = phone.replace(/[^\d]/g, '');
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+
 function startOfToday() {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
@@ -78,8 +121,9 @@ function endOfToday() {
 function createReceiptNumber() {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const timePart = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-  return `EVN-${datePart}-${timePart}`;
+  const timePart = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `EVN-${datePart}-${timePart}-${suffix}`;
 }
 
 async function getActiveShift(cashierId: string, branchId: string) {
@@ -164,6 +208,25 @@ async function buildShiftSnapshot(shiftId: string) {
 }
 
 async function buildTodaySummary(branchId: string) {
+  return buildSalesHistory(branchId);
+}
+
+async function buildSalesHistory(branchId: string, options?: { paymentMethod?: string | null; receiptSearch?: string | null }) {
+  const filters = [
+    eq(schema.sales.branchId, branchId),
+    eq(schema.sales.status, 'completed'),
+    gte(schema.sales.createdAt, startOfToday().toISOString()),
+    lt(schema.sales.createdAt, endOfToday().toISOString()),
+  ];
+
+  if (options?.paymentMethod) {
+    filters.push(eq(schema.sales.paymentMethod, options.paymentMethod));
+  }
+
+  if (options?.receiptSearch) {
+    filters.push(like(schema.sales.receiptNumber, `%${options.receiptSearch}%`));
+  }
+
   const sales = await db.select({
     id: schema.sales.id,
     receiptNumber: schema.sales.receiptNumber,
@@ -174,12 +237,7 @@ async function buildTodaySummary(branchId: string) {
   })
     .from(schema.sales)
     .innerJoin(schema.users, eq(schema.sales.cashierId, schema.users.id))
-    .where(and(
-      eq(schema.sales.branchId, branchId),
-      eq(schema.sales.status, 'completed'),
-      gte(schema.sales.createdAt, startOfToday().toISOString()),
-      lt(schema.sales.createdAt, endOfToday().toISOString()),
-    ))
+    .where(and(...filters))
     .orderBy(desc(schema.sales.createdAt));
 
   const paymentTotals = buildPaymentTotals(sales);
@@ -191,6 +249,25 @@ async function buildTodaySummary(branchId: string) {
     paymentTotals,
     sales,
   };
+}
+
+async function buildCustomerPurchaseHistory(customerId: string, branchId: string) {
+  return db.select({
+    id: schema.sales.id,
+    receiptNumber: schema.sales.receiptNumber,
+    total: schema.sales.total,
+    paymentMethod: schema.sales.paymentMethod,
+    createdAt: schema.sales.createdAt,
+    cashierName: schema.users.firstName,
+  })
+    .from(schema.sales)
+    .innerJoin(schema.users, eq(schema.sales.cashierId, schema.users.id))
+    .where(and(
+      eq(schema.sales.customerId, customerId),
+      eq(schema.sales.branchId, branchId),
+      eq(schema.sales.status, 'completed'),
+    ))
+    .orderBy(desc(schema.sales.createdAt));
 }
 
 posRoutes.use('*', authMiddleware);
@@ -267,21 +344,202 @@ posRoutes.get('/products', async (c) => {
 
 posRoutes.get('/customers', async (c) => {
   const user = c.get('user');
-  if (!canViewPos(user)) {
+  if (!canViewCustomers(user)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
+
+  const search = c.req.query('search')?.trim();
+  const includeInactive = c.req.query('includeInactive') === 'true';
+  const customerCondition = and(
+    includeInactive ? undefined : eq(schema.customers.isActive, true),
+    search ? or(
+      like(schema.customers.name, `%${search}%`),
+      like(schema.customers.phone, `%${search}%`)
+    )! : undefined,
+  );
 
   const customers = await db.select({
     id: schema.customers.id,
     name: schema.customers.name,
     phone: schema.customers.phone,
+    whatsappNumber: schema.customers.whatsappNumber,
     email: schema.customers.email,
+    isActive: schema.customers.isActive,
   })
     .from(schema.customers)
-    .where(eq(schema.customers.isActive, true))
+    .where(customerCondition)
     .orderBy(asc(schema.customers.name));
 
   return c.json({ customers });
+});
+
+posRoutes.post('/customers', async (c) => {
+  const user = c.get('user');
+  if (!canManageCustomers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const payload = quickCustomerSchema.parse(await c.req.json());
+  const [created] = await db.insert(schema.customers).values({
+    name: payload.name,
+    phone: normalizePhone(payload.phone),
+    whatsappNumber: normalizeText(payload.whatsappNumber),
+    email: normalizeText(payload.email),
+    isActive: payload.isActive ?? true,
+    updatedAt: new Date().toISOString(),
+  }).returning();
+
+  await db.insert(schema.auditLogs).values({
+    userId: user.id,
+    action: 'create_customer',
+    entityType: 'customer',
+    entityId: created.id,
+    newValue: { name: created.name, phone: created.phone },
+  });
+
+  return c.json({ customer: created }, 201);
+});
+
+posRoutes.patch('/customers/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageCustomers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const customerId = c.req.param('id');
+  const payload = customerUpdateSchema.parse(await c.req.json());
+  const existing = await db.select().from(schema.customers).where(eq(schema.customers.id, customerId));
+  if (existing.length === 0) {
+    return c.json({ error: 'Customer not found' }, 404);
+  }
+
+  const updates = {
+    name: payload.name?.trim() || existing[0].name,
+    phone: payload.phone ? normalizePhone(payload.phone) : existing[0].phone,
+    whatsappNumber: payload.whatsappNumber !== undefined ? normalizeText(payload.whatsappNumber) : existing[0].whatsappNumber,
+    email: payload.email !== undefined ? normalizeText(payload.email) : existing[0].email,
+    isActive: payload.isActive ?? existing[0].isActive,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const [updated] = await db.update(schema.customers)
+    .set(updates)
+    .where(eq(schema.customers.id, customerId))
+    .returning();
+
+  await db.insert(schema.auditLogs).values({
+    userId: user.id,
+    action: 'update_customer',
+    entityType: 'customer',
+    entityId: updated.id,
+    oldValue: existing[0] as unknown as Record<string, unknown>,
+    newValue: updated as unknown as Record<string, unknown>,
+  });
+
+  return c.json({ customer: updated });
+});
+
+posRoutes.get('/customers/:id/history', async (c) => {
+  const user = c.get('user');
+  if (!canViewCustomers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const customerId = c.req.param('id');
+  const [customer] = await db.select({
+    id: schema.customers.id,
+    name: schema.customers.name,
+    phone: schema.customers.phone,
+    whatsappNumber: schema.customers.whatsappNumber,
+    email: schema.customers.email,
+    isActive: schema.customers.isActive,
+  }).from(schema.customers).where(eq(schema.customers.id, customerId));
+
+  if (!customer) {
+    return c.json({ error: 'Customer not found' }, 404);
+  }
+
+  const sales = await buildCustomerPurchaseHistory(customerId, branchId);
+  return c.json({
+    customer,
+    sales,
+    totalSpent: sales.reduce((sum, sale) => sum + sale.total, 0),
+  });
+});
+
+posRoutes.post('/customers/broadcasts', async (c) => {
+  const user = c.get('user');
+  if (!canBroadcast(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const payload = broadcastSchema.parse(await c.req.json());
+  const customers = await db.select({
+    id: schema.customers.id,
+    name: schema.customers.name,
+    phone: schema.customers.phone,
+    whatsappNumber: schema.customers.whatsappNumber,
+    isActive: schema.customers.isActive,
+  })
+    .from(schema.customers)
+    .where(inArray(schema.customers.id, payload.customerIds));
+
+  const activeCustomers = customers.filter((customer) => customer.isActive);
+  if (activeCustomers.length === 0) {
+    return c.json({ error: 'No active customers selected' }, 400);
+  }
+
+  const nowIso = new Date().toISOString();
+  if (payload.channel === 'whatsapp') {
+    const recipients = activeCustomers
+      .map((customer) => ({
+        id: customer.id,
+        name: customer.name,
+        phone: customer.whatsappNumber || customer.phone,
+      }))
+      .filter((customer) => customer.phone);
+
+    const links = recipients.map((customer) => ({
+      customerId: customer.id,
+      customerName: customer.name,
+      phone: customer.phone,
+      url: toWhatsappLink(customer.phone, payload.messageBody),
+    }));
+
+    const [broadcast] = await db.insert(schema.broadcasts).values({
+      channel: 'whatsapp',
+      messageBody: payload.messageBody,
+      createdBy: user.id,
+      recipientCount: links.length,
+      status: 'prepared',
+      metadata: { customerIds: links.map((link) => link.customerId) },
+      updatedAt: nowIso,
+    }).returning();
+
+    return c.json({
+      broadcast,
+      statusLabel: 'Prepared WhatsApp links',
+      links,
+    }, 201);
+  }
+
+  const smsConfigured = Boolean(process.env.SMS_PROVIDER_URL && process.env.SMS_PROVIDER_TOKEN);
+  const status = smsConfigured ? 'sent' : 'provider_not_configured';
+  const [broadcast] = await db.insert(schema.broadcasts).values({
+    channel: 'sms',
+    messageBody: payload.messageBody,
+    createdBy: user.id,
+    recipientCount: activeCustomers.length,
+    status,
+    metadata: { customerIds: activeCustomers.map((customer) => customer.id) },
+    updatedAt: nowIso,
+  }).returning();
+
+  return c.json({
+    broadcast,
+    message: smsConfigured ? 'SMS broadcast sent' : 'SMS provider not configured',
+  }, 201);
 });
 
 posRoutes.get('/shift/current', async (c) => {
@@ -467,7 +725,9 @@ posRoutes.get('/sales/today', async (c) => {
   }
 
   const branchId = await resolveBranchId(user);
-  const summary = await buildTodaySummary(branchId);
+  const paymentMethod = c.req.query('paymentMethod')?.trim() || null;
+  const receiptSearch = c.req.query('receiptSearch')?.trim() || null;
+  const summary = await buildSalesHistory(branchId, { paymentMethod, receiptSearch });
   return c.json(summary);
 });
 
@@ -575,11 +835,22 @@ posRoutes.post('/sales', async (c) => {
     return c.json({ error: 'Open a shift before checkout' }, 409);
   }
 
-  if (payload.customerId) {
-    const customer = await db.select().from(schema.customers).where(eq(schema.customers.id, payload.customerId));
+  let customerId = payload.customerId ?? null;
+  if (customerId) {
+    const customer = await db.select().from(schema.customers).where(eq(schema.customers.id, customerId));
     if (customer.length === 0 || !customer[0].isActive) {
       return c.json({ error: 'Customer not found' }, 404);
     }
+  } else if (payload.quickCustomer) {
+    const [createdCustomer] = await db.insert(schema.customers).values({
+      name: payload.quickCustomer.name,
+      phone: normalizePhone(payload.quickCustomer.phone),
+      whatsappNumber: normalizeText(payload.quickCustomer.whatsappNumber),
+      email: normalizeText(payload.quickCustomer.email),
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+    }).returning();
+    customerId = createdCustomer.id;
   }
 
   const requestedProductIds = [...new Set(payload.items.map((item) => item.productId))];
@@ -676,7 +947,7 @@ posRoutes.post('/sales', async (c) => {
       branchId,
       cashierId: user.id,
       shiftId: activeShift.id,
-      customerId: payload.customerId ?? null,
+      customerId,
       subtotal,
       discount: payload.discount,
       total,

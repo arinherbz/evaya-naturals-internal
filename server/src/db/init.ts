@@ -22,6 +22,20 @@ export async function initializeDatabase() {
   ensureColumn('shifts', 'bank_transfer_total', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('shifts', 'approved_at', 'TEXT');
   ensureColumn('daily_closes', 'shift_id', 'TEXT');
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id TEXT PRIMARY KEY NOT NULL,
+      channel TEXT NOT NULL,
+      message_body TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      recipient_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'prepared',
+      metadata TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
 
   // Create default roles if they don't exist
   const defaultRoles = [

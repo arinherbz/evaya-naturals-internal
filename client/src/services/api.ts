@@ -1,7 +1,10 @@
 import type {
+  BroadcastLink,
+  BroadcastRecord,
   Branch,
   Category,
-  CustomerOption,
+  Customer,
+  CustomerHistory,
   InventoryBatch,
   InventoryMovement,
   InventoryRow,
@@ -182,9 +185,32 @@ export const api = {
       const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return request<{ products: PosProduct[] }>(`/pos/products${suffix}`);
     },
-    customers: () => request<{ customers: CustomerOption[] }>('/pos/customers'),
+    customers: (params?: { search?: string; includeInactive?: boolean }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.includeInactive) searchParams.set('includeInactive', 'true');
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<{ customers: Customer[] }>(`/pos/customers${suffix}`);
+    },
+    createCustomer: (payload: { name: string; phone: string; whatsappNumber?: string | null; email?: string | null; isActive?: boolean }) =>
+      request<{ customer: Customer }>('/pos/customers', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    updateCustomer: (id: string, payload: Partial<{ name: string; phone: string; whatsappNumber?: string | null; email?: string | null; isActive: boolean }>) =>
+      request<{ customer: Customer }>(`/pos/customers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    customerHistory: (id: string) => request<CustomerHistory>(`/pos/customers/${id}/history`),
+    createBroadcast: (payload: { customerIds: string[]; messageBody: string; channel: 'whatsapp' | 'sms' }) =>
+      request<{ broadcast: BroadcastRecord; statusLabel?: string; message?: string; links?: BroadcastLink[] }>('/pos/customers/broadcasts', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
     createSale: (payload: {
       customerId?: string | null;
+      quickCustomer?: { name: string; phone: string; whatsappNumber?: string | null; email?: string | null } | null;
       discount: number;
       paymentMethod: string;
       paymentReference?: string | null;
@@ -195,7 +221,13 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    today: () => request<PosTodaySummary>('/pos/sales/today'),
+    today: (params?: { paymentMethod?: string; receiptSearch?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.paymentMethod) searchParams.set('paymentMethod', params.paymentMethod);
+      if (params?.receiptSearch) searchParams.set('receiptSearch', params.receiptSearch);
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<PosTodaySummary>(`/pos/sales/today${suffix}`);
+    },
     receipt: (id: string) => request<{ receipt: Receipt }>(`/pos/receipts/${id}`),
     currentShift: () => request<{ shift: ShiftSnapshot | null }>('/pos/shift/current'),
     openShift: (openingCash: number) =>

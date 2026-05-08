@@ -8,6 +8,7 @@ export * from './suppliers';
 export * from './inventory';
 export * from './batches';
 export * from './customers';
+export * from './broadcasts';
 export * from './sales';
 export * from './sale-items';
 export * from './deliveries';
