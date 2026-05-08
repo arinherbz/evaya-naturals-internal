@@ -455,7 +455,74 @@ export default function InventoryPage() {
                 <p className="mt-1 text-sm text-slate-500">Live stock with thresholds and batch warnings for Evaya Naturals.</p>
               </div>
             </div>
-            <div className="overflow-x-auto rounded-3xl border border-slate-100">
+            <div className="space-y-3 md:hidden">
+              {inventory.map((row) => (
+                <div key={row.id} className="rounded-[28px] bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-900">{row.productName}</p>
+                      <p className="mt-1 text-sm text-slate-500">{row.categoryName}</p>
+                    </div>
+                    <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                      {row.quantity} left
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <MobileValue label="Threshold" value={String(row.lowStockThreshold)} />
+                    <MobileValue label="Batches" value={String(row.batches.length)} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {row.lowStock && (
+                      <span className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        Low stock
+                      </span>
+                    )}
+                    {warningBadge(row.expiringSoonCount, 'expiring soon', 'amber')}
+                    {warningBadge(row.expiredCount, 'expired batches', 'rose')}
+                  </div>
+                  {canManageInventory && (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={thresholdDrafts[row.id] ?? String(row.lowStockThreshold)}
+                          onChange={(event) => setThresholdDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
+                          className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            thresholdMutation.mutate({
+                              id: row.id,
+                              threshold: Number(thresholdDrafts[row.id] ?? row.lowStockThreshold),
+                            });
+                          }}
+                          className="rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Save
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustmentForm((current) => ({
+                            ...current,
+                            branchId: row.branchId,
+                            productId: row.productId,
+                          }));
+                        }}
+                        className="rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Adjust stock
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-3xl border border-slate-100 md:block">
               <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
@@ -542,6 +609,15 @@ export default function InventoryPage() {
           </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MobileValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
     </div>
   );
 }

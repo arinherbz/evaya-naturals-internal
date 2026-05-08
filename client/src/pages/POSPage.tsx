@@ -287,7 +287,7 @@ export default function POSPage() {
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="space-y-6">
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_auto]">
+                <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto]">
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -298,7 +298,7 @@ export default function POSPage() {
                     {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift before checkout'}
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    {products.length} products ready
+                    {products.length} ready today
                   </div>
                 </div>
               </div>
@@ -324,7 +324,7 @@ export default function POSPage() {
                       type="button"
                       onClick={() => addToCart(product)}
                       disabled={!canCheckout || !currentShift}
-                      className="rounded-[28px] border border-white/70 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-70"
+                      className="rounded-[28px] border border-white/70 bg-white/90 p-4 text-left shadow-[0_20px_50px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-70 sm:p-5"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>

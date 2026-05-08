@@ -159,7 +159,7 @@ export default function CustomersPage() {
           <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
             <section className="space-y-6">
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="flex items-end justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h2 className="text-xl font-semibold">{editingCustomer ? 'Edit customer' : 'Create customer'}</h2>
                     <p className="mt-1 text-sm text-slate-500">Only the minimum fields needed for daily use.</p>
@@ -263,7 +263,7 @@ export default function CustomersPage() {
                             {customer.email ? ` · ${customer.email}` : ''}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
                           {canBroadcast && customer.isActive && (
                             <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
                               <input
