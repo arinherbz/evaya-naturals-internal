@@ -1,10 +1,9 @@
 import { FormEvent, useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
-import BrandMark from '../components/BrandMark';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import type { PosProduct, Receipt } from '../types';
+import type { PosProduct } from '../types';
 
 const currencyFormatter = new Intl.NumberFormat('en-UG', {
   style: 'currency',
@@ -43,8 +42,6 @@ export default function POSPage() {
   const [openingCash, setOpeningCash] = useState('0');
   const [countedCash, setCountedCash] = useState('');
   const [closeNotes, setCloseNotes] = useState('');
-  const [receiptSearch, setReceiptSearch] = useState('');
-  const [historyPaymentMethod, setHistoryPaymentMethod] = useState('');
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const [quickCustomerName, setQuickCustomerName] = useState('');
   const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
@@ -52,10 +49,8 @@ export default function POSPage() {
   const [quickCustomerEmail, setQuickCustomerEmail] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [pageError, setPageError] = useState('');
-  const [latestReceipt, setLatestReceipt] = useState<Receipt | null>(null);
-  const [activeReceipt, setActiveReceipt] = useState<Receipt | null>(null);
+  const [latestReceiptNumber, setLatestReceiptNumber] = useState('');
   const deferredSearch = useDeferredValue(search);
-  const deferredReceiptSearch = useDeferredValue(receiptSearch);
 
   const canCheckout = ['Admin', 'Cashier'].includes(user?.role.name ?? '');
 
@@ -80,14 +75,6 @@ export default function POSPage() {
     queryFn: () => api.settings.public(),
   });
 
-  const salesHistoryQuery = useQuery({
-    queryKey: ['pos-sales-history', deferredReceiptSearch, historyPaymentMethod],
-    queryFn: () => api.pos.today({
-      receiptSearch: deferredReceiptSearch || undefined,
-      paymentMethod: historyPaymentMethod || undefined,
-    }),
-  });
-
   const shiftQuery = useQuery({
     queryKey: ['pos-current-shift'],
     queryFn: () => api.pos.currentShift(),
@@ -99,21 +86,11 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-customers'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
-      queryClient.invalidateQueries({ queryKey: ['pos-sales-history'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
     ]);
   };
-
-  const receiptMutation = useMutation({
-    mutationFn: (receiptId: string) => api.pos.receipt(receiptId),
-    onSuccess: (payload) => {
-      setActiveReceipt(payload.receipt);
-      setPageError('');
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
 
   const createCustomerMutation = useMutation({
     mutationFn: () => api.pos.createCustomer({
@@ -151,9 +128,7 @@ export default function POSPage() {
       items: cart.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
     }),
     onSuccess: async (payload) => {
-      const receipt = await api.pos.receipt(payload.sale.id);
-      setLatestReceipt(receipt.receipt);
-      setActiveReceipt(receipt.receipt);
+      setLatestReceiptNumber(payload.receiptNumber);
       setCart([]);
       setCustomerId('');
       setDiscount('0');
@@ -200,7 +175,6 @@ export default function POSPage() {
   const today = todaySummaryQuery.data;
   const enabledPaymentMethods = paymentMethodOptions.filter((option) => settingsQuery.data?.paymentMethods?.[option.value] ?? true);
   const currentShift = shiftQuery.data?.shift ?? null;
-  const visibleReceipt = activeReceipt ?? latestReceipt;
   const subtotal = cart.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
 
@@ -281,7 +255,7 @@ export default function POSPage() {
 
           {!canCheckout && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              You can review sales and receipts here, but only Admin and Cashier can open shifts or checkout.
+              Only Admin and Cashier can open shifts or checkout.
             </div>
           )}
 
@@ -317,7 +291,7 @@ export default function POSPage() {
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by product, SKU, or barcode"
+                    placeholder="Search product, SKU, or barcode"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
@@ -355,10 +329,7 @@ export default function POSPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-lg font-semibold">{product.name}</p>
-                          <p className="mt-1 text-sm text-slate-500">{product.categoryName} · {product.unitType.toUpperCase()}</p>
-                          <p className="mt-2 text-xs text-slate-400">
-                            {product.sku || 'No SKU'} · {product.barcode || 'No barcode'}
-                          </p>
+                          <p className="mt-1 text-sm text-slate-500">{product.categoryName}</p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                           {product.availableQuantity} left
@@ -367,16 +338,8 @@ export default function POSPage() {
                       <div className="mt-4 flex items-end justify-between gap-4">
                         <div>
                           <p className="text-xl font-semibold">{currencyFormatter.format(product.sellingPrice)}</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {product.nextExpiryDate ? `Next expiry ${new Date(product.nextExpiryDate).toLocaleDateString()}` : 'No expiry tracked'}
-                          </p>
                         </div>
                         <div className="text-right">
-                          {product.lowStock && (
-                            <span className="inline-flex rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                              Low stock
-                            </span>
-                          )}
                           {inCartQuantity > 0 && (
                             <p className="mt-2 text-xs font-medium text-emerald-700">{inCartQuantity} in cart</p>
                           )}
@@ -386,79 +349,21 @@ export default function POSPage() {
                   );
                 })}
               </div>
-
-              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold">Sales history</h2>
-                    <p className="mt-1 text-sm text-slate-500">Today’s receipts with a fast receipt search and payment filter.</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                      value={receiptSearch}
-                      onChange={(event) => setReceiptSearch(event.target.value)}
-                      placeholder="Search receipt number"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    />
-                    <select
-                      value={historyPaymentMethod}
-                      onChange={(event) => setHistoryPaymentMethod(event.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      <option value="">All payments</option>
-                      {paymentMethodOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-3">
-                  {salesHistoryQuery.isLoading && (
-                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      Loading sales history…
-                    </div>
-                  )}
-                  {!salesHistoryQuery.isLoading && (salesHistoryQuery.data?.sales ?? []).length === 0 && (
-                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      No receipts matched today’s filters.
-                    </div>
-                  )}
-                  {(salesHistoryQuery.data?.sales ?? []).map((sale) => (
-                    <button
-                      key={sale.id}
-                      type="button"
-                      onClick={() => receiptMutation.mutate(sale.id)}
-                      className="flex w-full items-center justify-between rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/50"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-900">{sale.receiptNumber}</p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {new Date(sale.createdAt).toLocaleTimeString()} · {formatPaymentMethod(sale.paymentMethod)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-slate-900">{currencyFormatter.format(sale.total)}</p>
-                        <p className="mt-1 text-xs text-slate-400">Open receipt</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
             </section>
 
             <section className="space-y-6">
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <div className="rounded-[32px] bg-white/92 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">Review quantities, attach the customer, apply a discount, and complete the receipt.</p>
+                <p className="mt-1 text-sm text-slate-500">Review, take payment, and complete checkout.</p>
 
                 <div className="mt-5 space-y-3">
                   {cart.length === 0 && (
-                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      Cart is empty. Tap a product card to add it.
+                    <div className="rounded-3xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                      No items yet
                     </div>
                   )}
                   {cart.map((line) => (
-                    <div key={line.product.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
+                    <div key={line.product.id} className="rounded-3xl bg-slate-50 px-4 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="font-medium text-slate-900">{line.product.name}</p>
@@ -516,7 +421,7 @@ export default function POSPage() {
                     ))}
                   </select>
                   {selectedCustomer && (
-                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                       Linked customer: {selectedCustomer.name} · {selectedCustomer.phone}
                     </div>
                   )}
@@ -532,7 +437,7 @@ export default function POSPage() {
                     {showQuickCustomer ? 'Hide quick customer' : 'Quick create customer'}
                   </button>
                   {showQuickCustomer && (
-                    <div className="grid gap-3 rounded-3xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="grid gap-3 rounded-3xl bg-slate-50 p-4">
                       <input
                         value={quickCustomerName}
                         onChange={(event) => setQuickCustomerName(event.target.value)}
@@ -612,7 +517,7 @@ export default function POSPage() {
                   />
                 </div>
 
-                <div className="mt-5 rounded-3xl bg-slate-50 p-4">
+                <div className="mt-6 rounded-3xl bg-slate-50 p-5">
                   <div className="flex items-center justify-between text-sm text-slate-500">
                     <span>Subtotal</span>
                     <span>{currencyFormatter.format(subtotal)}</span>
@@ -626,6 +531,12 @@ export default function POSPage() {
                     <span>{currencyFormatter.format(total)}</span>
                   </div>
                 </div>
+
+                {latestReceiptNumber && (
+                  <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    Sale complete · {latestReceiptNumber}
+                  </div>
+                )}
 
                 <button
                   type="button"
@@ -686,32 +597,6 @@ export default function POSPage() {
                   </form>
                 )}
               </div>
-
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold">Receipt</h2>
-                    <p className="mt-1 text-sm text-slate-500">Latest checkout or any receipt you open from today’s history.</p>
-                  </div>
-                  {visibleReceipt && (
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Print
-                    </button>
-                  )}
-                </div>
-                {!visibleReceipt && (
-                  <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    No receipt selected yet.
-                  </div>
-                )}
-                {visibleReceipt && (
-                    <ReceiptCard receipt={visibleReceipt} />
-                )}
-              </div>
             </section>
           </div>
         </div>
@@ -727,58 +612,4 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
-}
-
-function ReceiptCard({ receipt }: { receipt: Receipt }) {
-  return (
-    <div className="mt-5 rounded-3xl bg-slate-50 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <BrandMark compact className="mb-3" />
-          <p className="text-sm font-medium text-slate-700">{receipt.businessName}</p>
-          <p className="mt-2 text-lg font-semibold">{receipt.receiptNumber}</p>
-          <p className="mt-1 text-xs text-slate-400">{new Date(receipt.createdAt).toLocaleString()}</p>
-          <p className="mt-3 text-sm text-slate-600">Cashier: {receipt.cashierName}</p>
-          <p className="mt-1 text-sm text-slate-600">
-            Customer: {receipt.customerName ? `${receipt.customerName}${receipt.customerPhone ? ` · ${receipt.customerPhone}` : ''}` : 'Walk-in'}
-          </p>
-        </div>
-        <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-          {formatPaymentMethod(receipt.paymentMethod)}
-        </div>
-      </div>
-      <div className="mt-4 space-y-2">
-        {receipt.items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between text-sm">
-            <span>{item.productName} × {item.quantity}</span>
-            <span>{currencyFormatter.format(item.total)}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 space-y-1 border-t border-slate-200 pt-4 text-sm">
-        <div className="flex items-center justify-between text-slate-500">
-          <span>Subtotal</span>
-          <span>{currencyFormatter.format(receipt.subtotal)}</span>
-        </div>
-        <div className="flex items-center justify-between text-slate-500">
-          <span>Discount</span>
-          <span>{currencyFormatter.format(receipt.discount)}</span>
-        </div>
-        <div className="flex items-center justify-between font-semibold text-slate-900">
-          <span>Total</span>
-          <span>{currencyFormatter.format(receipt.total)}</span>
-        </div>
-      </div>
-      {receipt.receiptFooterMessage && (
-        <p className="mt-4 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
-          {receipt.receiptFooterMessage}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function formatPaymentMethod(value: string) {
-  const match = paymentMethodOptions.find((option) => option.value === value);
-  return match?.label ?? value;
 }
