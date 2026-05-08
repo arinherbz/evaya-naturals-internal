@@ -136,9 +136,9 @@ export default function ExpensesPage() {
               <div>
                 <BrandMark />
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Expenses</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Keep daily spending tidy</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Expenses</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Record only what matters, review the total quickly, and let reports pull from the same clean ledger.
+                  Record daily spending and review it quickly.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -183,7 +183,7 @@ export default function ExpensesPage() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold">{expenseId ? 'Edit expense' : 'Add expense'}</h2>
-                  <p className="mt-1 text-sm text-slate-500">Short fields, quick entry, no approvals clutter.</p>
+                  <p className="mt-1 text-sm text-slate-500">Short fields and quick entry.</p>
                 </div>
               </div>
               <form className="mt-5 grid gap-3" onSubmit={handleSubmit}>
@@ -259,7 +259,7 @@ export default function ExpensesPage() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold">Expense list</h2>
-                  <p className="mt-1 text-sm text-slate-500">Only the selected date range, with a quick total at the top.</p>
+                  <p className="mt-1 text-sm text-slate-500">Only the dates you chose.</p>
                 </div>
               </div>
               <div className="mt-5 space-y-3">

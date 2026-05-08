@@ -233,15 +233,15 @@ export default function POSPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Evaya Naturals POS</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Fast cashier checkout</h1>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">POS</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quick checkout</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Open shift, sell quickly, capture the customer when needed, then close and reconcile cleanly.
+                  Sell quickly, add a customer when needed, and finish cleanly.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <MetricCard label="Today's sales" value={currencyFormatter.format(today?.totalSales ?? 0)} />
-                <MetricCard label="Receipts today" value={String(today?.salesCount ?? 0)} />
+                <MetricCard label="Sales" value={currencyFormatter.format(today?.totalSales ?? 0)} />
+                <MetricCard label="Receipts" value={String(today?.salesCount ?? 0)} />
                 <MetricCard label="Shift" value={currentShift ? 'Open' : 'Closed'} />
               </div>
             </div>
@@ -255,14 +255,14 @@ export default function POSPage() {
 
           {!canCheckout && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Only Admin and Cashier can open shifts or checkout.
+              Only Admin and Cashier can sell from POS.
             </div>
           )}
 
           {canCheckout && !currentShift && (
             <section className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-5">
               <h2 className="text-lg font-semibold text-amber-900">Open shift first</h2>
-              <p className="mt-1 text-sm text-amber-800">Checkout stays locked until the cashier opens a shift.</p>
+              <p className="mt-1 text-sm text-amber-800">Open a shift before checkout.</p>
               <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleOpenShift}>
                 <input
                   type="number"
@@ -295,7 +295,7 @@ export default function POSPage() {
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                    {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift before checkout'}
+                    {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift to start'}
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
                     {products.length} ready today
@@ -311,7 +311,7 @@ export default function POSPage() {
                 )}
                 {!productsQuery.isLoading && products.length === 0 && (
                   <div className="md:col-span-2 rounded-[28px] border border-dashed border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500">
-                    No products matched this search.
+                    No products found.
                   </div>
                 )}
                 {products.map((product) => {
@@ -329,7 +329,7 @@ export default function POSPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-lg font-semibold">{product.name}</p>
-                          <p className="mt-1 text-sm text-slate-500">{product.categoryName}</p>
+                          <p className="mt-1 text-sm text-slate-500">{product.categoryName} · {product.unitType.toUpperCase()}</p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                           {product.availableQuantity} left
@@ -354,7 +354,7 @@ export default function POSPage() {
             <section className="space-y-6">
               <div className="rounded-[32px] bg-white/92 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">Review, take payment, and finish the sale.</p>
+                <p className="mt-1 text-sm text-slate-500">Add items, take payment, and finish.</p>
 
                 <div className="mt-5 space-y-3">
                   {cart.length === 0 && (
@@ -367,7 +367,7 @@ export default function POSPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="font-medium text-slate-900">{line.product.name}</p>
-                          <p className="mt-1 text-xs text-slate-400">{currencyFormatter.format(line.product.sellingPrice)} each</p>
+                          <p className="mt-1 text-xs text-slate-400">{currencyFormatter.format(line.product.sellingPrice)}</p>
                         </div>
                         <button
                           type="button"
@@ -413,7 +413,7 @@ export default function POSPage() {
                     disabled={!canCheckout}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                   >
-                    <option value="">Walk-in customer</option>
+                    <option value="">Walk-in</option>
                     {customers.filter((entry) => entry.isActive).map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customer.name} · {customer.phone}
@@ -434,7 +434,7 @@ export default function POSPage() {
                     }}
                     className="justify-self-start rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {showQuickCustomer ? 'Hide quick customer' : 'Quick create customer'}
+                    {showQuickCustomer ? 'Hide quick add' : 'Add customer'}
                   </button>
                   {showQuickCustomer && (
                     <div className="grid gap-3 rounded-3xl bg-slate-50 p-4">
@@ -484,7 +484,7 @@ export default function POSPage() {
                       value={discount}
                       onChange={(event) => setDiscount(event.target.value)}
                       disabled={!canCheckout}
-                      placeholder="Discount (UGX)"
+                        placeholder="Discount"
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                     />
                     <select
@@ -534,7 +534,7 @@ export default function POSPage() {
 
                 {latestReceiptNumber && (
                   <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    Sale complete · {latestReceiptNumber}
+                    Sale complete · Receipt {latestReceiptNumber}
                   </div>
                 )}
 
@@ -552,8 +552,8 @@ export default function POSPage() {
               </div>
 
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Shift review</h2>
-                <p className="mt-1 text-sm text-slate-500">Use this to reconcile and close the cashier session.</p>
+                <h2 className="text-xl font-semibold">Cash-Up</h2>
+                <p className="mt-1 text-sm text-slate-500">Review totals and close the shift.</p>
                 {!currentShift && (
                   <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
                     No active shift yet.
@@ -567,7 +567,7 @@ export default function POSPage() {
                         <span>{currencyFormatter.format(currentShift.paymentTotals.cash + currentShift.openingCash)}</span>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-sm text-slate-500">
-                        <span>Digital payments</span>
+                        <span>Digital</span>
                         <span>{currencyFormatter.format(currentShift.paymentTotals.mtnMobileMoney + currentShift.paymentTotals.airtelMoney + currentShift.paymentTotals.card + currentShift.paymentTotals.bankTransfer)}</span>
                       </div>
                     </div>
@@ -583,7 +583,7 @@ export default function POSPage() {
                     <textarea
                       value={closeNotes}
                       onChange={(event) => setCloseNotes(event.target.value)}
-                      placeholder="Close notes"
+                      placeholder="Notes"
                       rows={3}
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     />

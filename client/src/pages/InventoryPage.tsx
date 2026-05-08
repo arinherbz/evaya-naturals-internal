@@ -226,10 +226,10 @@ export default function InventoryPage() {
           <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory Ops</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Branch stock and batch receiving</h1>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Current Stock</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Watch Evaya Naturals stock, receive new batches, and adjust quantities with clear reasons.
+                  See what is low, add stock, and keep quantities accurate.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -263,28 +263,28 @@ export default function InventoryPage() {
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             />
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              Operating branch: {primaryBranch?.name ?? 'Evaya Naturals'}
+              Evaya Naturals
             </div>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             >
-              <option value="all">All stock states</option>
+              <option value="all">All items</option>
               <option value="low">Low stock</option>
               <option value="expiring">Expiring soon</option>
               <option value="expired">Expired</option>
             </select>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              {canManageInventory ? 'Mutations enabled for your role' : 'Read-only inventory visibility'}
+              {inventory.length} items
             </div>
           </div>
 
           {canManageInventory && (
             <div className="grid gap-6 xl:grid-cols-2">
               <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Receive batch</h2>
-                <p className="mt-1 text-sm text-slate-500">Create a supplier-linked batch, set expiry, and increase Evaya Naturals stock.</p>
+                <h2 className="text-xl font-semibold">Add Stock</h2>
+                <p className="mt-1 text-sm text-slate-500">Add new stock and save expiry details.</p>
                 <form className="mt-5 grid gap-3" onSubmit={handleBatchSubmit}>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -304,7 +304,7 @@ export default function InventoryPage() {
                       ))}
                     </select>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                      Receiving into {primaryBranch?.name ?? 'Evaya Naturals'}
+                      Adding to {primaryBranch?.name ?? 'Evaya Naturals'}
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -339,7 +339,7 @@ export default function InventoryPage() {
                       min="1"
                       value={batchForm.quantityReceived}
                       onChange={(event) => setBatchForm((current) => ({ ...current, quantityReceived: event.target.value }))}
-                      placeholder="Qty received"
+                      placeholder="Quantity"
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                       required
                     />
@@ -366,14 +366,14 @@ export default function InventoryPage() {
                     disabled={batchMutation.isPending}
                     className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
                   >
-                    {batchMutation.isPending ? 'Receiving…' : 'Receive stock'}
+                    {batchMutation.isPending ? 'Saving…' : 'Add Stock'}
                   </button>
                 </form>
               </section>
 
               <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Adjust stock</h2>
-                <p className="mt-1 text-sm text-slate-500">Record adjustments, damages, expiries, and returns with a clear reason.</p>
+                <h2 className="text-xl font-semibold">Update Stock</h2>
+                <p className="mt-1 text-sm text-slate-500">Fix counts and record damaged, expired, or returned items.</p>
                 <form className="mt-5 grid gap-3" onSubmit={handleAdjustmentSubmit}>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -392,7 +392,7 @@ export default function InventoryPage() {
                       ))}
                     </select>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                      Recording against {primaryBranch?.name ?? 'Evaya Naturals'}
+                      Updating {primaryBranch?.name ?? 'Evaya Naturals'}
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
@@ -413,7 +413,7 @@ export default function InventoryPage() {
                       onChange={(event) => setAdjustmentForm((current) => ({ ...current, movementType: event.target.value as AdjustmentFormState['movementType'] }))}
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     >
-                      <option value="adjustment">Adjustment</option>
+                      <option value="adjustment">Stock count correction</option>
                       <option value="damaged">Damaged</option>
                       <option value="expired">Expired</option>
                       <option value="returned">Returned</option>
@@ -422,7 +422,7 @@ export default function InventoryPage() {
                       type="number"
                       value={adjustmentForm.quantityDelta}
                       onChange={(event) => setAdjustmentForm((current) => ({ ...current, quantityDelta: event.target.value }))}
-                      placeholder="Signed quantity delta"
+                      placeholder="Quantity change"
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                       required
                     />
@@ -430,7 +430,7 @@ export default function InventoryPage() {
                   <textarea
                     value={adjustmentForm.reason}
                     onChange={(event) => setAdjustmentForm((current) => ({ ...current, reason: event.target.value }))}
-                    placeholder="Reason for this stock movement"
+                    placeholder="Reason"
                     rows={3}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     required
@@ -440,7 +440,7 @@ export default function InventoryPage() {
                     disabled={adjustmentMutation.isPending}
                     className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {adjustmentMutation.isPending ? 'Posting…' : 'Record movement'}
+                    {adjustmentMutation.isPending ? 'Saving…' : 'Update Stock'}
                   </button>
                 </form>
               </section>
@@ -450,8 +450,8 @@ export default function InventoryPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Inventory overview</h2>
-                <p className="mt-1 text-sm text-slate-500">Live stock with thresholds and batch warnings for Evaya Naturals.</p>
+                <h2 className="text-xl font-semibold">Current Stock</h2>
+                <p className="mt-1 text-sm text-slate-500">Watch low items and products nearing expiry.</p>
               </div>
             </div>
             <div className="space-y-3 md:hidden">
@@ -467,7 +467,7 @@ export default function InventoryPage() {
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <MobileValue label="Threshold" value={String(row.lowStockThreshold)} />
+                    <MobileValue label="Low stock level" value={String(row.lowStockThreshold)} />
                     <MobileValue label="Batches" value={String(row.batches.length)} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -513,7 +513,7 @@ export default function InventoryPage() {
                         }}
                         className="rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                       >
-                        Adjust stock
+                        Update Stock
                       </button>
                     </div>
                   )}
@@ -527,7 +527,7 @@ export default function InventoryPage() {
                   <tr>
                     <th className="px-4 py-3 font-medium">Product</th>
                     <th className="px-4 py-3 font-medium">Quantity</th>
-                    <th className="px-4 py-3 font-medium">Threshold</th>
+                    <th className="px-4 py-3 font-medium">Low stock level</th>
                     <th className="px-4 py-3 font-medium">Warnings</th>
                     {canManageInventory && <th className="px-4 py-3 font-medium">Actions</th>}
                   </tr>
@@ -538,7 +538,7 @@ export default function InventoryPage() {
                       <td className="px-4 py-4">
                         <div className="font-medium">{row.productName}</div>
                         <div className="mt-1 text-xs text-slate-400">
-                          {row.categoryName} · {row.sku || 'No SKU'} · {row.unitType.toUpperCase()}
+                          {row.categoryName} · {row.unitType.toUpperCase()}
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -596,7 +596,7 @@ export default function InventoryPage() {
                             }}
                             className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            Adjust stock
+                            Update Stock
                           </button>
                         </td>
                       )}

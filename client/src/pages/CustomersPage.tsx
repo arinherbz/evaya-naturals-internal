@@ -17,6 +17,16 @@ function getErrorMessage(error: unknown) {
   return 'Something went wrong';
 }
 
+function formatBroadcastStatus(status: string) {
+  if (status === 'SMS provider not configured' || status === 'provider_not_configured') {
+    return 'SMS is not set up yet.';
+  }
+  if (status === 'Prepared WhatsApp links') {
+    return 'WhatsApp links are ready. Staff will send them manually.';
+  }
+  return status;
+}
+
 export default function CustomersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -94,7 +104,7 @@ export default function CustomersPage() {
     }),
     onSuccess: (payload) => {
       setBroadcastLinks(payload.links ?? []);
-      setBroadcastStatus(payload.statusLabel ?? payload.message ?? payload.broadcast.status);
+      setBroadcastStatus(formatBroadcastStatus(payload.statusLabel ?? payload.message ?? payload.broadcast.status));
       setPageError('');
     },
     onError: (error) => setPageError(getErrorMessage(error)),
@@ -143,10 +153,10 @@ export default function CustomersPage() {
       <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Customer desk</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Simple customer records and broadcast prep</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Customers</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Customers</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Keep the customer list clean, attach customers to sales, and prepare outreach without pretending it was sent automatically.
+              Keep the customer list clean and easy to use.
             </p>
           </section>
 
@@ -162,7 +172,7 @@ export default function CustomersPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h2 className="text-xl font-semibold">{editingCustomer ? 'Edit customer' : 'Create customer'}</h2>
-                    <p className="mt-1 text-sm text-slate-500">Only the minimum fields needed for daily use.</p>
+                    <p className="mt-1 text-sm text-slate-500">Only the details staff need every day.</p>
                   </div>
                   {editingCustomer && (
                     <button
@@ -214,7 +224,7 @@ export default function CustomersPage() {
                       onChange={(event) => setIsActive(event.target.checked)}
                       disabled={!canManageCustomers}
                     />
-                    Active customer
+                    Show in customer list
                   </label>
                   <button
                     type="submit"
@@ -258,7 +268,7 @@ export default function CustomersPage() {
                           </button>
                           <p className="mt-1 text-sm text-slate-500">{customer.phone}</p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {customer.isActive ? 'Active' : 'Inactive'}
+                            {customer.isActive ? 'Available' : 'Hidden'}
                             {customer.whatsappNumber ? ` · WhatsApp ${customer.whatsappNumber}` : ''}
                             {customer.email ? ` · ${customer.email}` : ''}
                           </p>
@@ -338,8 +348,8 @@ export default function CustomersPage() {
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-semibold">Broadcast helper</h2>
-                    <p className="mt-1 text-sm text-slate-500">Prepare customer outreach without pretending it was sent automatically.</p>
+                    <h2 className="text-xl font-semibold">Message Customers</h2>
+                    <p className="mt-1 text-sm text-slate-500">Prepare messages for staff to send manually.</p>
                   </div>
                   <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                     {selectedRecipients.length} selected
@@ -347,7 +357,7 @@ export default function CustomersPage() {
                 </div>
                 {!canBroadcast && (
                   <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Only Admin and Branch Manager can prepare broadcasts.
+                    Only Admin and Branch Manager can message customers.
                   </div>
                 )}
                 <div className="mt-5 grid gap-3">
@@ -364,7 +374,7 @@ export default function CustomersPage() {
                     value={broadcastMessage}
                     onChange={(event) => setBroadcastMessage(event.target.value)}
                     rows={5}
-                    placeholder="Type the message body"
+                    placeholder="Type your message"
                     disabled={!canBroadcast}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                   />
@@ -377,7 +387,7 @@ export default function CustomersPage() {
                     }}
                     className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {broadcastMutation.isPending ? 'Preparing…' : broadcastChannel === 'whatsapp' ? 'Prepare WhatsApp links' : 'Prepare SMS broadcast'}
+                    {broadcastMutation.isPending ? 'Preparing…' : broadcastChannel === 'whatsapp' ? 'Prepare WhatsApp links' : 'Prepare SMS'}
                   </button>
                 </div>
 
@@ -409,8 +419,8 @@ export default function CustomersPage() {
               </div>
 
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Active customer count</h2>
-                <p className="mt-1 text-sm text-slate-500">A small operational view of who is reachable right now.</p>
+                <h2 className="text-xl font-semibold">Reachable now</h2>
+                <p className="mt-1 text-sm text-slate-500">Customers ready to message.</p>
                 <div className="mt-5 rounded-3xl bg-slate-50 p-4">
                   <p className="text-3xl font-semibold text-slate-900">{activeCustomers.length}</p>
                   <p className="mt-1 text-sm text-slate-500">active customers</p>

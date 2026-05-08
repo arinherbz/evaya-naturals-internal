@@ -234,9 +234,9 @@ export default function SettingsPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <BrandMark />
             <p className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Settings</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Keep the admin surface small</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Settings</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Business profile, staff access, payment methods, and the few defaults that actually affect daily operations.
+              Only the settings the team needs every day.
             </p>
           </section>
 
@@ -248,7 +248,7 @@ export default function SettingsPage() {
 
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <section className="space-y-6">
-              <Card title="Business profile" subtitle="One active business, fixed currency, clean brand basics.">
+              <Card title="Business profile" subtitle="Your business details and logo.">
                 <form className="grid gap-3" onSubmit={handleBusinessSubmit}>
                   <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Logo preview</p>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                 </form>
               </Card>
 
-              <Card title="System defaults" subtitle="Only the settings that affect expiry, low stock, receipts, and reports.">
+              <Card title="Stock alerts" subtitle="Expiry, low stock, and footer messages.">
                 <form className="grid gap-3" onSubmit={handleSystemSubmit}>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <input
@@ -322,7 +322,7 @@ export default function SettingsPage() {
                       min="1"
                       value={lowStockDefaultThreshold}
                       onChange={(event) => setLowStockDefaultThreshold(event.target.value)}
-                      placeholder="Default low stock threshold"
+                      placeholder="Default low stock level"
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                       required
                     />
@@ -346,12 +346,12 @@ export default function SettingsPage() {
                     disabled={systemMutation.isPending}
                     className="justify-self-start rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {systemMutation.isPending ? 'Saving…' : 'Save system defaults'}
+                    {systemMutation.isPending ? 'Saving…' : 'Save stock alerts'}
                   </button>
                 </form>
               </Card>
 
-              <Card title="Payment methods" subtitle="Enable only what the counter should actually use right now.">
+              <Card title="Payment types" subtitle="Turn on only what staff should use at the counter.">
                 <form className="grid gap-3" onSubmit={handlePaymentMethodsSubmit}>
                   {[
                     ['cash', 'Cash'],
@@ -378,14 +378,14 @@ export default function SettingsPage() {
                     disabled={paymentMethodsMutation.isPending}
                     className="justify-self-start rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {paymentMethodsMutation.isPending ? 'Saving…' : 'Save payment methods'}
+                    {paymentMethodsMutation.isPending ? 'Saving…' : 'Save payment types'}
                   </button>
                 </form>
               </Card>
             </section>
 
             <section className="space-y-6">
-              <Card title={editingUserId ? 'Edit staff user' : 'Create staff user'} subtitle="No public signup. Every staff account is created here by Admin.">
+              <Card title={editingUserId ? 'Edit staff' : 'Add staff'} subtitle="Admin creates every staff account here.">
                 <form className="grid gap-3" onSubmit={handleStaffSubmit}>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <input
@@ -439,7 +439,7 @@ export default function SettingsPage() {
                     />
                   )}
                   <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    <span>Active user</span>
+                        <span>Active</span>
                     <input
                       type="checkbox"
                       checked={isActive}
@@ -453,7 +453,7 @@ export default function SettingsPage() {
                       disabled={staffMutation.isPending}
                       className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                     >
-                      {staffMutation.isPending ? 'Saving…' : editingUserId ? 'Save user' : 'Create user'}
+                      {staffMutation.isPending ? 'Saving…' : editingUserId ? 'Save staff' : 'Add staff'}
                     </button>
                     {editingUserId && (
                       <button
@@ -461,14 +461,14 @@ export default function SettingsPage() {
                         onClick={resetStaffForm}
                         className="rounded-full border border-slate-200 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
-                        New user
+                        New staff
                       </button>
                     )}
                   </div>
                 </form>
               </Card>
 
-              <Card title="Staff users" subtitle={`${activeUsers.length} active users across the single-branch MVP.`}>
+              <Card title="Staff" subtitle={`${activeUsers.length} active staff members.`}>
                 <div className="space-y-3">
                   {users.length === 0 && (
                     <EmptyState text="No staff users yet." />
@@ -482,7 +482,7 @@ export default function SettingsPage() {
                             {user.role.name} · {user.email} · {user.isActive ? 'Active' : 'Inactive'}
                           </p>
                           <p className="mt-2 text-sm text-slate-500">
-                            Last login {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
+                            Last sign in {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">

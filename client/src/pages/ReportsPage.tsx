@@ -86,9 +86,9 @@ export default function ReportsPage() {
               <div>
                 <BrandMark />
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Reports</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Preview the report before you download</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Reports</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Daily, weekly, or custom reporting for Evaya Naturals with a live preview that matches the PDF closely.
+                  Preview first, then download.
                 </p>
               </div>
               <button
@@ -117,7 +117,7 @@ export default function ReportsPage() {
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
-                <option value="custom">Custom range</option>
+                <option value="custom">Choose dates</option>
               </select>
               <input
                 type="date"
@@ -144,7 +144,7 @@ export default function ReportsPage() {
               <BrandMark className="justify-center sm:justify-start" />
               <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Report preview</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Preview</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">{report ? `${report.businessName} · ${report.title}` : 'Loading report'}</h2>
                   <p className="mt-2 text-sm text-slate-500">
                     {report?.periodLabel ?? 'Preparing date range'} · Generated {previewGeneratedAt}
@@ -157,15 +157,15 @@ export default function ReportsPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <PreviewMetric label="Total sales" value={currencyFormatter.format(report?.totalSales ?? 0)} />
-              <PreviewMetric label="Expenses total" value={currencyFormatter.format(report?.expensesTotal ?? 0)} />
-              <PreviewMetric label="Net amount" value={currencyFormatter.format(report?.netAmount ?? 0)} />
-              <PreviewMetric label="Number of sales" value={String(report?.salesCount ?? 0)} />
+              <PreviewMetric label="Sales" value={currencyFormatter.format(report?.totalSales ?? 0)} />
+              <PreviewMetric label="Expenses" value={currencyFormatter.format(report?.expensesTotal ?? 0)} />
+              <PreviewMetric label="Net" value={currencyFormatter.format(report?.netAmount ?? 0)} />
+              <PreviewMetric label="Receipts" value={String(report?.salesCount ?? 0)} />
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
               <section className="space-y-6">
-                <PreviewPanel title="Payment totals" description={`Discounts ${currencyFormatter.format(report?.totalDiscounts ?? 0)}`}>
+                <PreviewPanel title="Payment" description={`Discounts ${currencyFormatter.format(report?.totalDiscounts ?? 0)}`}>
                   <StatusRow label="Cash" value={currencyFormatter.format(report?.paymentTotals.cash ?? 0)} />
                   <StatusRow label="MTN Mobile Money" value={currencyFormatter.format(report?.paymentTotals.mtnMobileMoney ?? 0)} />
                   <StatusRow label="Airtel Money" value={currencyFormatter.format(report?.paymentTotals.airtelMoney ?? 0)} />
@@ -173,7 +173,7 @@ export default function ReportsPage() {
                   <StatusRow label="Bank Transfer" value={currencyFormatter.format(report?.paymentTotals.bankTransfer ?? 0)} />
                 </PreviewPanel>
 
-                <PreviewPanel title="Best-selling products" description="Top movers in the selected range.">
+                <PreviewPanel title="Best sellers" description="Top products in this period.">
                   {(report?.bestSellingProducts ?? []).length === 0 && (
                     <EmptyState text="No sales in the selected period." />
                   )}
@@ -186,7 +186,7 @@ export default function ReportsPage() {
                   ))}
                 </PreviewPanel>
 
-                <PreviewPanel title="Low stock summary" description={`${report?.lowStockSummary.count ?? 0} products need attention.`}>
+                <PreviewPanel title="Low Stock" description={`${report?.lowStockSummary.count ?? 0} products need attention.`}>
                   {(report?.lowStockSummary.items ?? []).length === 0 && (
                     <EmptyState text="No low stock products right now." />
                   )}
@@ -202,7 +202,7 @@ export default function ReportsPage() {
 
               <section className="space-y-6">
                 <PreviewPanel
-                  title="Shift and cash-up summary"
+                  title="Cash-Up"
                   description={`Variance ${currencyFormatter.format(report?.shiftSummary.varianceTotal ?? 0)}`}
                 >
                   {(report?.shiftSummary.shifts ?? []).length === 0 && (
@@ -231,7 +231,7 @@ export default function ReportsPage() {
                               disabled={approveMutation.isPending}
                               className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                             >
-                              Approve close
+                              Approve
                             </button>
                           )}
                         </div>
@@ -240,7 +240,7 @@ export default function ReportsPage() {
                   ))}
                 </PreviewPanel>
 
-                <PreviewPanel title="Expense lines" description="The same entries feed the report total and PDF output.">
+                <PreviewPanel title="Expenses" description="These entries feed the total and PDF.">
                   {(report?.expenses ?? []).length === 0 && (
                     <EmptyState text="No expenses in the selected period." />
                   )}

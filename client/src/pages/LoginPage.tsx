@@ -33,8 +33,8 @@ export default function LoginPage() {
           <div className="inline-flex rounded-[28px] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
             <BrandMark />
           </div>
-          <h1 className="mt-5 text-2xl font-semibold text-gray-900">Daily operations for Evaya Naturals</h1>
-          <p className="mt-2 text-gray-600">Calm, fast internal workflow for the active branch MVP.</p>
+          <h1 className="mt-5 text-2xl font-semibold text-gray-900">Welcome to Evaya Naturals</h1>
+          <p className="mt-2 text-gray-600">Sign in to start the day.</p>
         </div>
 
         <div className="rounded-[30px] border border-white/80 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
@@ -47,7 +47,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
+                Email
               </label>
               <input
                 id="email"
@@ -80,13 +80,13 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full bg-evaya-green-600 text-white py-3 rounded-md font-medium hover:bg-evaya-green-700 focus:outline-none focus:ring-2 focus:ring-evaya-green-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          Demo credentials: admin@evaya.ug / admin123
+          Admin sign in: admin@evaya.ug / admin123
         </p>
       </div>
     </div>

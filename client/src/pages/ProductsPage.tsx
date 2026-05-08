@@ -240,16 +240,15 @@ export default function ProductsPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Slice 1</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Products</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Products</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Add products quickly, choose a category, and keep pricing clean for daily operations.
+                  Keep the product list clean and easy to use.
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <MetricCard label="Categories" value={String(categories.length)} />
                 <MetricCard label="Products" value={String(products.length)} />
-                <MetricCard label="Operating branch" value={primaryBranch?.name ?? 'Evaya Naturals'} />
               </div>
             </div>
           </section>
@@ -263,8 +262,8 @@ export default function ProductsPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Product master</h2>
-                <p className="mt-1 text-sm text-slate-500">Keep the catalog clean, searchable, and ready for daily operations.</p>
+                <h2 className="text-xl font-semibold">Product list</h2>
+                <p className="mt-1 text-sm text-slate-500">Short, clean, and ready for the counter.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-[minmax(0,280px)_auto]">
                 <input
@@ -324,7 +323,7 @@ export default function ProductsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-4">
                   <select
                     value={productForm.unitType}
                     onChange={(event) => setProductForm((current) => ({ ...current, unitType: event.target.value }))}
@@ -346,9 +345,17 @@ export default function ProductsPage() {
                   <input
                     type="number"
                     min="0"
+                    value={productForm.costPrice}
+                    onChange={(event) => setProductForm((current) => ({ ...current, costPrice: event.target.value }))}
+                    placeholder="Cost price"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  />
+                  <input
+                    type="number"
+                    min="0"
                     value={productForm.lowStockThreshold}
                     onChange={(event) => setProductForm((current) => ({ ...current, lowStockThreshold: event.target.value }))}
-                    placeholder="Low-stock threshold"
+                    placeholder="Low stock level"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     required
                   />
@@ -356,12 +363,8 @@ export default function ProductsPage() {
               </div>
 
               <div className="grid gap-3">
-                <div className="rounded-3xl bg-white px-4 py-4">
-                  <p className="text-sm font-medium text-slate-700">Operating branch</p>
-                  <p className="mt-1 text-xs text-slate-400">Locked to Evaya Naturals.</p>
-                  <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
-                    {primaryBranch?.name ?? 'Evaya Naturals'}
-                  </div>
+                <div className="rounded-3xl bg-white px-4 py-4 text-sm text-slate-500">
+                  Evaya Naturals
                 </div>
 
                 <label className="flex items-center justify-between rounded-3xl bg-white px-4 py-4 text-sm">
@@ -417,7 +420,7 @@ export default function ProductsPage() {
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <MobileValue label="Selling price" value={currencyFormatter.format(product.sellingPrice)} />
                     <MobileValue label="Cost price" value={product.costPrice == null ? '—' : currencyFormatter.format(product.costPrice)} />
-                    <MobileValue label="Stock threshold" value={String(product.lowStockThreshold)} />
+                    <MobileValue label="Low stock level" value={String(product.lowStockThreshold)} />
                     <MobileValue label="Unit" value={product.unitType.toUpperCase()} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -454,7 +457,7 @@ export default function ProductsPage() {
                     <th className="px-5 py-3 font-medium">Category</th>
                     <th className="px-5 py-3 font-medium">Selling price</th>
                     <th className="px-5 py-3 font-medium">Cost price</th>
-                    <th className="px-5 py-3 font-medium">Stock threshold</th>
+                    <th className="px-5 py-3 font-medium">Low stock level</th>
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">Actions</th>
                   </tr>
@@ -518,7 +521,7 @@ export default function ProductsPage() {
                   {editingCategory ? 'Edit category' : 'Create category'}
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Save and return straight to products.
+                  Make a quick change and go back to products.
                 </p>
               </div>
               <button
@@ -544,7 +547,7 @@ export default function ProductsPage() {
                   required
                 />
                 <label className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm">
-                  <span className="text-slate-500">Active</span>
+                  <span className="text-slate-500">Show category</span>
                   <input
                     type="checkbox"
                     checked={categoryForm.isActive}
@@ -555,7 +558,7 @@ export default function ProductsPage() {
                 <textarea
                   value={categoryForm.description}
                   onChange={(event) => setCategoryForm((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="Short description"
+                  placeholder="Short note"
                   rows={4}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 />
@@ -588,7 +591,7 @@ export default function ProductsPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="font-medium text-slate-900">{category.name}</p>
-                        <p className="mt-1 text-xs text-slate-400">{category.description || 'No description'}</p>
+                        <p className="mt-1 text-xs text-slate-400">{category.description || 'No note'}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${category.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>

@@ -95,10 +95,10 @@ export default function DashboardPage() {
       <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Evaya Naturals</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Today at Evaya</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Welcome back, {user?.firstName}</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Keep the day simple: open shift, receive or sell stock, then close and reconcile.
+              Open up, sell smoothly, then close the day cleanly.
             </p>
           </section>
 
@@ -109,18 +109,18 @@ export default function DashboardPage() {
           )}
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <DashboardCard title="Today's sales" value={currencyFormatter.format(totalSales)} hint="Completed branch sales today" />
+            <DashboardCard title="Sales" value={currencyFormatter.format(totalSales)} hint="Completed today" />
             <DashboardCard title="Receipts" value={String(salesCount)} hint="Completed checkouts today" />
-            <DashboardCard title="Shift status" value={currentShift ? 'Active' : 'Not open'} hint={currentShift ? 'Cashier can keep selling' : 'Open shift before checkout'} tone={currentShift ? 'emerald' : 'amber'} />
-            <DashboardCard title="Cash-up" value={pendingCashUp ? 'Pending' : 'Clear'} hint={pendingCashUp ? 'Close the active shift after selling' : 'No active cash-up reminder'} tone={pendingCashUp ? 'amber' : 'emerald'} />
+            <DashboardCard title="Shift" value={currentShift ? 'Open' : 'Closed'} hint={currentShift ? 'Ready for checkout' : 'Open before selling'} tone={currentShift ? 'emerald' : 'amber'} />
+            <DashboardCard title="Cash-Up" value={pendingCashUp ? 'Pending' : 'Clear'} hint={pendingCashUp ? 'Close after selling' : 'Nothing waiting'} tone={pendingCashUp ? 'amber' : 'emerald'} />
           </section>
 
           <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold">Cashier workflow</h2>
-                  <p className="mt-1 text-sm text-slate-500">Open the shift, run POS, then close and review totals.</p>
+                  <h2 className="text-xl font-semibold">Cashier flow</h2>
+                  <p className="mt-1 text-sm text-slate-500">Open, sell, then close.</p>
                 </div>
                 <a
                   href="/pos"
@@ -132,7 +132,7 @@ export default function DashboardPage() {
 
               {!canCheckout && (
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                  Your role can review totals, but only Admin and Cashier can open or close shifts.
+                  Only Admin and Cashier can open or close shifts.
                 </div>
               )}
 
@@ -164,20 +164,20 @@ export default function DashboardPage() {
                   <StatusRow label="Opened" value={new Date(currentShift.openedAt).toLocaleString()} />
                   <StatusRow label="Opening cash" value={currencyFormatter.format(currentShift.openingCash)} />
                   <StatusRow label="Expected cash" value={currencyFormatter.format(currentShift.paymentTotals.cash + currentShift.openingCash)} />
-                  <StatusRow label="Mobile + card" value={currencyFormatter.format(currentShift.paymentTotals.mtnMobileMoney + currentShift.paymentTotals.airtelMoney + currentShift.paymentTotals.card + currentShift.paymentTotals.bankTransfer)} />
+                  <StatusRow label="Digital" value={currencyFormatter.format(currentShift.paymentTotals.mtnMobileMoney + currentShift.paymentTotals.airtelMoney + currentShift.paymentTotals.card + currentShift.paymentTotals.bankTransfer)} />
                   <input
                     type="number"
                     min="0"
                     value={countedCash}
                     onChange={(event) => setCountedCash(event.target.value)}
-                    placeholder="Counted cash in drawer"
+                    placeholder="Counted cash"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     required
                   />
                   <textarea
                     value={closeNotes}
                     onChange={(event) => setCloseNotes(event.target.value)}
-                    placeholder="Notes for close-out"
+                    placeholder="Notes"
                     rows={3}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
@@ -193,12 +193,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-              <h2 className="text-xl font-semibold">Today at a glance</h2>
-              <p className="mt-1 text-sm text-slate-500">The smallest useful summary for the branch.</p>
+              <h2 className="text-xl font-semibold">Today</h2>
+              <p className="mt-1 text-sm text-slate-500">A quick view of the day.</p>
               <div className="mt-5 space-y-3">
-                <StatusRow label="Branch" value="Evaya Naturals" />
-                <StatusRow label="Today's sales" value={currencyFormatter.format(totalSales)} />
-                <StatusRow label="Cash sales" value={currencyFormatter.format(today?.paymentTotals.cash ?? 0)} />
+                <StatusRow label="Sales" value={currencyFormatter.format(totalSales)} />
+                <StatusRow label="Cash" value={currencyFormatter.format(today?.paymentTotals.cash ?? 0)} />
                 <StatusRow label="MTN + Airtel" value={currencyFormatter.format((today?.paymentTotals.mtnMobileMoney ?? 0) + (today?.paymentTotals.airtelMoney ?? 0))} />
                 <StatusRow label="Card + bank" value={currencyFormatter.format((today?.paymentTotals.card ?? 0) + (today?.paymentTotals.bankTransfer ?? 0))} />
               </div>

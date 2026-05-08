@@ -20,6 +20,15 @@ const deliveryStatusOptions = [
   'cancelled',
 ] as const;
 
+const statusLabels: Record<(typeof deliveryStatusOptions)[number], string> = {
+  pending: 'Pending',
+  assigned: 'Assigned',
+  picked_up: 'Picked up',
+  delivered: 'Delivered',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
+
 const currencyFormatter = new Intl.NumberFormat('en-UG', {
   style: 'currency',
   currency: 'UGX',
@@ -110,9 +119,9 @@ export default function DeliveriesPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <BrandMark />
             <p className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Deliveries</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Simple delivery tracking for the active branch</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Deliveries</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Create deliveries, assign riders, update status, and keep the workflow light enough for daily use.
+              Keep deliveries simple and easy to follow.
             </p>
           </section>
 
@@ -126,8 +135,8 @@ export default function DeliveriesPage() {
             <section className="space-y-6">
               {isManager && (
                 <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                  <h2 className="text-xl font-semibold">Create delivery</h2>
-                  <p className="mt-1 text-sm text-slate-500">Capture only what the team needs to fulfill the order.</p>
+                  <h2 className="text-xl font-semibold">New delivery</h2>
+                  <p className="mt-1 text-sm text-slate-500">Only the details the team needs.</p>
                   <form className="mt-5 grid gap-3" onSubmit={handleSubmit}>
                     <select
                       value={customerId}
@@ -162,7 +171,7 @@ export default function DeliveriesPage() {
                         onChange={(event) => setRiderId(event.target.value)}
                         className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                       >
-                        <option value="">Assign rider later</option>
+                        <option value="">Assign later</option>
                         {riders.map((rider) => (
                           <option key={rider.id} value={rider.id}>{rider.firstName} {rider.lastName}</option>
                         ))}
@@ -172,7 +181,7 @@ export default function DeliveriesPage() {
                         min="0"
                         value={deliveryFee}
                         onChange={(event) => setDeliveryFee(event.target.value)}
-                        placeholder="Delivery fee (UGX)"
+                        placeholder="Extra charge"
                         className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                       />
                     </div>
@@ -205,8 +214,8 @@ export default function DeliveriesPage() {
 
               {isRider && (
                 <div className="rounded-[28px] border border-emerald-100 bg-emerald-50/70 p-6">
-                  <h2 className="text-xl font-semibold text-emerald-900">Assigned to you only</h2>
-                  <p className="mt-1 text-sm text-emerald-800">This view hides every delivery that is not assigned to your rider account.</p>
+                  <h2 className="text-xl font-semibold text-emerald-900">Your deliveries</h2>
+                  <p className="mt-1 text-sm text-emerald-800">You only see deliveries assigned to you.</p>
                 </div>
               )}
             </section>
@@ -216,7 +225,7 @@ export default function DeliveriesPage() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <h2 className="text-xl font-semibold">Delivery list</h2>
-                    <p className="mt-1 text-sm text-slate-500">Filter by status and update the delivery flow in-place.</p>
+                    <p className="mt-1 text-sm text-slate-500">Filter the list and update the status here.</p>
                   </div>
                   <select
                     value={statusFilter}
@@ -225,7 +234,7 @@ export default function DeliveriesPage() {
                   >
                     <option value="">All statuses</option>
                     {deliveryStatusOptions.map((status) => (
-                      <option key={status} value={status}>{status.replace('_', ' ')}</option>
+                      <option key={status} value={status}>{statusLabels[status]}</option>
                     ))}
                   </select>
                 </div>
@@ -251,10 +260,10 @@ export default function DeliveriesPage() {
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                              {delivery.status.replace('_', ' ')}
+                              {statusLabels[delivery.status as keyof typeof statusLabels] ?? delivery.status}
                             </span>
                             <span className="text-sm font-semibold text-slate-900">{currencyFormatter.format(delivery.deliveryFee)}</span>
-                            <span className="text-xs text-slate-400">{delivery.riderName ?? 'Unassigned'}</span>
+                            <span className="text-xs text-slate-400">{delivery.riderName ?? 'Not assigned'}</span>
                           </div>
                         </div>
 
@@ -268,7 +277,7 @@ export default function DeliveriesPage() {
                               })}
                               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                             >
-                              <option value="">Assign rider</option>
+                              <option value="">Assign delivery</option>
                               {riders.map((rider) => (
                                 <option key={rider.id} value={rider.id}>{rider.firstName} {rider.lastName}</option>
                               ))}
@@ -283,7 +292,7 @@ export default function DeliveriesPage() {
                             className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                           >
                             {deliveryStatusOptions.map((status) => (
-                              <option key={status} value={status}>{status.replace('_', ' ')}</option>
+                              <option key={status} value={status}>{statusLabels[status]}</option>
                             ))}
                           </select>
                         </div>
