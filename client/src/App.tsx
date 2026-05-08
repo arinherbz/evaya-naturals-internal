@@ -7,7 +7,7 @@ import POSPage from './pages/POSPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import CustomersPage from './pages/CustomersPage';
-import SuppliersPage from './pages/SuppliersPage';
+import ExpensesPage from './pages/ExpensesPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import DeliveriesPage from './pages/DeliveriesPage';
@@ -72,10 +72,10 @@ function App() {
               }
             />
             <Route
-              path="/suppliers"
+              path="/expenses"
               element={
-                <ProtectedRoute permission="manage_inventory">
-                  <SuppliersPage />
+                <ProtectedRoute permission="view_reports" allowRoles={['Branch Manager']}>
+                  <ExpensesPage />
                 </ProtectedRoute>
               }
             />

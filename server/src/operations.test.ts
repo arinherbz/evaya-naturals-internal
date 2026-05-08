@@ -227,6 +227,9 @@ describe('operations slices', () => {
     });
     expect(customResponse.status).toBe(200);
     const customPayload = await json(customResponse);
+    expect(customPayload.title).toContain('Report');
+    expect(customPayload.generatedAt).toBeDefined();
+    expect(customPayload.paymentTotals.cash).toBe(23000);
     expect(customPayload.totalSales).toBe(23000);
     expect(customPayload.expensesTotal).toBe(5000);
     expect(customPayload.netAmount).toBe(18000);

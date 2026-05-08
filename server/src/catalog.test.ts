@@ -108,6 +108,12 @@ describe('catalog slice', () => {
     expect(updateSupplierRes.status).toBe(200);
     expect((await json(updateSupplierRes)).supplier.isActive).toBe(false);
 
+    const supplierListRes = await app.request('/api/catalog/suppliers?includeInactive=true', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(supplierListRes.status).toBe(200);
+    expect((await json(supplierListRes)).suppliers.some((item: Record<string, unknown>) => item.id === supplier.id)).toBe(true);
+
     const categoryRes = await app.request('/api/catalog/categories', {
       method: 'POST',
       headers: {
