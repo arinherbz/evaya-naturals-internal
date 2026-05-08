@@ -228,7 +228,7 @@ export default function POSPage() {
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+      <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

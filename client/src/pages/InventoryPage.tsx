@@ -222,7 +222,7 @@ export default function InventoryPage() {
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+      <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -455,8 +455,8 @@ export default function InventoryPage() {
                 <p className="mt-1 text-sm text-slate-500">Live stock with thresholds and batch warnings for Evaya Naturals.</p>
               </div>
             </div>
-            <div className="overflow-hidden rounded-3xl border border-slate-100">
-              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+            <div className="overflow-x-auto rounded-3xl border border-slate-100">
+              <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Product</th>

@@ -235,7 +235,7 @@ export default function ProductsPage() {
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+      <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -402,8 +402,8 @@ export default function ProductsPage() {
               </div>
             </form>
 
-            <div className="mt-8 overflow-hidden rounded-[28px] bg-white">
-              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+            <div className="mt-8 overflow-x-auto rounded-[28px] bg-white">
+              <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50/70 text-slate-500">
                   <tr>
                     <th className="px-5 py-3 font-medium">Product</th>
@@ -466,7 +466,7 @@ export default function ProductsPage() {
 
       {isAdmin && showCategoryDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-[32px] border border-white/80 bg-[#fbfaf7] p-6 shadow-[0_30px_90px_rgba(15,23,42,0.16)]">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[32px] border border-white/80 bg-[#fbfaf7] p-6 shadow-[0_30px_90px_rgba(15,23,42,0.16)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Categories</p>

@@ -37,7 +37,7 @@ export default function LoginPage() {
           <p className="mt-2 text-gray-600">Calm, fast internal workflow for the active branch MVP.</p>
         </div>
 
-        <div className="rounded-[30px] border border-white/80 bg-white/95 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[30px] border border-white/80 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">

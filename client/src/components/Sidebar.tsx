@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import BrandMark from './BrandMark';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
     { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard' },
@@ -25,17 +27,105 @@ export default function Sidebar() {
     return user.role.permissions.includes(permission);
   };
 
+  const visibleItems = navItems.filter((item) => canShowItem(item.permission, item.allowRoles));
+
   return (
-    <aside className="w-72 border-r border-white/70 bg-[linear-gradient(180deg,#fcfbf7,#f3f6f1)] shadow-[0_12px_40px_rgba(15,23,42,0.05)] min-h-screen flex flex-col">
-      <div className="p-6 border-b border-slate-100">
+    <>
+      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-white/80 bg-[linear-gradient(180deg,#fcfbf7,#f3f6f1)] px-4 py-4 shadow-[0_12px_32px_rgba(15,23,42,0.06)] lg:hidden">
         <BrandMark compact />
-        <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-400">Evaya Naturals only</p>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:bg-slate-50"
+          aria-label="Open navigation"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
       </div>
 
-      <nav className="flex-1 p-5 overflow-y-auto">
-        <ul className="space-y-1.5">
-          {navItems.map((item) => (
-            canShowItem(item.permission, item.allowRoles) && (
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm"
+            aria-label="Close navigation"
+          />
+          <aside className="relative flex h-full w-[min(18rem,86vw)] flex-col border-r border-white/80 bg-[linear-gradient(180deg,#fcfbf7,#f3f6f1)] shadow-[0_18px_60px_rgba(15,23,42,0.14)]">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div>
+                <BrandMark compact />
+                <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-400">Evaya Naturals only</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:bg-slate-50"
+                aria-label="Close navigation"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto p-4">
+              <ul className="space-y-1.5">
+                {visibleItems.map((item) => (
+                  <li key={item.href}>
+                    <NavLink
+                      to={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center rounded-2xl px-4 py-3.5 transition ${
+                          isActive
+                            ? 'bg-white text-evaya-green-700 font-medium shadow-[0_10px_30px_rgba(15,23,42,0.06)]'
+                            : 'text-gray-700 hover:bg-white/80'
+                        }`
+                      }
+                    >
+                      <SidebarIcon name={item.icon} />
+                      <span className="ml-3">{item.label}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+
+            <div className="border-t border-slate-100 p-4">
+              <div className="flex items-center rounded-2xl bg-white/70 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-900">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <p className="truncate text-xs text-gray-500">{user?.role.name}</p>
+                </div>
+                <button
+                  onClick={logout}
+                  className="ml-2 rounded-xl p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                  title="Logout"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <aside className="hidden min-h-screen w-72 flex-col border-r border-white/70 bg-[linear-gradient(180deg,#fcfbf7,#f3f6f1)] shadow-[0_12px_40px_rgba(15,23,42,0.05)] lg:flex">
+        <div className="border-b border-slate-100 p-6">
+          <BrandMark compact />
+          <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-400">Evaya Naturals only</p>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto p-5">
+          <ul className="space-y-1.5">
+            {visibleItems.map((item) => (
               <li key={item.href}>
                 <NavLink
                   to={item.href}
@@ -51,31 +141,31 @@ export default function Sidebar() {
                   <span className="ml-3">{item.label}</span>
                 </NavLink>
               </li>
-            )
-          ))}
-        </ul>
-      </nav>
+            ))}
+          </ul>
+        </nav>
 
-      <div className="p-4 border-t border-slate-100">
-        <div className="flex items-center px-4 py-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{user?.role.name}</p>
+        <div className="border-t border-slate-100 p-4">
+          <div className="flex items-center px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-gray-900">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="truncate text-xs text-gray-500">{user?.role.name}</p>
+            </div>
+            <button
+              onClick={logout}
+              className="ml-2 rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+              title="Logout"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={logout}
-            className="ml-2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
-            title="Logout"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
