@@ -84,7 +84,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     // Attach user to context
     c.set('user', user as AuthUser);
     
-    await next();
+    return next();
   } catch (error) {
     console.error('Auth error:', error);
     return c.json({ error: 'Authentication failed' }, 500);
@@ -102,17 +102,16 @@ export const requirePermission = (permission: string) => {
 
     // Admin has all permissions
     if (user.role.name === 'Admin') {
-      await next();
-      return;
+      return next();
     }
 
     const permissions = user.role.permissions || [];
     
     if (permissions.includes('*') || permissions.includes(permission)) {
-      await next();
-    } else {
-      return c.json({ error: 'Forbidden' }, 403);
+      return next();
     }
+
+    return c.json({ error: 'Forbidden' }, 403);
   };
 };
 
@@ -127,8 +126,7 @@ export const requireBranchAccess = (branchId?: string) => {
 
     // Admin can access all branches
     if (user.role.name === 'Admin') {
-      await next();
-      return;
+      return next();
     }
 
     // Non-admin users can only access their assigned branch
@@ -136,7 +134,7 @@ export const requireBranchAccess = (branchId?: string) => {
       return c.json({ error: 'Access denied to this branch' }, 403);
     }
 
-    await next();
+    return next();
   };
 };
 

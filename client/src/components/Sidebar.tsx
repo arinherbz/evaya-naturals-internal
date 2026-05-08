@@ -7,8 +7,8 @@ export default function Sidebar() {
   const navItems = [
     { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard' },
     { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales' },
-    { label: 'Products', href: '/products', icon: 'package', permission: 'manage_inventory' },
-    { label: 'Inventory', href: '/inventory', icon: 'database', permission: 'manage_inventory' },
+    { label: 'Products', href: '/products', icon: 'package', permission: null, allowRoles: ['Branch Manager'] },
+    { label: 'Inventory', href: '/inventory', icon: 'database', permission: 'manage_inventory', allowRoles: ['Cashier'] },
     { label: 'Customers', href: '/customers', icon: 'users', permission: null },
     { label: 'Suppliers', href: '/suppliers', icon: 'truck', permission: 'manage_inventory' },
     { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', permission: null },
@@ -16,10 +16,11 @@ export default function Sidebar() {
     { label: 'Settings', href: '/settings', icon: 'settings', permission: 'manage_staff' },
   ];
 
-  const canShowItem = (permission: string | null) => {
+  const canShowItem = (permission: string | null, allowRoles?: string[]) => {
     if (!permission) return true;
     if (!user) return false;
     if (user.role.name === 'Admin') return true;
+    if (allowRoles?.includes(user.role.name)) return true;
     return user.role.permissions.includes(permission);
   };
 
@@ -40,7 +41,7 @@ export default function Sidebar() {
       <nav className="flex-1 p-4 overflow-y-auto">
         <ul className="space-y-1">
           {navItems.map((item) => (
-            canShowItem(item.permission) && (
+            canShowItem(item.permission, item.allowRoles) && (
               <li key={item.href}>
                 <NavLink
                   to={item.href}

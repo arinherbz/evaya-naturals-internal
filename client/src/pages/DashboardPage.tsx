@@ -55,7 +55,7 @@ export default function DashboardPage() {
   );
 }
 
-function DashboardCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
+function DashboardCard({ title, value }: { title: string; value: string; icon: string; color: string }) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <p className="text-sm text-gray-500 mb-1">{title}</p>

@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
 import { branches } from './branches';
 import { users } from './users';
 

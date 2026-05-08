@@ -68,6 +68,81 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface ProductBranchVisibility {
+  branchId: string;
+  branchName: string;
+}
+
+export interface ProductListItem extends Product {
+  categoryName: string;
+  visibleBranches: ProductBranchVisibility[];
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  isActive: boolean;
+}
+
+export interface InventoryBatch {
+  id: string;
+  batchNumber: string;
+  productId: string;
+  supplierId: string | null;
+  branchId: string;
+  expiryDate: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  costPrice: number;
+  sellingPrice: number | null;
+  receivedDate: string;
+  isExpired: boolean;
+  productName?: string;
+  branchName?: string;
+  supplierName?: string | null;
+}
+
+export interface InventoryRow {
+  id: string;
+  productId: string;
+  branchId: string;
+  quantity: number;
+  lowStockThreshold: number;
+  updatedAt: string;
+  productName: string;
+  sku?: string | null;
+  barcode?: string | null;
+  unitType: string;
+  productLowStockThreshold: number;
+  productIsActive: boolean;
+  categoryName: string;
+  branchName: string;
+  lowStock: boolean;
+  expiringSoonCount: number;
+  expiredCount: number;
+  batches: InventoryBatch[];
+}
+
+export interface InventoryMovement {
+  id: string;
+  productId: string;
+  branchId: string;
+  batchId: string | null;
+  movementType: 'stock_received' | 'adjustment' | 'damaged' | 'expired' | 'returned';
+  quantity: number;
+  referenceId?: string | null;
+  referenceType?: string | null;
+  reason?: string | null;
+  userId: string;
+  createdAt: string;
+  productName: string;
+  branchName: string;
+  batchNumber?: string | null;
+  actorName: string;
+}
+
 export interface AuthResponse {
   message: string;
   token: string;

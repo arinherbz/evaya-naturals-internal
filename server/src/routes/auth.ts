@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema/index';
 import { authMiddleware } from '../middleware/auth';
 

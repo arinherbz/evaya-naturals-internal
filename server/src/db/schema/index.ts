@@ -3,6 +3,7 @@ export * from './users';
 export * from './roles';
 export * from './categories';
 export * from './products';
+export * from './product-visibility';
 export * from './suppliers';
 export * from './inventory';
 export * from './batches';

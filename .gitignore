@@ -35,6 +35,8 @@ coverage/
 # Database
 *.sqlite
 *.db
+*.db-wal
+*.db-shm
 
 # Uploads
 uploads/

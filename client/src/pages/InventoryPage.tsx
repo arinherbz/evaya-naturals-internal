@@ -1,14 +1,694 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
+import { api, ApiError } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import type { InventoryBatch, InventoryMovement, InventoryRow } from '../types';
+
+const currencyFormatter = new Intl.NumberFormat('en-UG', {
+  style: 'currency',
+  currency: 'UGX',
+  maximumFractionDigits: 0,
+});
+
+type BatchFormState = {
+  productId: string;
+  branchId: string;
+  supplierId: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantityReceived: string;
+  costPrice: string;
+  sellingPrice: string;
+};
+
+type AdjustmentFormState = {
+  productId: string;
+  branchId: string;
+  batchId: string;
+  movementType: 'adjustment' | 'damaged' | 'expired' | 'returned';
+  quantityDelta: string;
+  reason: string;
+};
+
+const emptyBatchForm: BatchFormState = {
+  productId: '',
+  branchId: '',
+  supplierId: '',
+  batchNumber: '',
+  expiryDate: '',
+  quantityReceived: '',
+  costPrice: '',
+  sellingPrice: '',
+};
+
+const emptyAdjustmentForm: AdjustmentFormState = {
+  productId: '',
+  branchId: '',
+  batchId: '',
+  movementType: 'adjustment',
+  quantityDelta: '',
+  reason: '',
+};
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return 'Something went wrong';
+}
+
+function describeMovement(movement: InventoryMovement) {
+  return `${movement.movementType.replace('_', ' ')} • ${movement.reason || 'No reason'}`;
+}
+
+function warningBadge(count: number, label: string, color: 'amber' | 'rose') {
+  if (count === 0) return null;
+  const palette = color === 'amber'
+    ? 'bg-amber-50 text-amber-700 border-amber-100'
+    : 'bg-rose-50 text-rose-700 border-rose-100';
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${palette}`}>
+      {count} {label}
+    </span>
+  );
+}
 
 export default function InventoryPage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [pageError, setPageError] = useState('');
+  const [batchForm, setBatchForm] = useState<BatchFormState>(emptyBatchForm);
+  const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>(emptyAdjustmentForm);
+  const [selectedInventory, setSelectedInventory] = useState<InventoryRow | null>(null);
+  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
+
+  const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(user?.role.name ?? '');
+
+  const branchesQuery = useQuery({
+    queryKey: ['catalog-branches'],
+    queryFn: () => api.branches.list(),
+  });
+
+  useEffect(() => {
+    if (!branchFilter && user?.role.name !== 'Admin' && user?.branchId) {
+      setBranchFilter(user.branchId);
+      setBatchForm((current) => ({ ...current, branchId: user.branchId! }));
+      setAdjustmentForm((current) => ({ ...current, branchId: user.branchId! }));
+    }
+  }, [branchFilter, user]);
+
+  const productsQuery = useQuery({
+    queryKey: ['catalog-products-for-inventory', branchFilter],
+    queryFn: () => api.products.list({ branchId: branchFilter || undefined, includeInactive: true }),
+  });
+
+  const inventoryQuery = useQuery({
+    queryKey: ['catalog-inventory', search, branchFilter, statusFilter],
+    queryFn: () => api.inventory.list({
+      search,
+      branchId: branchFilter || undefined,
+      status: statusFilter,
+    }),
+  });
+
+  const suppliersQuery = useQuery({
+    queryKey: ['catalog-suppliers'],
+    queryFn: () => api.suppliers.list(),
+    enabled: canManageInventory,
+  });
+
+  const batchesQuery = useQuery({
+    queryKey: ['catalog-batches', adjustmentForm.branchId, adjustmentForm.productId],
+    queryFn: () => api.inventory.batches({
+      branchId: adjustmentForm.branchId || undefined,
+      productId: adjustmentForm.productId || undefined,
+    }),
+  });
+
+  const movementsQuery = useQuery({
+    queryKey: ['catalog-movements', branchFilter, selectedInventory?.productId],
+    queryFn: () => api.inventory.movements({
+      branchId: branchFilter || undefined,
+      productId: selectedInventory?.productId,
+    }),
+  });
+
+  useEffect(() => {
+    const branches = branchesQuery.data?.branches ?? [];
+    const products = productsQuery.data?.products ?? [];
+
+    if (!batchForm.branchId && branches.length > 0) {
+      setBatchForm((current) => ({ ...current, branchId: branchFilter || branches[0].id }));
+    }
+    if (!adjustmentForm.branchId && branches.length > 0) {
+      setAdjustmentForm((current) => ({ ...current, branchId: branchFilter || branches[0].id }));
+    }
+    if (!batchForm.productId && products.length > 0) {
+      setBatchForm((current) => ({
+        ...current,
+        productId: products[0].id,
+        sellingPrice: String(products[0].sellingPrice),
+      }));
+    }
+    if (!adjustmentForm.productId && products.length > 0) {
+      setAdjustmentForm((current) => ({ ...current, productId: products[0].id }));
+    }
+  }, [
+    adjustmentForm.branchId,
+    adjustmentForm.productId,
+    batchForm.branchId,
+    batchForm.productId,
+    branchFilter,
+    branchesQuery.data,
+    productsQuery.data,
+  ]);
+
+  const invalidateInventory = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
+      queryClient.invalidateQueries({ queryKey: ['catalog-batches'] }),
+      queryClient.invalidateQueries({ queryKey: ['catalog-movements'] }),
+      queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory'] }),
+    ]);
+  };
+
+  const batchMutation = useMutation({
+    mutationFn: () => api.inventory.createBatch({
+      productId: batchForm.productId,
+      branchId: batchForm.branchId,
+      supplierId: batchForm.supplierId || null,
+      batchNumber: batchForm.batchNumber,
+      expiryDate: batchForm.expiryDate,
+      quantityReceived: Number(batchForm.quantityReceived),
+      costPrice: Number(batchForm.costPrice),
+      sellingPrice: batchForm.sellingPrice ? Number(batchForm.sellingPrice) : null,
+    }),
+    onSuccess: async () => {
+      const defaultProduct = productsQuery.data?.products?.find((product) => product.id === batchForm.productId);
+      setBatchForm({
+        ...emptyBatchForm,
+        branchId: batchForm.branchId,
+        productId: batchForm.productId,
+        sellingPrice: defaultProduct ? String(defaultProduct.sellingPrice) : '',
+      });
+      setPageError('');
+      await invalidateInventory();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const adjustmentMutation = useMutation({
+    mutationFn: () => api.inventory.adjust({
+      productId: adjustmentForm.productId,
+      branchId: adjustmentForm.branchId,
+      batchId: adjustmentForm.batchId || null,
+      movementType: adjustmentForm.movementType,
+      quantityDelta: Number(adjustmentForm.quantityDelta),
+      reason: adjustmentForm.reason,
+    }),
+    onSuccess: async () => {
+      setAdjustmentForm((current) => ({
+        ...emptyAdjustmentForm,
+        branchId: current.branchId,
+        productId: current.productId,
+      }));
+      setPageError('');
+      await invalidateInventory();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const thresholdMutation = useMutation({
+    mutationFn: ({ id, threshold }: { id: string; threshold: number }) => api.inventory.updateThreshold(id, threshold),
+    onSuccess: invalidateInventory,
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const handleBatchSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPageError('');
+    await batchMutation.mutateAsync();
+  };
+
+  const handleAdjustmentSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPageError('');
+    await adjustmentMutation.mutateAsync();
+  };
+
+  const inventory = inventoryQuery.data?.inventory ?? [];
+  const products = productsQuery.data?.products ?? [];
+  const branches = branchesQuery.data?.branches ?? [];
+  const suppliers = suppliersQuery.data?.suppliers ?? [];
+  const movementRows = movementsQuery.data?.movements ?? [];
+  const batchRows = batchesQuery.data?.batches ?? [];
+
+  const lowStockCount = inventory.filter((row) => row.lowStock).length;
+  const expiringSoonCount = inventory.filter((row) => row.expiringSoonCount > 0).length;
+  const expiredCount = inventory.filter((row) => row.expiredCount > 0).length;
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-6">Inventory</h1>
-          <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500">Inventory module coming soon...</p>
+      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory Ops</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Branch stock, batches, and movement history</h1>
+                <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                  Watch branch stock, receive new batches, adjust quantities with reasons, and inspect every movement in one place.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Low stock</p>
+                  <p className="mt-1 text-2xl font-semibold">{lowStockCount}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Expiring soon</p>
+                  <p className="mt-1 text-2xl font-semibold">{expiringSoonCount}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Expired</p>
+                  <p className="mt-1 text-2xl font-semibold">{expiredCount}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {pageError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {pageError}
+            </div>
+          )}
+
+          <div className="grid gap-4 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)] lg:grid-cols-4">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search product, SKU, barcode"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+            />
+            <select
+              value={branchFilter}
+              onChange={(event) => {
+                setBranchFilter(event.target.value);
+                setBatchForm((current) => ({ ...current, branchId: event.target.value }));
+                setAdjustmentForm((current) => ({ ...current, branchId: event.target.value }));
+              }}
+              disabled={user?.role.name !== 'Admin'}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
+            >
+              <option value="">All branches</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+            >
+              <option value="all">All stock states</option>
+              <option value="low">Low stock</option>
+              <option value="expiring">Expiring soon</option>
+              <option value="expired">Expired</option>
+            </select>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              {canManageInventory ? 'Mutations enabled for your role' : 'Read-only inventory visibility'}
+            </div>
+          </div>
+
+          {canManageInventory && (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+                <h2 className="text-xl font-semibold">Receive batch</h2>
+                <p className="mt-1 text-sm text-slate-500">Create a supplier-linked batch, set expiry, and increase branch stock.</p>
+                <form className="mt-5 grid gap-3" onSubmit={handleBatchSubmit}>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <select
+                      value={batchForm.productId}
+                      onChange={(event) => {
+                        const selected = products.find((product) => product.id === event.target.value);
+                        setBatchForm((current) => ({
+                          ...current,
+                          productId: event.target.value,
+                          sellingPrice: selected ? String(selected.sellingPrice) : current.sellingPrice,
+                        }));
+                      }}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>{product.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={batchForm.branchId}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, branchId: event.target.value }))}
+                      disabled={user?.role.name !== 'Admin'}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
+                    >
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <select
+                      value={batchForm.supplierId}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, supplierId: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      <option value="">No supplier</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={batchForm.batchNumber}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, batchNumber: event.target.value }))}
+                      placeholder="Batch number"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <input
+                      type="date"
+                      value={batchForm.expiryDate}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, expiryDate: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      value={batchForm.quantityReceived}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, quantityReceived: event.target.value }))}
+                      placeholder="Qty received"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={batchForm.costPrice}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, costPrice: event.target.value }))}
+                      placeholder="Cost price"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={batchForm.sellingPrice}
+                      onChange={(event) => setBatchForm((current) => ({ ...current, sellingPrice: event.target.value }))}
+                      placeholder="Selling price"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={batchMutation.isPending}
+                    className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {batchMutation.isPending ? 'Receiving…' : 'Receive stock'}
+                  </button>
+                </form>
+              </section>
+
+              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+                <h2 className="text-xl font-semibold">Adjust stock</h2>
+                <p className="mt-1 text-sm text-slate-500">Record adjustments, damages, expiries, and returns with reasons and movement history.</p>
+                <form className="mt-5 grid gap-3" onSubmit={handleAdjustmentSubmit}>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <select
+                      value={adjustmentForm.productId}
+                      onChange={(event) => {
+                        setAdjustmentForm((current) => ({
+                          ...current,
+                          productId: event.target.value,
+                          batchId: '',
+                        }));
+                      }}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>{product.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={adjustmentForm.branchId}
+                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, branchId: event.target.value }))}
+                      disabled={user?.role.name !== 'Admin'}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
+                    >
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <select
+                      value={adjustmentForm.batchId}
+                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, batchId: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      <option value="">No specific batch</option>
+                      {batchRows.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.batchNumber} · {batch.quantityRemaining} left
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={adjustmentForm.movementType}
+                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, movementType: event.target.value as AdjustmentFormState['movementType'] }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    >
+                      <option value="adjustment">Adjustment</option>
+                      <option value="damaged">Damaged</option>
+                      <option value="expired">Expired</option>
+                      <option value="returned">Returned</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={adjustmentForm.quantityDelta}
+                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, quantityDelta: event.target.value }))}
+                      placeholder="Signed quantity delta"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                  </div>
+                  <textarea
+                    value={adjustmentForm.reason}
+                    onChange={(event) => setAdjustmentForm((current) => ({ ...current, reason: event.target.value }))}
+                    placeholder="Reason for this stock movement"
+                    rows={3}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={adjustmentMutation.isPending}
+                    className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {adjustmentMutation.isPending ? 'Posting…' : 'Record movement'}
+                  </button>
+                </form>
+              </section>
+            </div>
+          )}
+
+          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Inventory by branch</h2>
+                <p className="mt-1 text-sm text-slate-500">Live stock with per-branch thresholds, batch warnings, and quick movement drill-down.</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Tap any row to focus movement history below.
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-3xl border border-slate-100">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Product</th>
+                    <th className="px-4 py-3 font-medium">Branch</th>
+                    <th className="px-4 py-3 font-medium">Quantity</th>
+                    <th className="px-4 py-3 font-medium">Threshold</th>
+                    <th className="px-4 py-3 font-medium">Warnings</th>
+                    {canManageInventory && <th className="px-4 py-3 font-medium">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {inventory.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={`cursor-pointer transition hover:bg-slate-50 ${selectedInventory?.id === row.id ? 'bg-emerald-50/60' : ''}`}
+                      onClick={() => setSelectedInventory(row)}
+                    >
+                      <td className="px-4 py-4">
+                        <div className="font-medium">{row.productName}</div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          {row.categoryName} · {row.sku || 'No SKU'} · {row.unitType.toUpperCase()}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">{row.branchName}</td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium">{row.quantity}</div>
+                        <div className="text-xs text-slate-400">{row.batches.length} batches tracked</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {canManageInventory ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={thresholdDrafts[row.id] ?? String(row.lowStockThreshold)}
+                              onChange={(event) => setThresholdDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
+                              onClick={(event) => event.stopPropagation()}
+                              className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                thresholdMutation.mutate({
+                                  id: row.id,
+                                  threshold: Number(thresholdDrafts[row.id] ?? row.lowStockThreshold),
+                                });
+                              }}
+                              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        ) : (
+                          row.lowStockThreshold
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {row.lowStock && (
+                            <span className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                              Low stock
+                            </span>
+                          )}
+                          {warningBadge(row.expiringSoonCount, 'expiring soon', 'amber')}
+                          {warningBadge(row.expiredCount, 'expired batches', 'rose')}
+                        </div>
+                      </td>
+                      {canManageInventory && (
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedInventory(row);
+                              setAdjustmentForm((current) => ({
+                                ...current,
+                                branchId: row.branchId,
+                                productId: row.productId,
+                              }));
+                            }}
+                            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          >
+                            View history
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold">Inventory movement history</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedInventory
+                    ? `Showing movements for ${selectedInventory.productName}.`
+                    : 'Select an inventory row above to focus product history.'}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {movementRows.map((movement) => (
+                  <div key={movement.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-medium text-slate-900">{movement.productName}</p>
+                        <p className="mt-1 text-sm text-slate-500">{describeMovement(movement)}</p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {movement.branchName} · {movement.batchNumber || 'No batch'} · {new Date(movement.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className={`rounded-full px-3 py-1 text-sm font-medium ${movement.quantity >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {movement.quantity >= 0 ? '+' : ''}{movement.quantity}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold">Batch ledger</h2>
+                <p className="mt-1 text-sm text-slate-500">Supplier-linked stock by batch, with expiry visibility and remaining quantity.</p>
+              </div>
+              <div className="space-y-3">
+                {batchRows.map((batch: InventoryBatch) => {
+                  const expiry = new Date(batch.expiryDate);
+                  const now = new Date();
+                  const soon = new Date();
+                  soon.setDate(now.getDate() + 30);
+                  const expiringSoon = batch.quantityRemaining > 0 && expiry >= now && expiry <= soon;
+                  const expired = batch.quantityRemaining > 0 && expiry < now;
+
+                  return (
+                    <div key={batch.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">{batch.batchNumber}</p>
+                          <p className="mt-1 text-sm text-slate-500">{batch.productName} · {batch.branchName}</p>
+                          <p className="mt-2 text-xs text-slate-400">
+                            Supplier: {batch.supplierName || '—'} · Expires {new Date(batch.expiryDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">{batch.quantityRemaining} left</p>
+                          <p className="text-xs text-slate-400">
+                            {currencyFormatter.format(batch.costPrice)} cost · {batch.sellingPrice == null ? '—' : currencyFormatter.format(batch.sellingPrice)} sell
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {expiringSoon && (
+                          <span className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                            Expiring soon
+                          </span>
+                        )}
+                        {expired && (
+                          <span className="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                            Expired
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           </div>
         </div>
       </main>

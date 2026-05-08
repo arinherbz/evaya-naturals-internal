@@ -4,9 +4,10 @@ import { useAuth } from '../hooks/useAuth';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   permission?: string;
+  allowRoles?: string[];
 }
 
-export default function ProtectedRoute({ children, permission }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, permission, allowRoles }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -30,6 +31,10 @@ export default function ProtectedRoute({ children, permission }: ProtectedRouteP
       return <>{children}</>;
     }
 
+    if (allowRoles?.includes(user.role.name)) {
+      return <>{children}</>;
+    }
+
     const hasPermission = user.role.permissions.includes('*') || 
                           user.role.permissions.includes(permission);
     
@@ -43,6 +48,17 @@ export default function ProtectedRoute({ children, permission }: ProtectedRouteP
         </div>
       );
     }
+  }
+
+  if (!permission && allowRoles && user && !allowRoles.includes(user.role.name) && user.role.name !== 'Admin') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-600 text-lg font-medium">Access Denied</p>
+          <p className="mt-2 text-gray-600">You don't have permission to access this page.</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

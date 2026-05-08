@@ -50,7 +50,7 @@ function App() {
             <Route
               path="/products"
               element={
-                <ProtectedRoute permission="manage_inventory">
+                <ProtectedRoute allowRoles={['Branch Manager']}>
                   <ProductsPage />
                 </ProtectedRoute>
               }
@@ -58,7 +58,7 @@ function App() {
             <Route
               path="/inventory"
               element={
-                <ProtectedRoute permission="manage_inventory">
+                <ProtectedRoute permission="manage_inventory" allowRoles={['Cashier']}>
                   <InventoryPage />
                 </ProtectedRoute>
               }

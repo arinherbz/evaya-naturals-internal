@@ -1,0 +1,403 @@
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import bcrypt from 'bcryptjs';
+import app from './index';
+import { db } from './db';
+import { initializeDatabase } from './db/init';
+import * as schema from './db/schema';
+import { eq } from 'drizzle-orm';
+
+async function json(response: Response) {
+  return response.json() as Promise<Record<string, any>>;
+}
+
+async function login(email: string, password: string) {
+  const response = await app.request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  expect(response.status).toBe(200);
+  const payload = await json(response);
+  return payload.token as string;
+}
+
+async function createUser(roleName: string, email: string, branchId: string | null) {
+  const [role] = await db.select().from(schema.roles).where(eq(schema.roles.name, roleName));
+  expect(role).toBeDefined();
+  const passwordHash = await bcrypt.hash('secret123', 10);
+  const [user] = await db.insert(schema.users).values({
+    email,
+    passwordHash,
+    firstName: roleName.replace(/\s+/g, ''),
+    lastName: 'Tester',
+    phone: '+256700000111',
+    roleId: role.id,
+    branchId,
+    isActive: true,
+  }).returning();
+  return user;
+}
+
+describe('catalog slice', () => {
+  let adminToken = '';
+  let branchA = '';
+  let branchB = '';
+
+  beforeAll(async () => {
+    await initializeDatabase();
+    const branches = await db.select().from(schema.branches);
+    branchA = branches[0].id;
+    branchB = branches[1].id;
+    adminToken = await login('admin@evaya.ug', 'admin123');
+  });
+
+  beforeEach(async () => {
+    await db.delete(schema.sessions);
+    await db.delete(schema.auditLogs);
+    await db.delete(schema.inventoryMovements);
+    await db.delete(schema.inventory);
+    await db.delete(schema.batches);
+    await db.delete(schema.productVisibility);
+    await db.delete(schema.products);
+    await db.delete(schema.categories).where(eq(schema.categories.name, 'Slice Test Category'));
+    await db.delete(schema.categories).where(eq(schema.categories.name, 'Used Slice Category'));
+    await db.delete(schema.categories).where(eq(schema.categories.name, 'Updated Slice Category'));
+    await db.delete(schema.categories).where(eq(schema.categories.name, 'Warnings Category'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'manager.slice@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'cashier.slice@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'officer.slice@evaya.ug'));
+    adminToken = await login('admin@evaya.ug', 'admin123');
+  });
+
+  it('supports category CRUD and prevents deleting used categories', async () => {
+    const createRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Slice Test Category', description: 'Created in test' }),
+    });
+    expect(createRes.status).toBe(201);
+    const createdCategory = (await json(createRes)).category;
+
+    const updateRes = await app.request(`/api/catalog/categories/${createdCategory.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Updated Slice Category', isActive: false }),
+    });
+    expect(updateRes.status).toBe(200);
+    expect((await json(updateRes)).category.isActive).toBe(false);
+
+    const deleteRes = await app.request(`/api/catalog/categories/${createdCategory.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(deleteRes.status).toBe(200);
+
+    const usedCategoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Used Slice Category' }),
+    });
+    const usedCategory = (await json(usedCategoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Used category product',
+        sku: 'USEDCAT-1',
+        categoryId: usedCategory.id,
+        unitType: 'piece',
+        sellingPrice: 12000,
+        lowStockThreshold: 4,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    expect(productRes.status).toBe(201);
+
+    const usedDeleteRes = await app.request(`/api/catalog/categories/${usedCategory.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(usedDeleteRes.status).toBe(409);
+  });
+
+  it('supports product CRUD, search, and branch visibility', async () => {
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Slice Test Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const createProduct = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Moringa Powder',
+        sku: 'MORINGA-001',
+        barcode: '1234567890',
+        categoryId: category.id,
+        unitType: 'pack',
+        sellingPrice: 25000,
+        costPrice: 15000,
+        lowStockThreshold: 6,
+        description: 'Nutrient dense greens',
+        usageInstructions: 'Mix one teaspoon in tea',
+        ingredients: 'Pure moringa leaf powder',
+        allergyWarning: 'Consult a doctor when pregnant',
+        visibilityBranchIds: [branchA, branchB],
+      }),
+    });
+    expect(createProduct.status).toBe(201);
+    const product = (await json(createProduct)).product;
+
+    const searchRes = await app.request('/api/catalog/products?search=Moringa', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(searchRes.status).toBe(200);
+    const listed = (await json(searchRes)).products;
+    expect(listed).toHaveLength(1);
+    expect(listed[0].visibleBranches).toHaveLength(2);
+
+    const updateRes = await app.request(`/api/catalog/products/${product.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        sellingPrice: 27000,
+        isActive: false,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    expect(updateRes.status).toBe(200);
+    const updated = (await json(updateRes)).product;
+    expect(updated.sellingPrice).toBe(27000);
+    expect(updated.isActive).toBe(false);
+  });
+
+  it('creates movement records for stock received and adjustments, with expiry warnings', async () => {
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Warnings Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Neem Capsules',
+        sku: 'NEEM-01',
+        categoryId: category.id,
+        unitType: 'box',
+        sellingPrice: 32000,
+        lowStockThreshold: 5,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    const soonDate = new Date();
+    soonDate.setDate(soonDate.getDate() + 10);
+    const expiredDate = new Date();
+    expiredDate.setDate(expiredDate.getDate() - 2);
+
+    const batchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'NEEM-B1',
+        expiryDate: soonDate.toISOString(),
+        quantityReceived: 20,
+        costPrice: 18000,
+        sellingPrice: 32000,
+      }),
+    });
+    expect(batchRes.status).toBe(201);
+    const batch = (await json(batchRes)).batch;
+
+    const expiredBatchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'NEEM-B2',
+        expiryDate: expiredDate.toISOString(),
+        quantityReceived: 2,
+        costPrice: 18000,
+      }),
+    });
+    expect(expiredBatchRes.status).toBe(201);
+
+    const adjustmentRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchId: batch.id,
+        movementType: 'damaged',
+        quantityDelta: -3,
+        reason: 'Damaged during handling',
+      }),
+    });
+    expect(adjustmentRes.status).toBe(201);
+
+    const inventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchA}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const inventory = (await json(inventoryRes)).inventory;
+    expect(inventory[0].quantity).toBe(19);
+    expect(inventory[0].expiringSoonCount).toBeGreaterThan(0);
+    expect(inventory[0].expiredCount).toBeGreaterThan(0);
+
+    const lowStatusRes = await app.request(`/api/catalog/inventory?branchId=${branchA}&status=expiring`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect((await json(lowStatusRes)).inventory.length).toBeGreaterThan(0);
+
+    const movementRes = await app.request(`/api/catalog/inventory/movements?branchId=${branchA}&productId=${product.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const movements = (await json(movementRes)).movements;
+    const types = movements.map((movement: Record<string, unknown>) => movement.movementType);
+    expect(types).toContain('stock_received');
+    expect(types).toContain('damaged');
+  });
+
+  it('enforces branch scoping and permissions', async () => {
+    const manager = await createUser('Branch Manager', 'manager.slice@evaya.ug', branchA);
+    const cashier = await createUser('Cashier', 'cashier.slice@evaya.ug', branchA);
+    const officer = await createUser('Inventory Officer', 'officer.slice@evaya.ug', branchA);
+
+    const managerToken = await login(manager.email, 'secret123');
+    const cashierToken = await login(cashier.email, 'secret123');
+    const officerToken = await login(officer.email, 'secret123');
+
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Slice Test Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const managerCategoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${managerToken}`,
+      },
+      body: JSON.stringify({ name: 'Manager Should Fail' }),
+    });
+    expect(managerCategoryRes.status).toBe(403);
+
+    const managerProductRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${managerToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Manager Branch Product',
+        categoryId: category.id,
+        unitType: 'piece',
+        sellingPrice: 10000,
+        lowStockThreshold: 2,
+        visibilityBranchIds: [branchA, branchB],
+      }),
+    });
+    expect(managerProductRes.status).toBe(201);
+
+    const managerProduct = (await json(managerProductRes)).product;
+    const visibilityRes = await app.request('/api/catalog/products?branchId=' + branchA, {
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    expect((await json(visibilityRes)).products[0].id).toBe(managerProduct.id);
+
+    const forbiddenScopeRes = await app.request(`/api/catalog/inventory?branchId=${branchB}`, {
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    expect(forbiddenScopeRes.status).toBe(403);
+
+    const officerBatchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${officerToken}`,
+      },
+      body: JSON.stringify({
+        productId: managerProduct.id,
+        branchId: branchA,
+        batchNumber: 'OFFICER-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 5).toISOString(),
+        quantityReceived: 6,
+        costPrice: 5000,
+      }),
+    });
+    expect(officerBatchRes.status).toBe(201);
+
+    const cashierInventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchA}`, {
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(cashierInventoryRes.status).toBe(200);
+
+    const cashierAdjustRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        productId: managerProduct.id,
+        branchId: branchA,
+        movementType: 'adjustment',
+        quantityDelta: 1,
+        reason: 'Cashier should not mutate inventory',
+      }),
+    });
+    expect(cashierAdjustRes.status).toBe(403);
+  });
+});
