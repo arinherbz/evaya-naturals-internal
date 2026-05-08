@@ -6,7 +6,7 @@ export default function Sidebar() {
 
   const navItems = [
     { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard' },
-    { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales' },
+    { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales', allowRoles: ['Branch Manager', 'Accountant'] },
     { label: 'Products', href: '/products', icon: 'package', permission: null, allowRoles: ['Branch Manager'] },
     { label: 'Inventory', href: '/inventory', icon: 'database', permission: 'manage_inventory', allowRoles: ['Cashier'] },
     { label: 'Customers', href: '/customers', icon: 'users', permission: null },

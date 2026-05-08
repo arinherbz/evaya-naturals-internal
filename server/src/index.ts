@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { initializeDatabase } from './db/init';
 import authRoutes from './routes/auth';
 import catalogRoutes from './routes/catalog';
+import posRoutes from './routes/pos';
 
 dotenv.config();
 
@@ -32,12 +33,14 @@ export function createApp() {
         health: '/api/health',
         auth: '/api/auth',
         catalog: '/api/catalog',
+        pos: '/api/pos',
       },
     });
   });
 
   app.route('/api/auth', authRoutes);
   app.route('/api/catalog', catalogRoutes);
+  app.route('/api/pos', posRoutes);
 
   app.onError((err: Error, c) => {
     console.error('Error:', err);

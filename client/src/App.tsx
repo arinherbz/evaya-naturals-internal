@@ -42,7 +42,7 @@ function App() {
             <Route
               path="/pos"
               element={
-                <ProtectedRoute permission="process_sales">
+                <ProtectedRoute permission="process_sales" allowRoles={['Branch Manager', 'Accountant']}>
                   <POSPage />
                 </ProtectedRoute>
               }

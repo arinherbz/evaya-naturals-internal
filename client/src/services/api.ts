@@ -1,10 +1,14 @@
 import type {
   Branch,
   Category,
+  CustomerOption,
   InventoryBatch,
   InventoryMovement,
   InventoryRow,
+  PosProduct,
+  PosTodaySummary,
   ProductListItem,
+  Receipt,
   Supplier,
 } from '../types';
 
@@ -153,6 +157,30 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ lowStockThreshold }),
       }),
+  },
+
+  pos: {
+    products: (params?: { search?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.search) searchParams.set('search', params.search);
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<{ products: PosProduct[] }>(`/pos/products${suffix}`);
+    },
+    customers: () => request<{ customers: CustomerOption[] }>('/pos/customers'),
+    createSale: (payload: {
+      customerId?: string | null;
+      discount: number;
+      paymentMethod: string;
+      paymentReference?: string | null;
+      notes?: string | null;
+      items: Array<{ productId: string; quantity: number }>;
+    }) =>
+      request<{ sale: { id: string; receiptNumber: string; subtotal: number; discount: number; total: number; paymentMethod: string; createdAt: string }; receiptNumber: string }>('/pos/sales', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    today: () => request<PosTodaySummary>('/pos/sales/today'),
+    receipt: (id: string) => request<{ receipt: Receipt }>(`/pos/receipts/${id}`),
   },
 };
 

@@ -55,6 +55,8 @@ describe('catalog slice', () => {
   beforeEach(async () => {
     await db.delete(schema.sessions);
     await db.delete(schema.auditLogs);
+    await db.delete(schema.saleItems);
+    await db.delete(schema.sales);
     await db.delete(schema.inventoryMovements);
     await db.delete(schema.inventory);
     await db.delete(schema.batches);

@@ -86,6 +86,13 @@ export interface Supplier {
   isActive: boolean;
 }
 
+export interface CustomerOption {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+}
+
 export interface InventoryBatch {
   id: string;
   batchNumber: string;
@@ -130,7 +137,7 @@ export interface InventoryMovement {
   productId: string;
   branchId: string;
   batchId: string | null;
-  movementType: 'stock_received' | 'adjustment' | 'damaged' | 'expired' | 'returned';
+  movementType: 'sale' | 'stock_received' | 'adjustment' | 'damaged' | 'expired' | 'returned';
   quantity: number;
   referenceId?: string | null;
   referenceType?: string | null;
@@ -141,6 +148,72 @@ export interface InventoryMovement {
   branchName: string;
   batchNumber?: string | null;
   actorName: string;
+}
+
+export interface PosProduct {
+  id: string;
+  name: string;
+  sku?: string | null;
+  barcode?: string | null;
+  categoryId: string;
+  categoryName: string;
+  unitType: string;
+  sellingPrice: number;
+  lowStockThreshold: number;
+  description?: string | null;
+  branchId: string;
+  availableQuantity: number;
+  inventoryQuantity: number;
+  lowStock: boolean;
+  nextExpiryDate?: string | null;
+}
+
+export interface PosSaleSummary {
+  id: string;
+  receiptNumber: string;
+  total: number;
+  paymentMethod: string;
+  createdAt: string;
+  cashierName: string;
+}
+
+export interface PosTodaySummary {
+  totalSales: number;
+  salesCount: number;
+  pendingCashUp: boolean;
+  sales: PosSaleSummary[];
+}
+
+export interface ReceiptLineItem {
+  id: string;
+  productId: string;
+  productName: string;
+  batchId: string;
+  batchNumber: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  total: number;
+}
+
+export interface Receipt {
+  id: string;
+  receiptNumber: string;
+  branchId: string;
+  branchName: string;
+  cashierId: string;
+  cashierName: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  paymentMethod: string;
+  paymentReference?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  items: ReceiptLineItem[];
 }
 
 export interface AuthResponse {
