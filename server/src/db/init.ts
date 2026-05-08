@@ -4,6 +4,8 @@ import * as schema from './schema/index';
 import bcrypt from 'bcryptjs';
 
 export async function initializeDatabase() {
+  const primaryBranchName = 'Evaya Naturals';
+
   // Create default roles if they don't exist
   const defaultRoles = [
     {
@@ -24,7 +26,7 @@ export async function initializeDatabase() {
     {
       name: 'Inventory Officer',
       description: 'Manage stock and inventory',
-      permissions: ['view_dashboard', 'manage_inventory', 'receive_stock', 'manage_transfers'],
+      permissions: ['view_dashboard', 'manage_inventory', 'receive_stock'],
     },
     {
       name: 'Delivery Rider',
@@ -61,9 +63,11 @@ export async function initializeDatabase() {
     }
   }
 
+  const primaryBranch = await db.select().from(schema.branches).where(eq(schema.branches.name, primaryBranchName));
+
   // Create default admin user if doesn't exist
   const adminRole = await db.select().from(schema.roles).where(eq(schema.roles.name, 'Admin'));
-  if (adminRole.length > 0) {
+  if (adminRole.length > 0 && primaryBranch.length > 0) {
     const existingAdmin = await db.select().from(schema.users).where(eq(schema.users.email, 'admin@evaya.ug'));
     if (existingAdmin.length === 0) {
       const passwordHash = await bcrypt.hash('admin123', 10);
@@ -73,9 +77,15 @@ export async function initializeDatabase() {
         firstName: 'System',
         lastName: 'Administrator',
         roleId: adminRole[0].id,
+        branchId: primaryBranch[0].id,
         phone: '+256 700 000 000',
       });
       console.log('Created admin user: admin@evaya.ug (password: admin123)');
+    } else if (!existingAdmin[0].branchId) {
+      await db.update(schema.users)
+        .set({ branchId: primaryBranch[0].id, updatedAt: new Date().toISOString() })
+        .where(eq(schema.users.id, existingAdmin[0].id));
+      console.log('Assigned admin user to Evaya Naturals');
     }
   }
 

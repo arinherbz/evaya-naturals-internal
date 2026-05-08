@@ -33,7 +33,7 @@ export default function Sidebar() {
           </div>
           <div>
             <h2 className="font-semibold text-gray-900">Evaya Naturals</h2>
-            <p className="text-xs text-gray-500">{user?.branch?.name || 'Head Office'}</p>
+            <p className="text-xs text-gray-500">Single-branch MVP</p>
           </div>
         </div>
       </div>

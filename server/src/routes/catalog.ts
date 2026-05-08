@@ -6,6 +6,7 @@ import { db } from '../db';
 import * as schema from '../db/schema';
 
 const catalogRoutes = new Hono();
+const primaryBranchName = 'Evaya Naturals';
 
 const unitTypes = ['piece', 'kg', 'g', 'ml', 'l', 'box', 'jar', 'pack'] as const;
 const categoryCreateSchema = z.object({
@@ -80,9 +81,21 @@ function sanitizeOptionalText(value?: string | null) {
   return sanitized ? sanitized : null;
 }
 
-function roleScopedBranchId(user: AuthUser, branchId?: string | null) {
+async function getPrimaryBranchId() {
+  const primaryBranch = await db.select({ id: schema.branches.id })
+    .from(schema.branches)
+    .where(and(eq(schema.branches.name, primaryBranchName), eq(schema.branches.isActive, true)));
+
+  if (primaryBranch.length === 0) {
+    throw new Error('Evaya Naturals branch is not configured');
+  }
+
+  return primaryBranch[0].id;
+}
+
+async function roleScopedBranchId(user: AuthUser, branchId?: string | null) {
   if (user.role.name === 'Admin') {
-    return branchId ?? null;
+    return branchId ?? user.branchId ?? await getPrimaryBranchId();
   }
 
   if (!user.branchId) {
@@ -297,7 +310,7 @@ catalogRoutes.get('/products', async (c) => {
   let branchId: string | null = null;
 
   try {
-    branchId = roleScopedBranchId(user, c.req.query('branchId'));
+    branchId = await roleScopedBranchId(user, c.req.query('branchId'));
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -515,7 +528,7 @@ catalogRoutes.get('/inventory', async (c) => {
   let branchId: string | null;
 
   try {
-    branchId = roleScopedBranchId(user, c.req.query('branchId'));
+    branchId = await roleScopedBranchId(user, c.req.query('branchId'));
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -626,7 +639,7 @@ catalogRoutes.get('/inventory/batches', async (c) => {
 
   let branchId: string | null;
   try {
-    branchId = roleScopedBranchId(user, c.req.query('branchId'));
+    branchId = await roleScopedBranchId(user, c.req.query('branchId'));
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -692,7 +705,7 @@ catalogRoutes.get('/inventory/movements', async (c) => {
 
   let branchId: string | null;
   try {
-    branchId = roleScopedBranchId(user, c.req.query('branchId'));
+    branchId = await roleScopedBranchId(user, c.req.query('branchId'));
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -761,7 +774,7 @@ catalogRoutes.post('/inventory/batches', async (c) => {
   const payload = batchCreateSchema.parse(await c.req.json());
   let branchId: string;
   try {
-    branchId = roleScopedBranchId(user, payload.branchId) ?? payload.branchId;
+    branchId = await roleScopedBranchId(user, payload.branchId) ?? payload.branchId;
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -820,7 +833,7 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
   const payload = inventoryAdjustmentSchema.parse(await c.req.json());
   let branchId: string;
   try {
-    branchId = roleScopedBranchId(user, payload.branchId) ?? payload.branchId;
+    branchId = await roleScopedBranchId(user, payload.branchId) ?? payload.branchId;
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
@@ -885,7 +898,7 @@ catalogRoutes.patch('/inventory/:id/threshold', async (c) => {
   }
 
   try {
-    roleScopedBranchId(user, existing[0].branchId);
+    await roleScopedBranchId(user, existing[0].branchId);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }

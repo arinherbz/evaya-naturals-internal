@@ -86,7 +86,6 @@ export default function ProductsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
   const [showInactive, setShowInactive] = useState(true);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -95,29 +94,21 @@ export default function ProductsPage() {
   const [pageError, setPageError] = useState('');
 
   const isAdmin = user?.role.name === 'Admin';
-  const isBranchManager = user?.role.name === 'Branch Manager';
 
   const branchesQuery = useQuery({
     queryKey: ['catalog-branches'],
     queryFn: () => api.branches.list(),
   });
 
-  useEffect(() => {
-    if (!branchFilter && user?.branchId && user.role.name !== 'Admin') {
-      setBranchFilter(user.branchId);
-    }
-  }, [branchFilter, user]);
+  const branches = branchesQuery.data?.branches ?? [];
+  const primaryBranch = branches.find((branch) => branch.name === 'Evaya Naturals') ?? branches[0];
 
   useEffect(() => {
     if (!productForm.categoryId && branchesQuery.data && productForm.visibilityBranchIds.length === 0) {
-      const defaultBranches = user?.role.name === 'Admin'
-        ? branchesQuery.data.branches.slice(0, 1).map((branch) => branch.id)
-        : user?.branchId
-          ? [user.branchId]
-          : [];
+      const defaultBranches = primaryBranch?.id ? [primaryBranch.id] : [];
       setProductForm((current) => ({ ...current, visibilityBranchIds: defaultBranches }));
     }
-  }, [branchesQuery.data, productForm.categoryId, productForm.visibilityBranchIds.length, user]);
+  }, [branchesQuery.data, primaryBranch?.id, productForm.categoryId, productForm.visibilityBranchIds.length]);
 
   const categoriesQuery = useQuery({
     queryKey: ['catalog-categories', showInactive],
@@ -125,10 +116,9 @@ export default function ProductsPage() {
   });
 
   const productsQuery = useQuery({
-    queryKey: ['catalog-products', search, branchFilter, showInactive],
+    queryKey: ['catalog-products', search, showInactive],
     queryFn: () => api.products.list({
       search,
-      branchId: branchFilter || undefined,
       includeInactive: showInactive,
     }),
   });
@@ -192,7 +182,7 @@ export default function ProductsPage() {
         usageInstructions: productForm.usageInstructions || null,
         ingredients: productForm.ingredients || null,
         allergyWarning: productForm.allergyWarning || null,
-        visibilityBranchIds: isBranchManager && user?.branchId ? [user.branchId] : productForm.visibilityBranchIds,
+        visibilityBranchIds: primaryBranch?.id ? [primaryBranch.id] : productForm.visibilityBranchIds,
         isActive: productForm.isActive,
       };
 
@@ -207,9 +197,7 @@ export default function ProductsPage() {
       setProductForm({
         ...emptyProductForm,
         categoryId: categoriesQuery.data?.categories?.[0]?.id ?? '',
-        visibilityBranchIds: isBranchManager && user?.branchId
-          ? [user.branchId]
-          : branchesQuery.data?.branches?.slice(0, 1).map((branch) => branch.id) ?? [],
+        visibilityBranchIds: primaryBranch?.id ? [primaryBranch.id] : [],
       });
       setPageError('');
       await refreshSlice();
@@ -241,7 +229,6 @@ export default function ProductsPage() {
 
   const categories = categoriesQuery.data?.categories ?? [];
   const products = productsQuery.data?.products ?? [];
-  const branches = branchesQuery.data?.branches ?? [];
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
@@ -263,12 +250,12 @@ export default function ProductsPage() {
                   <p className="mt-1 text-2xl font-semibold">{categories.length}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Products</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400">Products</p>
                   <p className="mt-1 text-2xl font-semibold">{products.length}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Active branches</p>
-                  <p className="mt-1 text-2xl font-semibold">{branches.length}</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Operating branch</p>
+                  <p className="mt-1 text-2xl font-semibold">{primaryBranch?.name ?? 'Evaya Naturals'}</p>
                 </div>
               </div>
             </div>
@@ -403,26 +390,15 @@ export default function ProductsPage() {
               <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold">Product master</h2>
-                  <p className="mt-1 text-sm text-slate-500">Manage branch visibility, pricing, SKU/barcode, and formulation notes.</p>
+                  <p className="mt-1 text-sm text-slate-500">Manage the Evaya Naturals catalog, pricing, SKU/barcode, and formulation notes.</p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search name, SKU, barcode"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
-                  <select
-                    value={branchFilter}
-                    onChange={(event) => setBranchFilter(event.target.value)}
-                    disabled={!isAdmin}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                  >
-                    <option value="">All branches</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>{branch.name}</option>
-                    ))}
-                  </select>
                   <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
                     <span className="text-slate-500">Show inactive</span>
                     <input
@@ -540,31 +516,10 @@ export default function ProductsPage() {
 
                 <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-medium text-slate-700">Branch visibility</p>
-                    <p className="mt-1 text-xs text-slate-400">Only selected branches can stock and manage this product.</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {branches.map((branch) => {
-                        const checked = productForm.visibilityBranchIds.includes(branch.id);
-                        const disabled = isBranchManager;
-
-                        return (
-                          <label key={branch.id} className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-sm ${checked ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>
-                            <span>{branch.name}</span>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={disabled}
-                              onChange={(event) => {
-                                const next = event.target.checked
-                                  ? [...productForm.visibilityBranchIds, branch.id]
-                                  : productForm.visibilityBranchIds.filter((id) => id !== branch.id);
-                                setProductForm((current) => ({ ...current, visibilityBranchIds: next }));
-                              }}
-                              className="h-4 w-4 rounded border-slate-300 text-emerald-600"
-                            />
-                          </label>
-                        );
-                      })}
+                    <p className="text-sm font-medium text-slate-700">Operating branch</p>
+                    <p className="mt-1 text-xs text-slate-400">This MVP is locked to Evaya Naturals for smoother daily operations.</p>
+                    <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
+                      {primaryBranch?.name ?? 'Evaya Naturals'}
                     </div>
                   </div>
 
@@ -593,9 +548,7 @@ export default function ProductsPage() {
                           setProductForm({
                             ...emptyProductForm,
                             categoryId: categories[0]?.id ?? '',
-                            visibilityBranchIds: isBranchManager && user?.branchId
-                              ? [user.branchId]
-                              : branches.slice(0, 1).map((branch) => branch.id),
+                            visibilityBranchIds: primaryBranch?.id ? [primaryBranch.id] : [],
                           });
                         }}
                         className="rounded-full border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
@@ -614,7 +567,7 @@ export default function ProductsPage() {
                       <th className="px-4 py-3 font-medium">Product</th>
                       <th className="px-4 py-3 font-medium">Category</th>
                       <th className="px-4 py-3 font-medium">Price</th>
-                      <th className="px-4 py-3 font-medium">Branches</th>
+                      <th className="px-4 py-3 font-medium">Branch</th>
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium">Actions</th>
                     </tr>
@@ -636,13 +589,9 @@ export default function ProductsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            {product.visibleBranches.map((branch) => (
-                              <span key={branch.branchId} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                                {branch.branchName}
-                              </span>
-                            ))}
-                          </div>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {primaryBranch?.name ?? product.visibleBranches[0]?.branchName ?? 'Evaya Naturals'}
+                          </span>
                         </td>
                         <td className="px-4 py-4">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${product.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>

@@ -77,7 +77,6 @@ export default function InventoryPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pageError, setPageError] = useState('');
   const [batchForm, setBatchForm] = useState<BatchFormState>(emptyBatchForm);
@@ -92,24 +91,18 @@ export default function InventoryPage() {
     queryFn: () => api.branches.list(),
   });
 
-  useEffect(() => {
-    if (!branchFilter && user?.role.name !== 'Admin' && user?.branchId) {
-      setBranchFilter(user.branchId);
-      setBatchForm((current) => ({ ...current, branchId: user.branchId! }));
-      setAdjustmentForm((current) => ({ ...current, branchId: user.branchId! }));
-    }
-  }, [branchFilter, user]);
+  const branches = branchesQuery.data?.branches ?? [];
+  const primaryBranch = branches.find((branch) => branch.name === 'Evaya Naturals') ?? branches[0];
 
   const productsQuery = useQuery({
-    queryKey: ['catalog-products-for-inventory', branchFilter],
-    queryFn: () => api.products.list({ branchId: branchFilter || undefined, includeInactive: true }),
+    queryKey: ['catalog-products-for-inventory'],
+    queryFn: () => api.products.list({ includeInactive: true }),
   });
 
   const inventoryQuery = useQuery({
-    queryKey: ['catalog-inventory', search, branchFilter, statusFilter],
+    queryKey: ['catalog-inventory', search, statusFilter],
     queryFn: () => api.inventory.list({
       search,
-      branchId: branchFilter || undefined,
       status: statusFilter,
     }),
   });
@@ -121,7 +114,7 @@ export default function InventoryPage() {
   });
 
   const batchesQuery = useQuery({
-    queryKey: ['catalog-batches', adjustmentForm.branchId, adjustmentForm.productId],
+    queryKey: ['catalog-batches', adjustmentForm.productId],
     queryFn: () => api.inventory.batches({
       branchId: adjustmentForm.branchId || undefined,
       productId: adjustmentForm.productId || undefined,
@@ -129,22 +122,21 @@ export default function InventoryPage() {
   });
 
   const movementsQuery = useQuery({
-    queryKey: ['catalog-movements', branchFilter, selectedInventory?.productId],
+    queryKey: ['catalog-movements', selectedInventory?.productId],
     queryFn: () => api.inventory.movements({
-      branchId: branchFilter || undefined,
+      branchId: primaryBranch?.id,
       productId: selectedInventory?.productId,
     }),
   });
 
   useEffect(() => {
-    const branches = branchesQuery.data?.branches ?? [];
     const products = productsQuery.data?.products ?? [];
 
-    if (!batchForm.branchId && branches.length > 0) {
-      setBatchForm((current) => ({ ...current, branchId: branchFilter || branches[0].id }));
+    if (!batchForm.branchId && primaryBranch?.id) {
+      setBatchForm((current) => ({ ...current, branchId: primaryBranch.id }));
     }
-    if (!adjustmentForm.branchId && branches.length > 0) {
-      setAdjustmentForm((current) => ({ ...current, branchId: branchFilter || branches[0].id }));
+    if (!adjustmentForm.branchId && primaryBranch?.id) {
+      setAdjustmentForm((current) => ({ ...current, branchId: primaryBranch.id }));
     }
     if (!batchForm.productId && products.length > 0) {
       setBatchForm((current) => ({
@@ -161,8 +153,7 @@ export default function InventoryPage() {
     adjustmentForm.productId,
     batchForm.branchId,
     batchForm.productId,
-    branchFilter,
-    branchesQuery.data,
+    primaryBranch?.id,
     productsQuery.data,
   ]);
 
@@ -241,7 +232,6 @@ export default function InventoryPage() {
 
   const inventory = inventoryQuery.data?.inventory ?? [];
   const products = productsQuery.data?.products ?? [];
-  const branches = branchesQuery.data?.branches ?? [];
   const suppliers = suppliersQuery.data?.suppliers ?? [];
   const movementRows = movementsQuery.data?.movements ?? [];
   const batchRows = batchesQuery.data?.batches ?? [];
@@ -261,7 +251,7 @@ export default function InventoryPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory Ops</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Branch stock, batches, and movement history</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Watch branch stock, receive new batches, adjust quantities with reasons, and inspect every movement in one place.
+                  Watch Evaya Naturals stock, receive new batches, adjust quantities with reasons, and inspect every movement in one place.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -294,21 +284,9 @@ export default function InventoryPage() {
               placeholder="Search product, SKU, barcode"
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             />
-            <select
-              value={branchFilter}
-              onChange={(event) => {
-                setBranchFilter(event.target.value);
-                setBatchForm((current) => ({ ...current, branchId: event.target.value }));
-                setAdjustmentForm((current) => ({ ...current, branchId: event.target.value }));
-              }}
-              disabled={user?.role.name !== 'Admin'}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-            >
-              <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              Operating branch: {primaryBranch?.name ?? 'Evaya Naturals'}
+            </div>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -328,7 +306,7 @@ export default function InventoryPage() {
             <div className="grid gap-6 xl:grid-cols-2">
               <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <h2 className="text-xl font-semibold">Receive batch</h2>
-                <p className="mt-1 text-sm text-slate-500">Create a supplier-linked batch, set expiry, and increase branch stock.</p>
+                <p className="mt-1 text-sm text-slate-500">Create a supplier-linked batch, set expiry, and increase Evaya Naturals stock.</p>
                 <form className="mt-5 grid gap-3" onSubmit={handleBatchSubmit}>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -347,16 +325,9 @@ export default function InventoryPage() {
                         <option key={product.id} value={product.id}>{product.name}</option>
                       ))}
                     </select>
-                    <select
-                      value={batchForm.branchId}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, branchId: event.target.value }))}
-                      disabled={user?.role.name !== 'Admin'}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                    >
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      Receiving into {primaryBranch?.name ?? 'Evaya Naturals'}
+                    </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -442,16 +413,9 @@ export default function InventoryPage() {
                         <option key={product.id} value={product.id}>{product.name}</option>
                       ))}
                     </select>
-                    <select
-                      value={adjustmentForm.branchId}
-                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, branchId: event.target.value }))}
-                      disabled={user?.role.name !== 'Admin'}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                    >
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      Recording against {primaryBranch?.name ?? 'Evaya Naturals'}
+                    </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <select
@@ -508,8 +472,8 @@ export default function InventoryPage() {
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Inventory by branch</h2>
-                <p className="mt-1 text-sm text-slate-500">Live stock with per-branch thresholds, batch warnings, and quick movement drill-down.</p>
+                <h2 className="text-xl font-semibold">Inventory overview</h2>
+                <p className="mt-1 text-sm text-slate-500">Live stock with thresholds, batch warnings, and quick movement drill-down for Evaya Naturals.</p>
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
                 Tap any row to focus movement history below.
@@ -520,7 +484,6 @@ export default function InventoryPage() {
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Product</th>
-                    <th className="px-4 py-3 font-medium">Branch</th>
                     <th className="px-4 py-3 font-medium">Quantity</th>
                     <th className="px-4 py-3 font-medium">Threshold</th>
                     <th className="px-4 py-3 font-medium">Warnings</th>
@@ -540,7 +503,6 @@ export default function InventoryPage() {
                           {row.categoryName} · {row.sku || 'No SKU'} · {row.unitType.toUpperCase()}
                         </div>
                       </td>
-                      <td className="px-4 py-4">{row.branchName}</td>
                       <td className="px-4 py-4">
                         <div className="font-medium">{row.quantity}</div>
                         <div className="text-xs text-slate-400">{row.batches.length} batches tracked</div>
@@ -629,7 +591,7 @@ export default function InventoryPage() {
                         <p className="font-medium text-slate-900">{movement.productName}</p>
                         <p className="mt-1 text-sm text-slate-500">{describeMovement(movement)}</p>
                         <p className="mt-2 text-xs text-slate-400">
-                          {movement.branchName} · {movement.batchNumber || 'No batch'} · {new Date(movement.createdAt).toLocaleString()}
+                          {movement.batchNumber || 'No batch'} · {new Date(movement.createdAt).toLocaleString()}
                         </p>
                       </div>
                       <div className={`rounded-full px-3 py-1 text-sm font-medium ${movement.quantity >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -660,7 +622,7 @@ export default function InventoryPage() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-medium text-slate-900">{batch.batchNumber}</p>
-                          <p className="mt-1 text-sm text-slate-500">{batch.productName} · {batch.branchName}</p>
+                          <p className="mt-1 text-sm text-slate-500">{batch.productName} · {primaryBranch?.name ?? batch.branchName}</p>
                           <p className="mt-2 text-xs text-slate-400">
                             Supplier: {batch.supplierName || '—'} · Expires {new Date(batch.expiryDate).toLocaleDateString()}
                           </p>
