@@ -22,6 +22,8 @@ export async function initializeDatabase() {
   ensureColumn('shifts', 'bank_transfer_total', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('shifts', 'approved_at', 'TEXT');
   ensureColumn('daily_closes', 'shift_id', 'TEXT');
+  ensureColumn('deliveries', 'receipt_reference', 'TEXT');
+  ensureColumn('deliveries', 'delivery_date', 'TEXT');
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS broadcasts (
       id TEXT PRIMARY KEY NOT NULL,
@@ -34,6 +36,23 @@ export async function initializeDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT PRIMARY KEY NOT NULL,
+      branch_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      payment_method TEXT NOT NULL,
+      expense_date TEXT NOT NULL,
+      description TEXT,
+      recorded_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (branch_id) REFERENCES branches(id),
+      FOREIGN KEY (recorded_by) REFERENCES users(id)
     )
   `);
 

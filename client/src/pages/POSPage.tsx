@@ -1,6 +1,7 @@
 import { FormEvent, useDeferredValue, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
+import BrandMark from '../components/BrandMark';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { PosProduct, Receipt } from '../types';
@@ -721,7 +722,7 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
     <div className="mt-5 rounded-3xl bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Evaya Naturals</p>
+          <BrandMark compact className="mb-3" />
           <p className="mt-2 text-lg font-semibold">{receipt.receiptNumber}</p>
           <p className="mt-1 text-xs text-slate-400">{new Date(receipt.createdAt).toLocaleString()}</p>
           <p className="mt-3 text-sm text-slate-600">Cashier: {receipt.cashierName}</p>

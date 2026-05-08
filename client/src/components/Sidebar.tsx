@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import BrandMark from './BrandMark';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -25,17 +26,10 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white shadow-md min-h-screen flex flex-col">
-      <div className="p-6 border-b">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-evaya-green-600 flex items-center justify-center">
-            <span className="text-white font-bold">E</span>
-          </div>
-          <div>
-            <h2 className="font-semibold text-gray-900">Evaya Naturals</h2>
-            <p className="text-xs text-gray-500">Single-branch MVP</p>
-          </div>
-        </div>
+    <aside className="w-72 border-r border-white/70 bg-[linear-gradient(180deg,#fcfbf7,#f3f6f1)] shadow-[0_12px_40px_rgba(15,23,42,0.05)] min-h-screen flex flex-col">
+      <div className="p-6 border-b border-slate-100">
+        <BrandMark compact />
+        <p className="mt-3 text-xs uppercase tracking-[0.24em] text-slate-400">Evaya Naturals only</p>
       </div>
 
       <nav className="flex-1 p-4 overflow-y-auto">
@@ -48,8 +42,8 @@ export default function Sidebar() {
                   className={({ isActive }) =>
                     `flex items-center px-4 py-3 rounded-lg transition ${
                       isActive
-                        ? 'bg-evaya-green-50 text-evaya-green-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-white text-evaya-green-700 font-medium shadow-sm'
+                        : 'text-gray-700 hover:bg-white/80'
                     }`
                   }
                 >
@@ -62,7 +56,7 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      <div className="p-4 border-t">
+      <div className="p-4 border-t border-slate-100">
         <div className="flex items-center px-4 py-3">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">

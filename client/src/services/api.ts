@@ -5,12 +5,15 @@ import type {
   Category,
   Customer,
   CustomerHistory,
+  Delivery,
   InventoryBatch,
   InventoryMovement,
   InventoryRow,
+  Expense,
   PosProduct,
   PosTodaySummary,
   ProductListItem,
+  ReportSummary,
   Receipt,
   Supplier,
   ShiftSnapshot,
@@ -51,6 +54,35 @@ async function request<T>(
   }
 
   return data;
+}
+
+async function requestBlob(
+  url: string,
+  options: RequestInit = {}
+): Promise<Blob> {
+  const token = localStorage.getItem('token');
+  const headers = new Headers(options.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'An error occurred';
+    try {
+      const data = await response.json();
+      errorMessage = data.error || errorMessage;
+    } catch {
+      // Ignore JSON parsing for binary responses.
+    }
+    throw new ApiError(response.status, errorMessage);
+  }
+
+  return response.blob();
 }
 
 export const authApi = {
@@ -245,6 +277,59 @@ export const api = {
         method: 'POST',
       }),
     reportToday: () => request<TodayReport>('/pos/reports/today'),
+    reportSummary: (params: { period: 'daily' | 'weekly' | 'custom'; startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      searchParams.set('period', params.period);
+      if (params.startDate) searchParams.set('startDate', params.startDate);
+      if (params.endDate) searchParams.set('endDate', params.endDate);
+      return request<ReportSummary>(`/pos/reports/summary?${searchParams.toString()}`);
+    },
+    downloadReportPdf: (params: { period: 'daily' | 'weekly' | 'custom'; startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      searchParams.set('period', params.period);
+      if (params.startDate) searchParams.set('startDate', params.startDate);
+      if (params.endDate) searchParams.set('endDate', params.endDate);
+      return requestBlob(`/pos/reports/pdf?${searchParams.toString()}`);
+    },
+    expenses: (params?: { startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.startDate) searchParams.set('startDate', params.startDate);
+      if (params?.endDate) searchParams.set('endDate', params.endDate);
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<{ expenses: Expense[]; categories: string[] }>(`/pos/expenses${suffix}`);
+    },
+    createExpense: (payload: { title: string; category: string; amount: number; paymentMethod: string; expenseDate: string; description?: string | null }) =>
+      request<{ expense: Expense }>('/pos/expenses', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    updateExpense: (id: string, payload: Partial<{ title: string; category: string; amount: number; paymentMethod: string; expenseDate: string; description?: string | null }>) =>
+      request<{ expense: Expense }>(`/pos/expenses/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    deleteExpense: (id: string) =>
+      request<{ message: string }>(`/pos/expenses/${id}`, {
+        method: 'DELETE',
+      }),
+    deliverySupport: () =>
+      request<{ riders: Array<{ id: string; firstName: string; lastName: string }>; customers: Array<{ id: string; name: string; phone: string }>; statuses: string[] }>('/pos/deliveries/support'),
+    deliveries: (params?: { status?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.status) searchParams.set('status', params.status);
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<{ deliveries: Delivery[] }>(`/pos/deliveries${suffix}`);
+    },
+    createDelivery: (payload: { customerId: string; saleId?: string | null; receiptReference?: string | null; deliveryAddress: string; riderId?: string | null; deliveryFee: number; status?: string; deliveryDate: string; notes?: string | null }) =>
+      request<{ delivery: Delivery }>('/pos/deliveries', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    updateDelivery: (id: string, payload: Partial<{ riderId?: string | null; status?: string; deliveryAddress?: string; deliveryFee?: number; deliveryDate?: string; notes?: string | null }>) =>
+      request<{ delivery: Delivery }>(`/pos/deliveries/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
   },
 };
 

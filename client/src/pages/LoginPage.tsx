@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import BrandMark from '../components/BrandMark';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -26,19 +27,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-evaya-green-50 to-evaya-cream">
+    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(47,125,87,0.12),_transparent_38%),linear-gradient(135deg,#fbfaf6,#eef5ef)]">
       <div className="max-w-md w-full mx-4">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-evaya-green-600 mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+          <div className="inline-flex rounded-[28px] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <BrandMark />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Evaya Naturals</h1>
-          <p className="mt-2 text-gray-600">Internal Management System</p>
+          <h1 className="mt-5 text-2xl font-semibold text-gray-900">Daily operations for Evaya Naturals</h1>
+          <p className="mt-2 text-gray-600">Calm, fast internal workflow for the active branch MVP.</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="rounded-[30px] border border-white/80 bg-white/95 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">

@@ -12,6 +12,7 @@ export * from './broadcasts';
 export * from './sales';
 export * from './sale-items';
 export * from './deliveries';
+export * from './expenses';
 export * from './transfers';
 export * from './daily-close';
 export * from './audit-logs';

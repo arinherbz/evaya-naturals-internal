@@ -1,0 +1,8 @@
+<!-- Replace this placeholder with the final Evaya Naturals logo asset at the same path. -->
+<svg width="220" height="64" viewBox="0 0 220 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="220" height="64" rx="18" fill="#F6F5EF"/>
+  <circle cx="34" cy="32" r="20" fill="#2F7D57"/>
+  <path d="M34 19C30 24 28 28 28 34C31 31 34 29 40 28C38 32 35 37 30 43C39 41 46 33 46 24C42 24 38 22 34 19Z" fill="#F6F5EF"/>
+  <text x="66" y="28" fill="#163226" font-family="Arial, sans-serif" font-size="18" font-weight="700">Evaya Naturals</text>
+  <text x="66" y="45" fill="#53725F" font-family="Arial, sans-serif" font-size="11">Internal operations</text>
+</svg>

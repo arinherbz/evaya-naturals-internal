@@ -251,6 +251,35 @@ export interface ShiftSnapshot {
   };
 }
 
+export interface Expense {
+  id: string;
+  title: string;
+  category: string;
+  amount: number;
+  paymentMethod: string;
+  expenseDate: string;
+  description?: string | null;
+  recordedBy: string;
+  recordedByName?: string | null;
+}
+
+export interface Delivery {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  saleId?: string | null;
+  receiptReference?: string | null;
+  deliveryAddress: string;
+  riderId?: string | null;
+  riderName?: string | null;
+  deliveryFee: number;
+  status: 'pending' | 'assigned' | 'picked_up' | 'delivered' | 'failed' | 'cancelled';
+  deliveryDate?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
 export interface TodayReport {
   todaySales: number;
   salesCount: number;
@@ -263,6 +292,47 @@ export interface TodayReport {
   };
   varianceSummary: number;
   shifts: ShiftSnapshot[];
+}
+
+export interface ReportSummary {
+  title: string;
+  period: 'daily' | 'weekly' | 'custom';
+  periodLabel: string;
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  totalSales: number;
+  salesCount: number;
+  totalDiscounts: number;
+  paymentTotals: {
+    cash: number;
+    mtnMobileMoney: number;
+    airtelMoney: number;
+    card: number;
+    bankTransfer: number;
+  };
+  expensesTotal: number;
+  netAmount: number;
+  bestSellingProducts: Array<{
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }>;
+  lowStockSummary: {
+    count: number;
+    items: Array<{
+      productName: string;
+      quantity: number;
+      threshold: number;
+    }>;
+  };
+  shiftSummary: {
+    count: number;
+    varianceTotal: number;
+    shifts: ShiftSnapshot[];
+  };
+  expenses: Expense[];
+  sales: PosSaleSummary[];
 }
 
 export interface ReceiptLineItem {

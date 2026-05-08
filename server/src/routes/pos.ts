@@ -4,10 +4,14 @@ import { z } from 'zod';
 import { authMiddleware, type AuthUser } from '../middleware/auth';
 import { db } from '../db';
 import * as schema from '../db/schema';
+import { generateReportPdf } from '../lib/report-pdf';
 
 const posRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
 const paymentMethods = ['cash', 'mtn_mobile_money', 'airtel_money', 'bank_card', 'bank_transfer'] as const;
+const expenseCategories = ['Rent', 'Utilities', 'Salaries', 'Transport', 'Packaging', 'Supplier Payment', 'Marketing', 'Miscellaneous'] as const;
+const reportPeriods = ['daily', 'weekly', 'custom'] as const;
+const deliveryStatuses = ['pending', 'assigned', 'picked_up', 'delivered', 'failed', 'cancelled'] as const;
 
 const salePayloadSchema = z.object({
   customerId: z.string().trim().min(1).optional().nullable(),
@@ -52,8 +56,48 @@ const shiftCloseSchema = z.object({
   notes: z.string().trim().max(500).optional().nullable(),
 });
 
+const expenseSchema = z.object({
+  title: z.string().trim().min(2).max(160),
+  category: z.enum(expenseCategories),
+  amount: z.number().int().positive(),
+  paymentMethod: z.enum(paymentMethods),
+  expenseDate: z.string().trim().min(1),
+  description: z.string().trim().max(500).optional().nullable(),
+});
+
+const reportQuerySchema = z.object({
+  period: z.enum(reportPeriods).default('daily'),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
+});
+
+const deliverySchema = z.object({
+  customerId: z.string().trim().min(1),
+  saleId: z.string().trim().optional().nullable(),
+  receiptReference: z.string().trim().max(120).optional().nullable(),
+  deliveryAddress: z.string().trim().min(4).max(500),
+  riderId: z.string().trim().optional().nullable(),
+  deliveryFee: z.number().int().min(0),
+  status: z.enum(deliveryStatuses).optional(),
+  deliveryDate: z.string().trim().min(1),
+  notes: z.string().trim().max(500).optional().nullable(),
+});
+
+const deliveryUpdateSchema = z.object({
+  riderId: z.string().trim().optional().nullable(),
+  status: z.enum(deliveryStatuses).optional(),
+  deliveryAddress: z.string().trim().min(4).max(500).optional(),
+  deliveryFee: z.number().int().min(0).optional(),
+  deliveryDate: z.string().trim().optional(),
+  notes: z.string().trim().max(500).optional().nullable(),
+});
+
 function canViewPos(user: AuthUser) {
   return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
+}
+
+function canViewReports(user: AuthUser) {
+  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
 }
 
 function canViewCustomers(user: AuthUser) {
@@ -73,6 +117,26 @@ function canApproveClose(user: AuthUser) {
 }
 
 function canBroadcast(user: AuthUser) {
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
+}
+
+function canViewExpenses(user: AuthUser) {
+  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
+}
+
+function canManageExpenses(user: AuthUser) {
+  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
+}
+
+function canDeleteExpenses(user: AuthUser) {
+  return user.role.name === 'Admin';
+}
+
+function canViewDeliveries(user: AuthUser) {
+  return ['Admin', 'Branch Manager', 'Delivery Rider'].includes(user.role.name);
+}
+
+function canManageDeliveries(user: AuthUser) {
   return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
@@ -118,12 +182,66 @@ function endOfToday() {
   return date;
 }
 
+function startOfWeek() {
+  const date = startOfToday();
+  date.setDate(date.getDate() - 6);
+  return date;
+}
+
+function parseDateStart(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid date');
+  }
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function parseDateEnd(value: string) {
+  const date = parseDateStart(value);
+  date.setDate(date.getDate() + 1);
+  return date;
+}
+
 function createReceiptNumber() {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
   const timePart = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `EVN-${datePart}-${timePart}-${suffix}`;
+}
+
+function resolveReportRange(period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
+  if (period === 'daily') {
+    return {
+      start: startOfToday(),
+      end: endOfToday(),
+      label: startOfToday().toLocaleDateString(),
+      title: 'Daily Report',
+    };
+  }
+
+  if (period === 'weekly') {
+    return {
+      start: startOfWeek(),
+      end: endOfToday(),
+      label: `${startOfWeek().toLocaleDateString()} to ${new Date(endOfToday().getTime() - 1000).toLocaleDateString()}`,
+      title: 'Weekly Report',
+    };
+  }
+
+  if (!startDate || !endDate) {
+    throw new Error('Start date and end date are required for custom reports');
+  }
+
+  const start = parseDateStart(startDate);
+  const end = parseDateEnd(endDate);
+  return {
+    start,
+    end,
+    label: `${start.toLocaleDateString()} to ${new Date(end.getTime() - 1000).toLocaleDateString()}`,
+    title: 'Custom Report',
+  };
 }
 
 async function getActiveShift(cashierId: string, branchId: string) {
@@ -207,10 +325,6 @@ async function buildShiftSnapshot(shiftId: string) {
   };
 }
 
-async function buildTodaySummary(branchId: string) {
-  return buildSalesHistory(branchId);
-}
-
 async function buildSalesHistory(branchId: string, options?: { paymentMethod?: string | null; receiptSearch?: string | null }) {
   const filters = [
     eq(schema.sales.branchId, branchId),
@@ -268,6 +382,123 @@ async function buildCustomerPurchaseHistory(customerId: string, branchId: string
       eq(schema.sales.status, 'completed'),
     ))
     .orderBy(desc(schema.sales.createdAt));
+}
+
+async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
+  const range = resolveReportRange(period, startDate, endDate);
+  const filters = and(
+    eq(schema.sales.branchId, branchId),
+    eq(schema.sales.status, 'completed'),
+    gte(schema.sales.createdAt, range.start.toISOString()),
+    lt(schema.sales.createdAt, range.end.toISOString()),
+  );
+
+  const sales = await db.select({
+    id: schema.sales.id,
+    receiptNumber: schema.sales.receiptNumber,
+    total: schema.sales.total,
+    subtotal: schema.sales.subtotal,
+    discount: schema.sales.discount,
+    paymentMethod: schema.sales.paymentMethod,
+    createdAt: schema.sales.createdAt,
+    cashierName: schema.users.firstName,
+  })
+    .from(schema.sales)
+    .innerJoin(schema.users, eq(schema.sales.cashierId, schema.users.id))
+    .where(filters)
+    .orderBy(desc(schema.sales.createdAt));
+
+  const paymentTotals = buildPaymentTotals(sales);
+  const totalSales = sales.reduce((sum, sale) => sum + sale.total, 0);
+  const totalDiscounts = sales.reduce((sum, sale) => sum + sale.discount, 0);
+
+  const expenses = await db.select({
+    id: schema.expenses.id,
+    title: schema.expenses.title,
+    category: schema.expenses.category,
+    amount: schema.expenses.amount,
+    paymentMethod: schema.expenses.paymentMethod,
+    expenseDate: schema.expenses.expenseDate,
+    description: schema.expenses.description,
+    recordedBy: schema.expenses.recordedBy,
+    recordedByName: schema.users.firstName,
+  })
+    .from(schema.expenses)
+    .innerJoin(schema.users, eq(schema.expenses.recordedBy, schema.users.id))
+    .where(and(
+      eq(schema.expenses.branchId, branchId),
+      gte(schema.expenses.expenseDate, range.start.toISOString()),
+      lt(schema.expenses.expenseDate, range.end.toISOString()),
+    ))
+    .orderBy(desc(schema.expenses.expenseDate));
+
+  const expensesTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  const bestSellingProducts = await db.select({
+    productName: schema.products.name,
+    quantity: schema.saleItems.quantity,
+    revenue: schema.saleItems.total,
+  })
+    .from(schema.saleItems)
+    .innerJoin(schema.sales, eq(schema.saleItems.saleId, schema.sales.id))
+    .innerJoin(schema.products, eq(schema.saleItems.productId, schema.products.id))
+    .where(filters)
+    .orderBy(desc(schema.saleItems.total));
+
+  const productMap = new Map<string, { productName: string; quantity: number; revenue: number }>();
+  bestSellingProducts.forEach((row) => {
+    const existing = productMap.get(row.productName) ?? { productName: row.productName, quantity: 0, revenue: 0 };
+    existing.quantity += row.quantity;
+    existing.revenue += row.revenue;
+    productMap.set(row.productName, existing);
+  });
+
+  const inventoryRows = await db.select({
+    productName: schema.products.name,
+    quantity: schema.inventory.quantity,
+    threshold: schema.inventory.lowStockThreshold,
+  })
+    .from(schema.inventory)
+    .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
+    .where(eq(schema.inventory.branchId, branchId))
+    .orderBy(asc(schema.inventory.quantity));
+  const inventory = inventoryRows.filter((row) => row.quantity <= row.threshold);
+
+  const shifts = await db.select({ id: schema.shifts.id })
+    .from(schema.shifts)
+    .where(and(
+      eq(schema.shifts.branchId, branchId),
+      gte(schema.shifts.openedAt, range.start.toISOString()),
+      lt(schema.shifts.openedAt, range.end.toISOString()),
+    ));
+  const shiftSummaries = (await Promise.all(shifts.map((shift) => buildShiftSnapshot(shift.id)))).filter((shift): shift is NonNullable<typeof shift> => Boolean(shift));
+
+  return {
+    title: range.title,
+    period,
+    periodLabel: range.label,
+    startDate: range.start.toISOString(),
+    endDate: range.end.toISOString(),
+    generatedAt: new Date().toISOString(),
+    totalSales,
+    salesCount: sales.length,
+    totalDiscounts,
+    paymentTotals,
+    expensesTotal,
+    netAmount: totalSales - expensesTotal,
+    bestSellingProducts: Array.from(productMap.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 5),
+    lowStockSummary: {
+      count: inventory.length,
+      items: inventory.slice(0, 5),
+    },
+    shiftSummary: {
+      count: shiftSummaries.length,
+      varianceTotal: shiftSummaries.reduce((sum, shift) => sum + (shift?.variance ?? 0), 0),
+      shifts: shiftSummaries,
+    },
+    expenses,
+    sales,
+  };
 }
 
 posRoutes.use('*', authMiddleware);
@@ -733,26 +964,325 @@ posRoutes.get('/sales/today', async (c) => {
 
 posRoutes.get('/reports/today', async (c) => {
   const user = c.get('user');
-  if (!canViewPos(user)) {
+  if (!canViewReports(user)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
   const branchId = await resolveBranchId(user);
-  const todaySummary = await buildTodaySummary(branchId);
-  const shifts = await db.select().from(schema.shifts).where(and(
-    eq(schema.shifts.branchId, branchId),
-    gte(schema.shifts.openedAt, startOfToday().toISOString()),
-    lt(schema.shifts.openedAt, endOfToday().toISOString()),
-  ));
-
-  const shiftSummaries = await Promise.all(shifts.map((shift) => buildShiftSnapshot(shift.id)));
+  const report = await buildReportSummary(branchId, 'daily');
   return c.json({
-    todaySales: todaySummary.totalSales,
-    paymentTotals: todaySummary.paymentTotals,
-    salesCount: todaySummary.salesCount,
-    varianceSummary: shiftSummaries.reduce((sum, shift) => sum + (shift?.variance ?? 0), 0),
-    shifts: shiftSummaries.filter(Boolean),
+    todaySales: report.totalSales,
+    paymentTotals: report.paymentTotals,
+    salesCount: report.salesCount,
+    expensesTotal: report.expensesTotal,
+    netAmount: report.netAmount,
+    varianceSummary: report.shiftSummary.varianceTotal,
+    lowStockSummary: report.lowStockSummary,
+    bestSellingProducts: report.bestSellingProducts,
+    shifts: report.shiftSummary.shifts,
   });
+});
+
+posRoutes.get('/reports/summary', async (c) => {
+  const user = c.get('user');
+  if (!canViewReports(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const query = reportQuerySchema.parse({
+    period: c.req.query('period') ?? 'daily',
+    startDate: c.req.query('startDate'),
+    endDate: c.req.query('endDate'),
+  });
+  const branchId = await resolveBranchId(user);
+  const report = await buildReportSummary(branchId, query.period, query.startDate, query.endDate);
+  return c.json(report);
+});
+
+posRoutes.get('/reports/pdf', async (c) => {
+  const user = c.get('user');
+  if (!canViewReports(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const query = reportQuerySchema.parse({
+    period: c.req.query('period') ?? 'daily',
+    startDate: c.req.query('startDate'),
+    endDate: c.req.query('endDate'),
+  });
+  const branchId = await resolveBranchId(user);
+  const report = await buildReportSummary(branchId, query.period, query.startDate, query.endDate);
+  const pdf = generateReportPdf({
+    title: `${report.title} - Evaya Naturals`,
+    periodLabel: report.periodLabel,
+    generatedAt: new Date(report.generatedAt).toLocaleString(),
+    totalSales: report.totalSales,
+    salesCount: report.salesCount,
+    totalDiscounts: report.totalDiscounts,
+    expensesTotal: report.expensesTotal,
+    netAmount: report.netAmount,
+    paymentTotals: report.paymentTotals,
+    bestSellingProducts: report.bestSellingProducts,
+    lowStockItems: report.lowStockSummary.items,
+    shifts: report.shiftSummary.shifts,
+  });
+  const filenameDate = new Date(report.generatedAt).toISOString().slice(0, 10);
+  c.header('Content-Type', 'application/pdf');
+  c.header('Content-Disposition', `attachment; filename="evaya-report-${filenameDate}.pdf"`);
+  return c.body(pdf);
+});
+
+posRoutes.get('/expenses', async (c) => {
+  const user = c.get('user');
+  if (!canViewExpenses(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+  const dateFilter = startDate && endDate
+    ? and(
+        eq(schema.expenses.branchId, branchId),
+        gte(schema.expenses.expenseDate, parseDateStart(startDate).toISOString()),
+        lt(schema.expenses.expenseDate, parseDateEnd(endDate).toISOString()),
+      )
+    : eq(schema.expenses.branchId, branchId);
+
+  const expenses = await db.select({
+    id: schema.expenses.id,
+    title: schema.expenses.title,
+    category: schema.expenses.category,
+    amount: schema.expenses.amount,
+    paymentMethod: schema.expenses.paymentMethod,
+    expenseDate: schema.expenses.expenseDate,
+    description: schema.expenses.description,
+    recordedBy: schema.expenses.recordedBy,
+    recordedByName: schema.users.firstName,
+  })
+    .from(schema.expenses)
+    .innerJoin(schema.users, eq(schema.expenses.recordedBy, schema.users.id))
+    .where(dateFilter)
+    .orderBy(desc(schema.expenses.expenseDate));
+
+  return c.json({ expenses, categories: expenseCategories });
+});
+
+posRoutes.post('/expenses', async (c) => {
+  const user = c.get('user');
+  if (!canManageExpenses(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const payload = expenseSchema.parse(await c.req.json());
+  const [expense] = await db.insert(schema.expenses).values({
+    branchId,
+    title: payload.title,
+    category: payload.category,
+    amount: payload.amount,
+    paymentMethod: payload.paymentMethod,
+    expenseDate: parseDateStart(payload.expenseDate).toISOString(),
+    description: normalizeText(payload.description),
+    recordedBy: user.id,
+    updatedAt: new Date().toISOString(),
+  }).returning();
+
+  return c.json({ expense }, 201);
+});
+
+posRoutes.patch('/expenses/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageExpenses(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const expenseId = c.req.param('id');
+  const payload = expenseSchema.partial().parse(await c.req.json());
+  const [existing] = await db.select().from(schema.expenses).where(eq(schema.expenses.id, expenseId));
+  if (!existing || existing.branchId !== branchId) {
+    return c.json({ error: 'Expense not found' }, 404);
+  }
+
+  const [expense] = await db.update(schema.expenses)
+    .set({
+      title: payload.title ?? existing.title,
+      category: payload.category ?? existing.category,
+      amount: payload.amount ?? existing.amount,
+      paymentMethod: payload.paymentMethod ?? existing.paymentMethod,
+      expenseDate: payload.expenseDate ? parseDateStart(payload.expenseDate).toISOString() : existing.expenseDate,
+      description: payload.description !== undefined ? normalizeText(payload.description) : existing.description,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(schema.expenses.id, expenseId))
+    .returning();
+
+  return c.json({ expense });
+});
+
+posRoutes.delete('/expenses/:id', async (c) => {
+  const user = c.get('user');
+  if (!canDeleteExpenses(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const expenseId = c.req.param('id');
+  const [existing] = await db.select().from(schema.expenses).where(eq(schema.expenses.id, expenseId));
+  if (!existing || existing.branchId !== branchId) {
+    return c.json({ error: 'Expense not found' }, 404);
+  }
+
+  await db.delete(schema.expenses).where(eq(schema.expenses.id, expenseId));
+  return c.json({ message: 'Expense deleted' });
+});
+
+posRoutes.get('/deliveries/support', async (c) => {
+  const user = c.get('user');
+  if (!canViewDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const riders = await db.select({
+    id: schema.users.id,
+    firstName: schema.users.firstName,
+    lastName: schema.users.lastName,
+  })
+    .from(schema.users)
+    .innerJoin(schema.roles, eq(schema.users.roleId, schema.roles.id))
+    .where(eq(schema.roles.name, 'Delivery Rider'));
+
+  const customers = await db.select({
+    id: schema.customers.id,
+    name: schema.customers.name,
+    phone: schema.customers.phone,
+  }).from(schema.customers).where(eq(schema.customers.isActive, true));
+
+  return c.json({ riders, customers, statuses: deliveryStatuses });
+});
+
+posRoutes.get('/deliveries', async (c) => {
+  const user = c.get('user');
+  if (!canViewDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const status = c.req.query('status')?.trim();
+  const deliveries = await db.select({
+    id: schema.deliveries.id,
+    customerId: schema.deliveries.customerId,
+    customerName: schema.deliveries.customerName,
+    customerPhone: schema.deliveries.customerPhone,
+    saleId: schema.deliveries.saleId,
+    receiptReference: schema.deliveries.receiptReference,
+    deliveryAddress: schema.deliveries.deliveryAddress,
+    riderId: schema.deliveries.riderId,
+    riderName: schema.users.firstName,
+    riderLastName: schema.users.lastName,
+    deliveryFee: schema.deliveries.deliveryFee,
+    status: schema.deliveries.status,
+    deliveryDate: schema.deliveries.deliveryDate,
+    notes: schema.deliveries.notes,
+    createdAt: schema.deliveries.createdAt,
+  })
+    .from(schema.deliveries)
+    .leftJoin(schema.users, eq(schema.deliveries.riderId, schema.users.id))
+    .where(and(
+      eq(schema.deliveries.branchId, branchId),
+      status ? eq(schema.deliveries.status, status) : undefined,
+      user.role.name === 'Delivery Rider' ? eq(schema.deliveries.riderId, user.id) : undefined,
+    ))
+    .orderBy(desc(schema.deliveries.createdAt));
+
+  return c.json({
+    deliveries: deliveries.map((delivery) => ({
+      ...delivery,
+      riderName: delivery.riderName ? `${delivery.riderName} ${delivery.riderLastName ?? ''}`.trim() : null,
+    })),
+  });
+});
+
+posRoutes.post('/deliveries', async (c) => {
+  const user = c.get('user');
+  if (!canManageDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const payload = deliverySchema.parse(await c.req.json());
+  const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.id, payload.customerId));
+  if (!customer || !customer.isActive) {
+    return c.json({ error: 'Customer not found' }, 404);
+  }
+
+  const rider = payload.riderId
+    ? await db.select().from(schema.users).where(eq(schema.users.id, payload.riderId))
+    : [];
+  if (payload.riderId && rider.length === 0) {
+    return c.json({ error: 'Rider not found' }, 404);
+  }
+
+  const [delivery] = await db.insert(schema.deliveries).values({
+    saleId: normalizeText(payload.saleId),
+    receiptReference: normalizeText(payload.receiptReference),
+    customerId: customer.id,
+    branchId,
+    riderId: normalizeText(payload.riderId),
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    deliveryAddress: payload.deliveryAddress,
+    deliveryFee: payload.deliveryFee,
+    status: payload.status ?? (payload.riderId ? 'assigned' : 'pending'),
+    deliveryDate: parseDateStart(payload.deliveryDate).toISOString(),
+    assignedAt: payload.riderId ? new Date().toISOString() : null,
+    notes: normalizeText(payload.notes),
+    updatedAt: new Date().toISOString(),
+  }).returning();
+
+  return c.json({ delivery }, 201);
+});
+
+posRoutes.patch('/deliveries/:id', async (c) => {
+  const user = c.get('user');
+  if (!canViewDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const deliveryId = c.req.param('id');
+  const payload = deliveryUpdateSchema.parse(await c.req.json());
+  const [existing] = await db.select().from(schema.deliveries).where(eq(schema.deliveries.id, deliveryId));
+  if (!existing || existing.branchId !== branchId) {
+    return c.json({ error: 'Delivery not found' }, 404);
+  }
+  if (user.role.name === 'Delivery Rider' && existing.riderId !== user.id) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+  if (user.role.name !== 'Delivery Rider' && !canManageDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextStatus = payload.status ?? existing.status;
+  const [delivery] = await db.update(schema.deliveries)
+    .set({
+      riderId: payload.riderId !== undefined ? normalizeText(payload.riderId) : existing.riderId,
+      status: nextStatus,
+      deliveryAddress: payload.deliveryAddress ?? existing.deliveryAddress,
+      deliveryFee: payload.deliveryFee ?? existing.deliveryFee,
+      deliveryDate: payload.deliveryDate ? parseDateStart(payload.deliveryDate).toISOString() : existing.deliveryDate,
+      notes: payload.notes !== undefined ? normalizeText(payload.notes) : existing.notes,
+      assignedAt: payload.riderId !== undefined && payload.riderId ? nowIso : existing.assignedAt,
+      pickedUpAt: nextStatus === 'picked_up' ? nowIso : existing.pickedUpAt,
+      deliveredAt: nextStatus === 'delivered' ? nowIso : existing.deliveredAt,
+      updatedAt: nowIso,
+    })
+    .where(eq(schema.deliveries.id, deliveryId))
+    .returning();
+
+  return c.json({ delivery });
 });
 
 posRoutes.get('/receipts/:id', async (c) => {

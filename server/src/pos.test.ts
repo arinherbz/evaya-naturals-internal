@@ -131,6 +131,8 @@ describe('pos slice', () => {
     await db.delete(schema.sales);
     await db.delete(schema.dailyCloses);
     await db.delete(schema.shifts);
+    await db.delete(schema.deliveries);
+    await db.delete(schema.expenses);
     await db.delete(schema.broadcasts);
     await db.delete(schema.inventoryMovements);
     await db.delete(schema.inventory);

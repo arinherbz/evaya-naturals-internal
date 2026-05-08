@@ -90,7 +90,7 @@ function App() {
             <Route
               path="/deliveries"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowRoles={['Branch Manager', 'Delivery Rider']}>
                   <DeliveriesPage />
                 </ProtectedRoute>
               }
