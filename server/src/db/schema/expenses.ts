@@ -1,8 +1,8 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer } from 'drizzle-orm/pg-core';
 import { branches } from './branches';
 import { users } from './users';
 
-export const expenses = sqliteTable('expenses', {
+export const expenses = pgTable('expenses', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   branchId: text('branch_id').notNull().references(() => branches.id),
   title: text('title').notNull(),

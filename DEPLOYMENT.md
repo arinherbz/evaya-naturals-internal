@@ -6,14 +6,12 @@ This document prepares `evaya-naturals-internal` for a Hostinger pilot on:
 - PostgreSQL
 - browser access for staff on phone, tablet, and computer
 
-Important current blocker:
+The app now supports:
 
-- the frontend and deployment config are now production-oriented
-- the backend runtime and Drizzle schema are still SQLite-based in code
-- before a real PostgreSQL cutover, the schema layer must be migrated from Drizzle `sqlite-core` to PostgreSQL-compatible definitions
-- the runtime now fails fast if production tries to boot on SQLite, or if a PostgreSQL URL is supplied before that migration is complete
-
-That means this repo is now deployment-prepared, but not yet PostgreSQL-runtime-complete.
+- PostgreSQL in production through `DATABASE_URL`
+- Drizzle PostgreSQL migrations
+- idempotent seed data
+- local and test fallback on `PGlite` when `DATABASE_URL` is not set outside production
 
 ## 1. Hostinger VPS Setup
 
@@ -84,9 +82,10 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
 
 Current status:
 
-- the repo now requires PostgreSQL in production by policy
-- the backend still needs a real SQLite-to-PostgreSQL schema migration before it can run on PostgreSQL
-- do not attempt a real production boot on PostgreSQL until that migration is completed
+- production uses PostgreSQL through `DATABASE_URL`
+- production fails clearly if `DATABASE_URL` is missing
+- production fails clearly if a non-PostgreSQL URL is supplied
+- local development and tests can run without a PostgreSQL server by using `PGlite`
 
 ## 4. Environment Variables
 
@@ -107,7 +106,30 @@ Notes:
 - `CLIENT_URL` is used for backend CORS
 - `VITE_API_URL` is used by the frontend production build
 
-## 5. Build Commands
+## 5. Database Commands
+
+Run these in order:
+
+```bash
+npm install
+npm run install:all
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+npm run build
+npm run start:production
+```
+
+What they do:
+
+- `npm run db:generate`
+  - generates SQL migrations from the Drizzle PostgreSQL schema
+- `npm run db:migrate`
+  - applies migrations to the configured PostgreSQL database
+- `npm run db:seed`
+  - creates core data and sample pilot data without duplicating records
+
+## 6. Build Commands
 
 ```bash
 npm run build
@@ -118,7 +140,7 @@ This runs:
 - frontend build
 - backend build
 
-## 6. Start Commands
+## 7. Start Commands
 
 Backend only:
 
@@ -132,7 +154,7 @@ Production alias:
 npm run start:production
 ```
 
-## 7. PM2 Setup
+## 8. PM2 Setup
 
 Use PM2 on a VPS:
 
@@ -148,7 +170,7 @@ To inspect logs:
 pm2 logs evaya-api
 ```
 
-## 8. Nginx Reverse Proxy Example
+## 9. Nginx Reverse Proxy Example
 
 Example `/etc/nginx/sites-available/evaya`:
 
@@ -183,7 +205,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 9. SSL and Domain
+## 10. SSL and Domain
 
 Use Let’s Encrypt after nginx is working:
 
@@ -192,7 +214,7 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 ```
 
-## 10. Health Check
+## 11. Health Check
 
 Test the API locally on the server:
 
@@ -205,7 +227,7 @@ Expected:
 - HTTP `200`
 - JSON with `status: "ok"`
 
-## 11. Staff Access
+## 12. Staff Access
 
 Staff open:
 
@@ -220,15 +242,15 @@ Notes:
 - it is intended for phones, tablets, and computers
 - each staff member signs in with the login assigned to them
 
-## 12. Production Checklist
+## 13. Production Checklist
 
 - [ ] environment variables are set
 - [ ] domain and SSL are working
 - [ ] PostgreSQL database exists
 - [ ] PostgreSQL credentials work
-- [ ] SQLite-to-PostgreSQL schema migration is completed
-- [ ] database schema is initialized
+- [ ] database schema is migrated
 - [ ] admin user is created
+- [ ] seed data completed
 - [ ] `/api/health` returns `200`
 - [ ] login works
 - [ ] POS works
@@ -238,7 +260,7 @@ Notes:
 - [ ] backups are configured
 - [ ] PM2 restarts cleanly after reboot
 
-## 13. Staff Pilot Access
+## 14. Staff Pilot Access
 
 For the pilot:
 
@@ -247,17 +269,44 @@ For the pilot:
 3. use POS, Inventory, Reports, and other allowed pages in the browser
 4. report any broken layout or slow workflow immediately
 
-## 14. Local Verification Links
+## 15. Local Verification Links
 
 - `http://127.0.0.1:3000/login`
 - `http://127.0.0.1:3000/pos`
 - `http://127.0.0.1:3001/api/health`
 
-## 15. Deployment Reality Check
+## 16. Local Development Behavior
 
-This repo is now prepared for deployment review, but not yet ready for a real PostgreSQL production launch.
+When `DATABASE_URL` is not set:
+
+- production will fail fast
+- local development uses `PGlite` in `.pglite/`
+- tests use in-memory `PGlite`
+
+This keeps local work and CI fast without falling back to SQLite.
+
+## 17. Production Database Verification
+
+After migration and seed:
+
+1. open `https://yourdomain.com/login`
+2. sign in with the seeded admin user
+3. confirm `/api/health` returns `200`
+4. confirm POS loads
+5. confirm report preview and PDF download work
+6. confirm a sale can be completed and appears in reports
+
+## 18. Deployment Reality Check
+
+This repo is now PostgreSQL-ready for deployment review and pilot setup.
 
 What is done:
+- PostgreSQL runtime support is in place
+- SQLite is no longer allowed in production
+- Drizzle PostgreSQL migrations are generated
+- seed is idempotent
+- frontend production API config is environment-driven
+- local and test environments still work without a PostgreSQL server
 
 - production env template
 - production script cleanup

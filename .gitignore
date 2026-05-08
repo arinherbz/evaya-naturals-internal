@@ -37,6 +37,7 @@ coverage/
 *.db
 *.db-wal
 *.db-shm
+.pglite/
 
 # Uploads
 uploads/

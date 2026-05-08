@@ -1,10 +1,10 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer } from 'drizzle-orm/pg-core';
 import { branches } from './branches';
 import { users } from './users';
 import { products } from './products';
 import { batches } from './batches';
 
-export const transfers = sqliteTable('transfers', {
+export const transfers = pgTable('transfers', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   transferNumber: text('transfer_number').notNull().unique(),
   productId: text('product_id').notNull().references(() => products.id),

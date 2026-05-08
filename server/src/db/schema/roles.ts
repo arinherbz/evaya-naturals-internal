@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, boolean, jsonb } from 'drizzle-orm/pg-core';
 
-export const roles = sqliteTable('roles', {
+export const roles = pgTable('roles', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull().unique(),
   description: text('description'),
-  permissions: text('permissions', { mode: 'json' }).$type<string[]>().notNull().default([]),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  permissions: jsonb('permissions').$type<string[]>().notNull().default([]),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });

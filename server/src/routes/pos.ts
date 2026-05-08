@@ -1485,8 +1485,8 @@ posRoutes.post('/sales', async (c) => {
     return c.json({ error: 'Discount cannot exceed subtotal' }, 400);
   }
 
-  const result = db.transaction((tx) => {
-    const saleRows = tx.insert(schema.sales).values({
+  const result = await db.transaction(async (tx) => {
+    const saleRows = await tx.insert(schema.sales).values({
       receiptNumber,
       branchId,
       cashierId: user.id,
@@ -1500,7 +1500,7 @@ posRoutes.post('/sales', async (c) => {
       notes: normalizeText(payload.notes),
       status: 'completed',
       updatedAt: nowIso,
-    }).returning().all();
+    }).returning();
     const sale = saleRows[0];
 
     for (const line of lineAllocations) {
@@ -1509,13 +1509,12 @@ posRoutes.post('/sales', async (c) => {
         throw new Error(`Inventory record is out of sync for ${line.product.name}`);
       }
 
-      tx.update(schema.inventory)
+      await tx.update(schema.inventory)
         .set({
           quantity: inventory.quantity - line.item.quantity,
           updatedAt: nowIso,
         })
-        .where(eq(schema.inventory.id, inventory.id))
-        .run();
+        .where(eq(schema.inventory.id, inventory.id));
 
       for (const allocation of line.allocations) {
         const batch = batches.find((row) => row.id === allocation.batchId);
@@ -1523,16 +1522,15 @@ posRoutes.post('/sales', async (c) => {
           throw new Error('Batch allocation failed');
         }
 
-        tx.update(schema.batches)
+        await tx.update(schema.batches)
           .set({
             quantityRemaining: batch.quantityRemaining - allocation.quantity,
             isExpired: new Date(batch.expiryDate) < now,
             updatedAt: nowIso,
           })
-          .where(eq(schema.batches.id, batch.id))
-          .run();
+          .where(eq(schema.batches.id, batch.id));
 
-        tx.insert(schema.saleItems).values({
+        await tx.insert(schema.saleItems).values({
           saleId: sale.id,
           productId: line.product.id,
           batchId: batch.id,
@@ -1540,9 +1538,9 @@ posRoutes.post('/sales', async (c) => {
           unitPrice: line.product.sellingPrice,
           discount: 0,
           total: allocation.quantity * line.product.sellingPrice,
-        }).run();
+        });
 
-        tx.insert(schema.inventoryMovements).values({
+        await tx.insert(schema.inventoryMovements).values({
           productId: line.product.id,
           branchId,
           batchId: batch.id,
@@ -1552,13 +1550,13 @@ posRoutes.post('/sales', async (c) => {
           referenceType: 'sale',
           reason: `Sale ${receiptNumber}`,
           userId: user.id,
-        }).run();
+        });
 
         batch.quantityRemaining -= allocation.quantity;
       }
     }
 
-    tx.insert(schema.auditLogs).values({
+    await tx.insert(schema.auditLogs).values({
       userId: user.id,
       action: 'checkout_sale',
       entityType: 'sale',
@@ -1568,7 +1566,7 @@ posRoutes.post('/sales', async (c) => {
         total,
         itemCount: payload.items.length,
       },
-    }).run();
+    });
 
     return sale;
   });

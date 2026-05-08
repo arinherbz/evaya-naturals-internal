@@ -1,8 +1,7 @@
-import { initializeDatabase } from './init';
+import { seedDatabase } from './init';
 
 async function seed() {
-  await initializeDatabase();
-  console.log('Database seed complete');
+  await seedDatabase();
 }
 
 seed().catch((error) => {

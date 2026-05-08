@@ -1,6 +1,6 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, boolean } from 'drizzle-orm/pg-core';
 
-export const customers = sqliteTable('customers', {
+export const customers = pgTable('customers', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   phone: text('phone').notNull(),
@@ -10,7 +10,7 @@ export const customers = sqliteTable('customers', {
   address: text('address'),
   wellnessInterests: text('wellness_interests'), // JSON array of interests/goals
   notes: text('notes'),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });

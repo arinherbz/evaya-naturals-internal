@@ -1,8 +1,8 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { branches } from './branches';
 
-export const shifts = sqliteTable('shifts', {
+export const shifts = pgTable('shifts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   cashierId: text('cashier_id').notNull().references(() => users.id),
   branchId: text('branch_id').notNull().references(() => branches.id),

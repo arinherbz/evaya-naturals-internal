@@ -1,9 +1,9 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer } from 'drizzle-orm/pg-core';
 import { products } from './products';
 import { branches } from './branches';
 import { users } from './users';
 
-export const inventory = sqliteTable('inventory', {
+export const inventory = pgTable('inventory', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id),
   branchId: text('branch_id').notNull().references(() => branches.id),
@@ -13,7 +13,7 @@ export const inventory = sqliteTable('inventory', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const inventoryMovements = sqliteTable('inventory_movements', {
+export const inventoryMovements = pgTable('inventory_movements', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id),
   branchId: text('branch_id').notNull().references(() => branches.id),

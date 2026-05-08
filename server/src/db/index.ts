@@ -1,31 +1,63 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-import * as schema from './schema/index';
 import dotenv from 'dotenv';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
+import { Pool } from 'pg';
+import { PGlite } from '@electric-sql/pglite';
+import * as schema from './schema/index';
+import path from 'node:path';
 
 dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || 'development';
-const databaseUrl = process.env.DATABASE_URL?.trim() || 'file:./evaya.db';
-const isPostgresUrl = databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://');
-const isSqliteUrl = databaseUrl.startsWith('file:') || databaseUrl.endsWith('.db') || databaseUrl.endsWith('.sqlite');
+const databaseUrl = process.env.DATABASE_URL?.trim();
 
-if (nodeEnv === 'production' && isSqliteUrl) {
-  throw new Error('Production requires a PostgreSQL DATABASE_URL. SQLite and local database files are blocked in production.');
+function isPostgresUrl(url: string) {
+  return url.startsWith('postgres://') || url.startsWith('postgresql://');
 }
 
-if (isPostgresUrl) {
-  throw new Error('PostgreSQL DATABASE_URL detected. This repo still uses a SQLite Drizzle schema and driver. Complete the SQLite-to-PostgreSQL schema migration before starting production.');
+function isSqliteUrl(url: string) {
+  return url.startsWith('file:') || url.endsWith('.db') || url.endsWith('.sqlite');
 }
 
-// Extract path from file: URL
-const dbPath = databaseUrl.replace('file:', '');
+if (nodeEnv === 'production' && !databaseUrl) {
+  throw new Error('Production requires DATABASE_URL to be set to a PostgreSQL connection string.');
+}
 
-const sqlite = new Database(dbPath);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+if (databaseUrl && isSqliteUrl(databaseUrl)) {
+  throw new Error('SQLite DATABASE_URL values are no longer supported. Use PostgreSQL.');
+}
 
-export const db = drizzle(sqlite, { schema });
-export { sqlite };
+if (databaseUrl && !isPostgresUrl(databaseUrl)) {
+  throw new Error('Unsupported DATABASE_URL. Use a PostgreSQL connection string.');
+}
+
+export const usingPglite = !databaseUrl && nodeEnv !== 'production';
+
+const pgliteDataDir = path.resolve(process.cwd(), '.pglite');
+
+const pgPool = !usingPglite
+  ? new Pool({
+    connectionString: databaseUrl,
+    ssl: nodeEnv === 'production' ? { rejectUnauthorized: false } : undefined,
+  })
+  : null;
+
+const pglite = usingPglite
+  ? new PGlite(nodeEnv === 'test' ? undefined : pgliteDataDir)
+  : null;
+
+export const db = pgPool
+  ? drizzle(pgPool, { schema })
+  : drizzlePglite(pglite!, { schema });
+
+export async function closeDatabase() {
+  if (pgPool) {
+    await pgPool.end();
+  }
+
+  if (pglite) {
+    await pglite.close();
+  }
+}
 
 export * from './schema/index';

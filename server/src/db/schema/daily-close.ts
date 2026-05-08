@@ -1,21 +1,21 @@
-import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, doublePrecision } from 'drizzle-orm/pg-core';
 import { branches } from './branches';
 import { users } from './users';
 import { shifts } from './shifts';
 
-export const dailyCloses = sqliteTable('daily_closes', {
+export const dailyCloses = pgTable('daily_closes', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   branchId: text('branch_id').notNull().references(() => branches.id),
   cashierId: text('cashier_id').notNull().references(() => users.id),
   shiftId: text('shift_id').references(() => shifts.id),
   closeDate: text('close_date').notNull(), // YYYY-MM-DD format
-  cashExpected: real('cash_expected').notNull(),
-  cashCounted: real('cash_counted').notNull(),
-  mtnMobileMoney: real('mtn_mobile_money').notNull().default(0),
-  airtelMobileMoney: real('airtel_mobile_money').notNull().default(0),
-  cardPayments: real('card_payments').notNull().default(0),
-  bankTransfers: real('bank_transfers').notNull().default(0),
-  difference: real('difference').notNull(),
+  cashExpected: doublePrecision('cash_expected').notNull(),
+  cashCounted: doublePrecision('cash_counted').notNull(),
+  mtnMobileMoney: doublePrecision('mtn_mobile_money').notNull().default(0),
+  airtelMobileMoney: doublePrecision('airtel_mobile_money').notNull().default(0),
+  cardPayments: doublePrecision('card_payments').notNull().default(0),
+  bankTransfers: doublePrecision('bank_transfers').notNull().default(0),
+  difference: doublePrecision('difference').notNull(),
   notes: text('notes'),
   status: text('status').notNull().default('pending'), // pending, approved, discrepant
   approvedBy: text('approved_by').references(() => users.id),

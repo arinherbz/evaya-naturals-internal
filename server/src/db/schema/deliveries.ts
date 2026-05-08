@@ -1,9 +1,9 @@
-import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, doublePrecision } from 'drizzle-orm/pg-core';
 import { branches } from './branches';
 import { users } from './users';
 import { customers } from './customers';
 
-export const deliveries = sqliteTable('deliveries', {
+export const deliveries = pgTable('deliveries', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   saleId: text('sale_id').references(() => sales.id),
   receiptReference: text('receipt_reference'),
@@ -13,7 +13,7 @@ export const deliveries = sqliteTable('deliveries', {
   customerName: text('customer_name').notNull(),
   customerPhone: text('customer_phone').notNull(),
   deliveryAddress: text('delivery_address').notNull(),
-  deliveryFee: real('delivery_fee').notNull().default(0),
+  deliveryFee: doublePrecision('delivery_fee').notNull().default(0),
   status: text('status').notNull().default('pending'), // pending, assigned, picked_up, delivered, failed, cancelled
   deliveryDate: text('delivery_date'),
   notes: text('notes'),

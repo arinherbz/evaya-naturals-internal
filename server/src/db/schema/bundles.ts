@@ -1,12 +1,12 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, boolean } from 'drizzle-orm/pg-core';
 import { products } from './products';
 
-export const bundles = sqliteTable('bundles', {
+export const bundles = pgTable('bundles', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   description: text('description'),
   sellingPrice: integer('selling_price').notNull(),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
@@ -14,7 +14,7 @@ export const bundles = sqliteTable('bundles', {
 export type Bundle = typeof bundles.$inferSelect;
 export type NewBundle = typeof bundles.$inferInsert;
 
-export const bundleItems = sqliteTable('bundle_items', {
+export const bundleItems = pgTable('bundle_items', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   bundleId: text('bundle_id').notNull().references(() => bundles.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => products.id),

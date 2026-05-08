@@ -1,8 +1,8 @@
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { pgTable, text } from 'drizzle-orm/pg-core';
 import { products } from './products';
 import { branches } from './branches';
 
-export const productVisibility = sqliteTable('product_visibility', {
+export const productVisibility = pgTable('product_visibility', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   branchId: text('branch_id').notNull().references(() => branches.id, { onDelete: 'cascade' }),
