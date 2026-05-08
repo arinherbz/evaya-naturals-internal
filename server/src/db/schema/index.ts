@@ -19,3 +19,4 @@ export * from './audit-logs';
 export * from './sessions';
 export * from './shifts';
 export * from './bundles';
+export * from './app-settings';

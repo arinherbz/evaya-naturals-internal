@@ -18,6 +18,25 @@ export interface User {
   } | null;
 }
 
+export interface StaffUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  roleId: string;
+  branchId: string | null;
+  isActive: boolean;
+  lastLoginAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  role: {
+    id: string;
+    name: string;
+    permissions: string[];
+  };
+}
+
 export interface Branch {
   id: string;
   name: string;
@@ -295,12 +314,14 @@ export interface TodayReport {
 }
 
 export interface ReportSummary {
+  businessName: string;
   title: string;
   period: 'daily' | 'weekly' | 'custom';
   periodLabel: string;
   startDate: string;
   endDate: string;
   generatedAt: string;
+  currency: string;
   totalSales: number;
   salesCount: number;
   totalDiscounts: number;
@@ -313,6 +334,7 @@ export interface ReportSummary {
   };
   expensesTotal: number;
   netAmount: number;
+  reportFooterMessage?: string | null;
   bestSellingProducts: Array<{
     productName: string;
     quantity: number;
@@ -350,6 +372,7 @@ export interface ReceiptLineItem {
 export interface Receipt {
   id: string;
   receiptNumber: string;
+  businessName: string;
   branchId: string;
   branchName: string;
   cashierId: string;
@@ -363,8 +386,33 @@ export interface Receipt {
   paymentMethod: string;
   paymentReference?: string | null;
   notes?: string | null;
+  receiptFooterMessage?: string | null;
   createdAt: string;
   items: ReceiptLineItem[];
+}
+
+export interface BusinessProfileSettings {
+  businessName: string;
+  logoDataUrl?: string | null;
+  phone: string;
+  email: string;
+  address?: string | null;
+  currency: string;
+}
+
+export interface SystemSettings {
+  expiryAlertDays: number;
+  lowStockDefaultThreshold: number;
+  receiptFooterMessage?: string | null;
+  reportFooterMessage?: string | null;
+}
+
+export interface PaymentMethodSettings {
+  cash: boolean;
+  mtn_mobile_money: boolean;
+  airtel_money: boolean;
+  bank_card: boolean;
+  bank_transfer: boolean;
 }
 
 export interface AuthResponse {

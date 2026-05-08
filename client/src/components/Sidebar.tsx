@@ -14,7 +14,7 @@ export default function Sidebar() {
     { label: 'Expenses', href: '/expenses', icon: 'wallet', permission: 'view_reports', allowRoles: ['Branch Manager'] },
     { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', permission: null },
     { label: 'Reports', href: '/reports', icon: 'bar-chart', permission: 'view_reports' },
-    { label: 'Settings', href: '/settings', icon: 'settings', permission: 'manage_staff' },
+    { label: 'Settings', href: '/settings', icon: 'settings', permission: null, allowRoles: ['Admin'] },
   ];
 
   const canShowItem = (permission: string | null, allowRoles?: string[]) => {

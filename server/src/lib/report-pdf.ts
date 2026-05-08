@@ -28,6 +28,7 @@ type StockSummary = {
 };
 
 type ReportPdfData = {
+  businessName: string;
   title: string;
   periodLabel: string;
   generatedAt: string;
@@ -40,6 +41,7 @@ type ReportPdfData = {
   bestSellingProducts: ProductSummary[];
   lowStockItems: StockSummary[];
   shifts: ShiftSummary[];
+  footerMessage?: string;
 };
 
 function escapePdfText(value: string) {
@@ -89,7 +91,7 @@ export function generateReportPdf(data: ReportPdfData) {
   const commands = [
     '0.16 0.45 0.25 rg 48 736 42 42 re f',
     'BT /F2 22 Tf 1 1 1 rg 62 751 Td (E) Tj ET',
-    'BT /F2 22 Tf 0.12 0.16 0.14 rg 102 754 Td (Evaya Naturals) Tj ET',
+    `BT /F2 22 Tf 0.12 0.16 0.14 rg 102 754 Td (${escapePdfText(data.businessName)}) Tj ET`,
     'BT /F1 10 Tf 0.4 0.45 0.42 rg 102 740 Td (Internal report) Tj ET',
   ];
 
@@ -137,6 +139,10 @@ export function generateReportPdf(data: ReportPdfData) {
     shifts.forEach((shift) => pushLine(
       `${shift.cashierName}: ${formatMoney(shift.salesTotal)} · expected ${formatMoney(shift.expectedCash ?? 0)} · counted ${formatMoney(shift.countedCash ?? 0)} · variance ${formatMoney(shift.variance ?? 0)} · ${shift.status}`
     ));
+  }
+  if (data.footerMessage) {
+    y -= 8;
+    pushLine(data.footerMessage);
   }
 
   return buildPdf(commands);

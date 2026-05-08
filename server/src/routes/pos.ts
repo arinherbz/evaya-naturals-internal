@@ -5,6 +5,7 @@ import { authMiddleware, type AuthUser } from '../middleware/auth';
 import { db } from '../db';
 import * as schema from '../db/schema';
 import { generateReportPdf } from '../lib/report-pdf';
+import { getAppSettings } from '../lib/app-settings';
 
 const posRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -385,6 +386,7 @@ async function buildCustomerPurchaseHistory(customerId: string, branchId: string
 }
 
 async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
+  const settings = await getAppSettings();
   const range = resolveReportRange(period, startDate, endDate);
   const filters = and(
     eq(schema.sales.branchId, branchId),
@@ -474,18 +476,21 @@ async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' |
   const shiftSummaries = (await Promise.all(shifts.map((shift) => buildShiftSnapshot(shift.id)))).filter((shift): shift is NonNullable<typeof shift> => Boolean(shift));
 
   return {
+    businessName: settings.businessName,
     title: range.title,
     period,
     periodLabel: range.label,
     startDate: range.start.toISOString(),
     endDate: range.end.toISOString(),
     generatedAt: new Date().toISOString(),
+    currency: settings.currency,
     totalSales,
     salesCount: sales.length,
     totalDiscounts,
     paymentTotals,
     expensesTotal,
     netAmount: totalSales - expensesTotal,
+    reportFooterMessage: settings.reportFooterMessage,
     bestSellingProducts: Array.from(productMap.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 5),
     lowStockSummary: {
       count: inventory.length,
@@ -1013,7 +1018,8 @@ posRoutes.get('/reports/pdf', async (c) => {
   const branchId = await resolveBranchId(user);
   const report = await buildReportSummary(branchId, query.period, query.startDate, query.endDate);
   const pdf = generateReportPdf({
-    title: `${report.title} - Evaya Naturals`,
+    businessName: report.businessName,
+    title: `${report.title} - ${report.businessName}`,
     periodLabel: report.periodLabel,
     generatedAt: new Date(report.generatedAt).toLocaleString(),
     totalSales: report.totalSales,
@@ -1025,6 +1031,7 @@ posRoutes.get('/reports/pdf', async (c) => {
     bestSellingProducts: report.bestSellingProducts,
     lowStockItems: report.lowStockSummary.items,
     shifts: report.shiftSummary.shifts,
+    footerMessage: report.reportFooterMessage,
   });
   const filenameDate = new Date(report.generatedAt).toISOString().slice(0, 10);
   c.header('Content-Type', 'application/pdf');
@@ -1324,6 +1331,7 @@ posRoutes.get('/receipts/:id', async (c) => {
   }
 
   const sale = sales[0];
+  const settings = await getAppSettings();
   const items = await db.select({
     id: schema.saleItems.id,
     quantity: schema.saleItems.quantity,
@@ -1343,7 +1351,9 @@ posRoutes.get('/receipts/:id', async (c) => {
   return c.json({
     receipt: {
       ...sale,
+      businessName: settings.businessName,
       branchName: primaryBranchName,
+      receiptFooterMessage: settings.receiptFooterMessage,
       cashierName: `${sale.cashierName} ${sale.cashierLastName}`.trim(),
       customerName: sale.customerName ?? null,
       customerPhone: sale.customerPhone ?? null,
@@ -1360,6 +1370,10 @@ posRoutes.post('/sales', async (c) => {
 
   const branchId = await resolveBranchId(user);
   const payload = salePayloadSchema.parse(await c.req.json());
+  const settings = await getAppSettings();
+  if (!settings.paymentMethods[payload.paymentMethod as keyof typeof settings.paymentMethods]) {
+    return c.json({ error: 'That payment method is disabled in settings' }, 409);
+  }
   const activeShift = await getActiveShift(user.id, branchId);
   if (!activeShift) {
     return c.json({ error: 'Open a shift before checkout' }, 409);

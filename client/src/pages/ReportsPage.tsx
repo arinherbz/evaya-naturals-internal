@@ -145,7 +145,7 @@ export default function ReportsPage() {
               <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Report preview</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">{report?.title ?? 'Loading report'}</h2>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">{report ? `${report.businessName} · ${report.title}` : 'Loading report'}</h2>
                   <p className="mt-2 text-sm text-slate-500">
                     {report?.periodLabel ?? 'Preparing date range'} · Generated {previewGeneratedAt}
                   </p>
@@ -254,6 +254,11 @@ export default function ReportsPage() {
                 </PreviewPanel>
               </section>
             </div>
+            {report?.reportFooterMessage && (
+              <p className="mt-6 border-t border-slate-200 pt-4 text-sm text-slate-500">
+                {report.reportFooterMessage}
+              </p>
+            )}
           </section>
         </div>
       </main>

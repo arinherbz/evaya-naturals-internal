@@ -98,7 +98,7 @@ function App() {
             <Route
               path="/settings"
               element={
-                <ProtectedRoute permission="manage_staff">
+                <ProtectedRoute allowRoles={['Admin']}>
                   <SettingsPage />
                 </ProtectedRoute>
               }

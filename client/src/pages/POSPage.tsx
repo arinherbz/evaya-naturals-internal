@@ -1,4 +1,4 @@
-import { FormEvent, useDeferredValue, useState } from 'react';
+import { FormEvent, useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import BrandMark from '../components/BrandMark';
@@ -73,6 +73,11 @@ export default function POSPage() {
   const todaySummaryQuery = useQuery({
     queryKey: ['pos-today-summary'],
     queryFn: () => api.pos.today(),
+  });
+
+  const settingsQuery = useQuery({
+    queryKey: ['public-settings'],
+    queryFn: () => api.settings.public(),
   });
 
   const salesHistoryQuery = useQuery({
@@ -193,10 +198,17 @@ export default function POSPage() {
   const products = productsQuery.data?.products ?? [];
   const customers = customersQuery.data?.customers ?? [];
   const today = todaySummaryQuery.data;
+  const enabledPaymentMethods = paymentMethodOptions.filter((option) => settingsQuery.data?.paymentMethods?.[option.value] ?? true);
   const currentShift = shiftQuery.data?.shift ?? null;
   const visibleReceipt = activeReceipt ?? latestReceipt;
   const subtotal = cart.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
+
+  useEffect(() => {
+    if (!enabledPaymentMethods.some((option) => option.value === paymentMethod)) {
+      setPaymentMethod(enabledPaymentMethods[0]?.value ?? 'cash');
+    }
+  }, [enabledPaymentMethods, paymentMethod]);
 
   const addToCart = (product: PosProduct) => {
     if (!canCheckout || !currentShift) return;
@@ -576,7 +588,7 @@ export default function POSPage() {
                       disabled={!canCheckout}
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                     >
-                      {paymentMethodOptions.map((option) => (
+                      {enabledPaymentMethods.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
@@ -697,7 +709,7 @@ export default function POSPage() {
                   </div>
                 )}
                 {visibleReceipt && (
-                  <ReceiptCard receipt={visibleReceipt} />
+                    <ReceiptCard receipt={visibleReceipt} />
                 )}
               </div>
             </section>
@@ -723,6 +735,7 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <BrandMark compact className="mb-3" />
+          <p className="text-sm font-medium text-slate-700">{receipt.businessName}</p>
           <p className="mt-2 text-lg font-semibold">{receipt.receiptNumber}</p>
           <p className="mt-1 text-xs text-slate-400">{new Date(receipt.createdAt).toLocaleString()}</p>
           <p className="mt-3 text-sm text-slate-600">Cashier: {receipt.cashierName}</p>
@@ -756,6 +769,11 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
           <span>{currencyFormatter.format(receipt.total)}</span>
         </div>
       </div>
+      {receipt.receiptFooterMessage && (
+        <p className="mt-4 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+          {receipt.receiptFooterMessage}
+        </p>
+      )}
     </div>
   );
 }

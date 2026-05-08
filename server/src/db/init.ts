@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db, sqlite } from './index';
 import * as schema from './schema/index';
 import bcrypt from 'bcryptjs';
+import { defaultAppSettings } from '../lib/app-settings';
 
 function ensureColumn(tableName: string, columnName: string, definition: string) {
   const columns = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
@@ -53,6 +54,24 @@ export async function initializeDatabase() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (branch_id) REFERENCES branches(id),
       FOREIGN KEY (recorded_by) REFERENCES users(id)
+    )
+  `);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id TEXT PRIMARY KEY NOT NULL,
+      business_name TEXT NOT NULL,
+      logo_data_url TEXT,
+      phone TEXT NOT NULL,
+      email TEXT NOT NULL,
+      address TEXT,
+      currency TEXT NOT NULL DEFAULT 'UGX',
+      expiry_alert_days INTEGER NOT NULL DEFAULT 30,
+      low_stock_default_threshold INTEGER NOT NULL DEFAULT 5,
+      receipt_footer_message TEXT,
+      report_footer_message TEXT,
+      payment_methods TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     )
   `);
 
@@ -186,6 +205,25 @@ export async function initializeDatabase() {
       },
     ]);
     console.log('Created sample wellness bundles');
+  }
+
+  const existingSettings = await db.select().from(schema.appSettings).where(eq(schema.appSettings.id, 'app'));
+  if (existingSettings.length === 0) {
+    await db.insert(schema.appSettings).values({
+      id: 'app',
+      businessName: defaultAppSettings.businessName,
+      logoDataUrl: defaultAppSettings.logoDataUrl,
+      phone: defaultAppSettings.phone,
+      email: defaultAppSettings.email,
+      address: defaultAppSettings.address,
+      currency: defaultAppSettings.currency,
+      expiryAlertDays: defaultAppSettings.expiryAlertDays,
+      lowStockDefaultThreshold: defaultAppSettings.lowStockDefaultThreshold,
+      receiptFooterMessage: defaultAppSettings.receiptFooterMessage,
+      reportFooterMessage: defaultAppSettings.reportFooterMessage,
+      paymentMethods: defaultAppSettings.paymentMethods,
+    });
+    console.log('Created app settings');
   }
 
   console.log('Database initialization complete');

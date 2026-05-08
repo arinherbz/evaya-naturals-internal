@@ -2,6 +2,7 @@ import type {
   BroadcastLink,
   BroadcastRecord,
   Branch,
+  BusinessProfileSettings,
   Category,
   Customer,
   CustomerHistory,
@@ -10,13 +11,17 @@ import type {
   InventoryMovement,
   InventoryRow,
   Expense,
+  PaymentMethodSettings,
   PosProduct,
   PosTodaySummary,
   ProductListItem,
   ReportSummary,
   Receipt,
+  Role,
+  StaffUser,
   Supplier,
   ShiftSnapshot,
+  SystemSettings,
   TodayReport,
 } from '../types';
 
@@ -110,6 +115,71 @@ export const api = {
 
   branches: {
     list: () => request<{ branches: Branch[] }>('/catalog/branches'),
+  },
+
+  settings: {
+    public: () => request<{
+      businessProfile: BusinessProfileSettings;
+      systemSettings: SystemSettings;
+      paymentMethods: PaymentMethodSettings;
+    }>('/settings/public'),
+    get: () => request<{
+      businessProfile: BusinessProfileSettings;
+      systemSettings: SystemSettings;
+      paymentMethods: PaymentMethodSettings;
+      roles: Role[];
+      users: StaffUser[];
+    }>('/settings'),
+    updateBusinessProfile: (payload: {
+      businessName: string;
+      logoDataUrl?: string | null;
+      phone: string;
+      email: string;
+      address?: string | null;
+    }) => request<{ businessProfile: BusinessProfileSettings }>('/settings/business-profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    updateSystem: (payload: {
+      expiryAlertDays: number;
+      lowStockDefaultThreshold: number;
+      receiptFooterMessage?: string | null;
+      reportFooterMessage?: string | null;
+    }) => request<{ systemSettings: SystemSettings }>('/settings/system', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    updatePaymentMethods: (payload: PaymentMethodSettings) => request<{ paymentMethods: PaymentMethodSettings }>('/settings/payment-methods', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    createStaffUser: (payload: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string | null;
+      roleId: string;
+      password: string;
+      isActive: boolean;
+    }) => request<{ user: StaffUser }>('/settings/staff', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+    updateStaffUser: (id: string, payload: Partial<{
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string | null;
+      roleId: string;
+      isActive: boolean;
+    }>) => request<{ user: StaffUser }>(`/settings/staff/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    resetStaffPassword: (id: string, password: string) => request<{ message: string }>(`/settings/staff/${id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
   },
 
   suppliers: {
