@@ -1,10 +1,27 @@
 import { eq } from 'drizzle-orm';
-import { db } from './index';
+import { db, sqlite } from './index';
 import * as schema from './schema/index';
 import bcrypt from 'bcryptjs';
 
+function ensureColumn(tableName: string, columnName: string, definition: string) {
+  const columns = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  const exists = columns.some((column) => column.name === columnName);
+  if (!exists) {
+    sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    console.log(`Added ${columnName} to ${tableName}`);
+  }
+}
+
 export async function initializeDatabase() {
   const primaryBranchName = 'Evaya Naturals';
+
+  ensureColumn('sales', 'shift_id', 'TEXT');
+  ensureColumn('shifts', 'mtn_mobile_money_total', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('shifts', 'airtel_money_total', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('shifts', 'card_total', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('shifts', 'bank_transfer_total', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('shifts', 'approved_at', 'TEXT');
+  ensureColumn('daily_closes', 'shift_id', 'TEXT');
 
   // Create default roles if they don't exist
   const defaultRoles = [

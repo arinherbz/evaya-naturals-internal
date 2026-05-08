@@ -2,12 +2,14 @@ import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
 import { branches } from './branches';
 import { users } from './users';
 import { customers } from './customers';
+import { shifts } from './shifts';
 
 export const sales = sqliteTable('sales', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   receiptNumber: text('receipt_number').notNull().unique(),
   branchId: text('branch_id').notNull().references(() => branches.id),
   cashierId: text('cashier_id').notNull().references(() => users.id),
+  shiftId: text('shift_id').references(() => shifts.id),
   customerId: text('customer_id').references(() => customers.id),
   subtotal: real('subtotal').notNull(),
   discount: real('discount').notNull().default(0),

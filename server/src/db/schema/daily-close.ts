@@ -1,11 +1,13 @@
 import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
 import { branches } from './branches';
 import { users } from './users';
+import { shifts } from './shifts';
 
 export const dailyCloses = sqliteTable('daily_closes', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   branchId: text('branch_id').notNull().references(() => branches.id),
   cashierId: text('cashier_id').notNull().references(() => users.id),
+  shiftId: text('shift_id').references(() => shifts.id),
   closeDate: text('close_date').notNull(), // YYYY-MM-DD format
   cashExpected: real('cash_expected').notNull(),
   cashCounted: real('cash_counted').notNull(),

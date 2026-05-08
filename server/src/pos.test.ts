@@ -87,6 +87,19 @@ async function receiveBatch(adminToken: string, payload: Record<string, unknown>
   return (await json(response)).batch;
 }
 
+async function openShift(token: string, openingCash = 10000) {
+  const response = await app.request('/api/pos/shift/open', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ openingCash }),
+  });
+  expect(response.status).toBe(201);
+  return (await json(response)).shift;
+}
+
 describe('pos slice', () => {
   let adminToken = '';
   let branchId = '';
@@ -103,6 +116,8 @@ describe('pos slice', () => {
     await db.delete(schema.auditLogs);
     await db.delete(schema.saleItems);
     await db.delete(schema.sales);
+    await db.delete(schema.dailyCloses);
+    await db.delete(schema.shifts);
     await db.delete(schema.inventoryMovements);
     await db.delete(schema.inventory);
     await db.delete(schema.batches);
@@ -113,6 +128,7 @@ describe('pos slice', () => {
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.pos@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'rider.pos@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'accountant.pos@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'manager.shift@evaya.ug'));
     adminToken = await login('admin@evaya.ug', 'admin123');
   });
 
@@ -172,6 +188,22 @@ describe('pos slice', () => {
     await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
     const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
 
+    const blockedSaleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        discount: 2000,
+        paymentMethod: 'cash',
+        items: [{ productId: product.id, quantity: 1 }],
+      }),
+    });
+    expect(blockedSaleRes.status).toBe(409);
+
+    const activeShift = await openShift(cashierToken, 12000);
+
     const saleResponse = await app.request('/api/pos/sales', {
       method: 'POST',
       headers: {
@@ -201,6 +233,10 @@ describe('pos slice', () => {
     const movements = await db.select().from(schema.inventoryMovements).where(eq(schema.inventoryMovements.referenceId, salePayload.sale.id));
     expect(movements).toHaveLength(2);
     expect(movements.every((movement) => movement.movementType === 'sale')).toBe(true);
+    expect(movements.every((movement) => movement.referenceType === 'sale')).toBe(true);
+
+    const [persistedSale] = await db.select().from(schema.sales).where(eq(schema.sales.id, salePayload.sale.id));
+    expect(persistedSale.shiftId).toBe(activeShift.id);
 
     const receiptResponse = await app.request(`/api/pos/receipts/${salePayload.sale.id}`, {
       headers: { Authorization: `Bearer ${cashierToken}` },
@@ -228,6 +264,7 @@ describe('pos slice', () => {
 
     await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
     const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
 
     const response = await app.request('/api/pos/sales', {
       method: 'POST',
@@ -263,6 +300,7 @@ describe('pos slice', () => {
 
     await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
     const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
 
     const response = await app.request('/api/pos/sales', {
       method: 'POST',
@@ -319,6 +357,8 @@ describe('pos slice', () => {
     });
     expect(accountantToday.status).toBe(200);
 
+    await openShift(cashierToken);
+
     const cashierCheckout = await app.request('/api/pos/sales', {
       method: 'POST',
       headers: {
@@ -357,5 +397,99 @@ describe('pos slice', () => {
       }),
     });
     expect(accountantCheckout.status).toBe(403);
+  });
+
+  it('opens shifts, blocks second active shift, closes with variance, and enforces approval permissions', async () => {
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const manager = await createUser('Branch Manager', 'manager.shift@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    const managerToken = await login(manager.email, 'secret123');
+
+    const openRes = await app.request('/api/pos/shift/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({ openingCash: 15000 }),
+    });
+    expect(openRes.status).toBe(201);
+    const activeShift = (await json(openRes)).shift;
+
+    const duplicateOpenRes = await app.request('/api/pos/shift/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({ openingCash: 5000 }),
+    });
+    expect(duplicateOpenRes.status).toBe(409);
+
+    const currentShiftRes = await app.request('/api/pos/shift/current', {
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(currentShiftRes.status).toBe(200);
+    expect((await json(currentShiftRes)).shift.id).toBe(activeShift.id);
+
+    const category = await createCategory(adminToken, 'POS Category');
+    const product = await createProduct(adminToken, branchId, category.id, 'Shift Test Product');
+    await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: 'SHIFT-B1',
+      expiryDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+      quantityReceived: 4,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    const saleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        paymentMethod: 'cash',
+        items: [{ productId: product.id, quantity: 2 }],
+      }),
+    });
+    expect(saleRes.status).toBe(201);
+
+    const closeRes = await app.request('/api/pos/shift/close', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        countedCash: 38000,
+        notes: 'Drawer reconciled',
+      }),
+    });
+    expect(closeRes.status).toBe(200);
+    const closedShift = (await json(closeRes)).shift;
+    expect(closedShift.status).toBe('closed');
+    expect(closedShift.expectedCash).toBe(39000);
+    expect(closedShift.variance).toBe(-1000);
+
+    const [dailyClose] = await db.select().from(schema.dailyCloses).where(eq(schema.dailyCloses.shiftId, activeShift.id));
+    expect(dailyClose.cashExpected).toBe(39000);
+    expect(dailyClose.cashCounted).toBe(38000);
+    expect(dailyClose.difference).toBe(-1000);
+
+    const approveRes = await app.request(`/api/pos/shift/${activeShift.id}/approve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    expect(approveRes.status).toBe(200);
+    expect((await json(approveRes)).shift.status).toBe('approved');
+
+    const cashierApproveRes = await app.request(`/api/pos/shift/${activeShift.id}/approve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(cashierApproveRes.status).toBe(403);
   });
 });

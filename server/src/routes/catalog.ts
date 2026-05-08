@@ -60,6 +60,17 @@ const thresholdSchema = z.object({
   lowStockThreshold: z.number().int().min(0).max(100000),
 });
 
+const supplierSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  contactPerson: z.string().trim().max(160).optional().nullable(),
+  phone: z.string().trim().min(7).max(40),
+  whatsappNumber: z.string().trim().max(40).optional().nullable(),
+  email: z.string().trim().email().max(160).optional().nullable().or(z.literal('')).optional(),
+  location: z.string().trim().max(200).optional().nullable(),
+  notes: z.string().trim().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 function canManageCategories(user: AuthUser) {
   return user.role.name === 'Admin';
 }
@@ -74,6 +85,10 @@ function canManageInventory(user: AuthUser) {
 
 function canReadInventory(user: AuthUser) {
   return canManageInventory(user) || user.role.name === 'Cashier';
+}
+
+function canManageSuppliers(user: AuthUser) {
+  return canManageInventory(user);
 }
 
 function sanitizeOptionalText(value?: string | null) {
@@ -199,8 +214,99 @@ catalogRoutes.get('/branches', async (c) => {
 });
 
 catalogRoutes.get('/suppliers', requirePermission('manage_inventory'), async (c) => {
-  const suppliers = await db.select().from(schema.suppliers).where(eq(schema.suppliers.isActive, true));
+  const includeInactive = c.req.query('includeInactive') === 'true';
+  const suppliers = includeInactive
+    ? await db.select().from(schema.suppliers)
+    : await db.select().from(schema.suppliers).where(eq(schema.suppliers.isActive, true));
   return c.json({ suppliers });
+});
+
+catalogRoutes.post('/suppliers', async (c) => {
+  const user = c.get('user');
+  if (!canManageSuppliers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const payload = supplierSchema.parse(await c.req.json());
+  const supplierData = {
+    name: payload.name,
+    contactPerson: sanitizeOptionalText(payload.contactPerson),
+    phone: payload.phone,
+    whatsappNumber: sanitizeOptionalText(payload.whatsappNumber),
+    email: sanitizeOptionalText(payload.email),
+    location: sanitizeOptionalText(payload.location),
+    notes: sanitizeOptionalText(payload.notes),
+    isActive: payload.isActive ?? true,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const [created] = await db.insert(schema.suppliers).values(supplierData).returning();
+  await logAudit(user, 'create', 'supplier', created.id, undefined, created as unknown as Record<string, unknown>);
+  return c.json({ supplier: created }, 201);
+});
+
+catalogRoutes.patch('/suppliers/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageSuppliers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const supplierId = c.req.param('id');
+  const payload = supplierSchema.partial().parse(await c.req.json());
+  const existing = await db.select().from(schema.suppliers).where(eq(schema.suppliers.id, supplierId));
+  if (existing.length === 0) {
+    return c.json({ error: 'Supplier not found' }, 404);
+  }
+
+  const updateData = {
+    name: payload.name ?? existing[0].name,
+    contactPerson: payload.contactPerson === undefined ? existing[0].contactPerson : sanitizeOptionalText(payload.contactPerson),
+    phone: payload.phone ?? existing[0].phone,
+    whatsappNumber: payload.whatsappNumber === undefined ? existing[0].whatsappNumber : sanitizeOptionalText(payload.whatsappNumber),
+    email: payload.email === undefined ? existing[0].email : sanitizeOptionalText(payload.email),
+    location: payload.location === undefined ? existing[0].location : sanitizeOptionalText(payload.location),
+    notes: payload.notes === undefined ? existing[0].notes : sanitizeOptionalText(payload.notes),
+    isActive: payload.isActive ?? existing[0].isActive,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const [updated] = await db.update(schema.suppliers)
+    .set(updateData)
+    .where(eq(schema.suppliers.id, supplierId))
+    .returning();
+
+  await logAudit(
+    user,
+    'update',
+    'supplier',
+    supplierId,
+    existing[0] as unknown as Record<string, unknown>,
+    updated as unknown as Record<string, unknown>,
+  );
+
+  return c.json({ supplier: updated });
+});
+
+catalogRoutes.delete('/suppliers/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageSuppliers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const supplierId = c.req.param('id');
+  const existing = await db.select().from(schema.suppliers).where(eq(schema.suppliers.id, supplierId));
+  if (existing.length === 0) {
+    return c.json({ error: 'Supplier not found' }, 404);
+  }
+
+  const linkedBatches = await db.select().from(schema.batches).where(eq(schema.batches.supplierId, supplierId));
+  if (linkedBatches.length > 0) {
+    return c.json({ error: 'Supplier cannot be deleted while receiving history exists' }, 409);
+  }
+
+  await db.delete(schema.suppliers).where(eq(schema.suppliers.id, supplierId));
+  await logAudit(user, 'delete', 'supplier', supplierId, existing[0] as unknown as Record<string, unknown>);
+  return c.json({ message: 'Supplier deleted' });
 });
 
 catalogRoutes.get('/categories', async (c) => {

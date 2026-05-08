@@ -81,8 +81,12 @@ export interface ProductListItem extends Product {
 export interface Supplier {
   id: string;
   name: string;
+  contactPerson?: string | null;
   phone: string;
-  email?: string;
+  whatsappNumber?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  email?: string | null;
   isActive: boolean;
 }
 
@@ -181,7 +185,54 @@ export interface PosTodaySummary {
   totalSales: number;
   salesCount: number;
   pendingCashUp: boolean;
+  paymentTotals: {
+    cash: number;
+    mtnMobileMoney: number;
+    airtelMoney: number;
+    card: number;
+    bankTransfer: number;
+  };
   sales: PosSaleSummary[];
+}
+
+export interface ShiftSnapshot {
+  id: string;
+  cashierId: string;
+  cashierName: string;
+  branchId: string;
+  openingCash: number;
+  countedCash?: number | null;
+  expectedCash?: number | null;
+  variance?: number | null;
+  openedAt: string;
+  closedAt?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  notes?: string | null;
+  status: 'active' | 'closed' | 'approved';
+  saleCount: number;
+  salesTotal: number;
+  paymentTotals: {
+    cash: number;
+    mtnMobileMoney: number;
+    airtelMoney: number;
+    card: number;
+    bankTransfer: number;
+  };
+}
+
+export interface TodayReport {
+  todaySales: number;
+  salesCount: number;
+  paymentTotals: {
+    cash: number;
+    mtnMobileMoney: number;
+    airtelMoney: number;
+    card: number;
+    bankTransfer: number;
+  };
+  varianceSummary: number;
+  shifts: ShiftSnapshot[];
 }
 
 export interface ReceiptLineItem {

@@ -57,9 +57,12 @@ describe('catalog slice', () => {
     await db.delete(schema.auditLogs);
     await db.delete(schema.saleItems);
     await db.delete(schema.sales);
+    await db.delete(schema.dailyCloses);
+    await db.delete(schema.shifts);
     await db.delete(schema.inventoryMovements);
     await db.delete(schema.inventory);
     await db.delete(schema.batches);
+    await db.delete(schema.suppliers);
     await db.delete(schema.productVisibility);
     await db.delete(schema.products);
     await db.delete(schema.categories).where(eq(schema.categories.name, 'Slice Test Category'));
@@ -70,6 +73,128 @@ describe('catalog slice', () => {
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.slice@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'officer.slice@evaya.ug'));
     adminToken = await login('admin@evaya.ug', 'admin123');
+  });
+
+  it('supports supplier CRUD and supplier-linked receiving', async () => {
+    const createSupplierRes = await app.request('/api/catalog/suppliers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Green Harvest',
+        contactPerson: 'Amina',
+        phone: '+256700010101',
+        whatsappNumber: '+256700010101',
+        location: 'Kampala',
+        notes: 'Primary herbs supplier',
+      }),
+    });
+    expect(createSupplierRes.status).toBe(201);
+    const supplier = (await json(createSupplierRes)).supplier;
+
+    const updateSupplierRes = await app.request(`/api/catalog/suppliers/${supplier.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        notes: 'Updated supplier note',
+        isActive: false,
+      }),
+    });
+    expect(updateSupplierRes.status).toBe(200);
+    expect((await json(updateSupplierRes)).supplier.isActive).toBe(false);
+
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Slice Test Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Supplier Linked Product',
+        categoryId: category.id,
+        unitType: 'piece',
+        sellingPrice: 22000,
+        lowStockThreshold: 3,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    const batchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        supplierId: supplier.id,
+        batchNumber: 'SUP-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 14).toISOString(),
+        quantityReceived: 8,
+        costPrice: 14000,
+        sellingPrice: 22000,
+      }),
+    });
+    expect(batchRes.status).toBe(201);
+
+    const historyRes = await app.request('/api/catalog/inventory/batches', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(historyRes.status).toBe(200);
+    const linkedBatch = (await json(historyRes)).batches.find((batch: Record<string, unknown>) => batch.batchNumber === 'SUP-B1');
+    expect(linkedBatch.supplierName).toBe('Green Harvest');
+
+    const inventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchA}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect((await json(inventoryRes)).inventory[0].quantity).toBe(8);
+
+    const movementRes = await app.request(`/api/catalog/inventory/movements?branchId=${branchA}&productId=${product.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect((await json(movementRes)).movements[0].movementType).toBe('stock_received');
+
+    const deleteSupplierRes = await app.request(`/api/catalog/suppliers/${supplier.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(deleteSupplierRes.status).toBe(409);
+
+    const orphanSupplierRes = await app.request('/api/catalog/suppliers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Unused Supplier',
+        phone: '+256700010202',
+      }),
+    });
+    const orphanSupplier = (await json(orphanSupplierRes)).supplier;
+
+    const removeOrphanRes = await app.request(`/api/catalog/suppliers/${orphanSupplier.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(removeOrphanRes.status).toBe(200);
   });
 
   it('supports category CRUD and prevents deleting used categories', async () => {

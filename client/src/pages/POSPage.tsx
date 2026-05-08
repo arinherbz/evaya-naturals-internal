@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react';
+import { FormEvent, useDeferredValue, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
@@ -39,6 +39,9 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethodOptions)[number]['value']>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [openingCash, setOpeningCash] = useState('0');
+  const [countedCash, setCountedCash] = useState('');
+  const [closeNotes, setCloseNotes] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [pageError, setPageError] = useState('');
   const [latestReceipt, setLatestReceipt] = useState<Receipt | null>(null);
@@ -58,9 +61,25 @@ export default function POSPage() {
   });
 
   const todayQuery = useQuery({
-    queryKey: ['pos-today'],
+    queryKey: ['pos-today-summary'],
     queryFn: () => api.pos.today(),
   });
+
+  const shiftQuery = useQuery({
+    queryKey: ['pos-current-shift'],
+    queryFn: () => api.pos.currentShift(),
+    enabled: canCheckout,
+  });
+
+  const refreshOps = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
+    ]);
+  };
 
   const checkoutMutation = useMutation({
     mutationFn: async () => api.pos.createSale({
@@ -81,11 +100,31 @@ export default function POSPage() {
       setPaymentReference('');
       setNotes('');
       setPageError('');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
-        queryClient.invalidateQueries({ queryKey: ['pos-today'] }),
-        queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
-      ]);
+      await refreshOps();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const openShiftMutation = useMutation({
+    mutationFn: () => api.pos.openShift(Number(openingCash)),
+    onSuccess: async () => {
+      setOpeningCash('0');
+      setPageError('');
+      await refreshOps();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const closeShiftMutation = useMutation({
+    mutationFn: () => api.pos.closeShift({
+      countedCash: Number(countedCash),
+      notes: closeNotes || null,
+    }),
+    onSuccess: async () => {
+      setCountedCash('');
+      setCloseNotes('');
+      setPageError('');
+      await refreshOps();
     },
     onError: (error) => setPageError(getErrorMessage(error)),
   });
@@ -93,11 +132,12 @@ export default function POSPage() {
   const products = productsQuery.data?.products ?? [];
   const customers = customersQuery.data?.customers ?? [];
   const today = todayQuery.data;
+  const currentShift = shiftQuery.data?.shift ?? null;
   const subtotal = cart.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
 
   const addToCart = (product: PosProduct) => {
-    if (!canCheckout) return;
+    if (!canCheckout || !currentShift) return;
     setCart((current) => {
       const existing = current.find((line) => line.product.id === product.id);
       if (!existing) {
@@ -112,16 +152,27 @@ export default function POSPage() {
   };
 
   const updateQuantity = (productId: string, nextQuantity: number) => {
-    setCart((current) => current
-      .map((line) => (
-        line.product.id === productId
-          ? { ...line, quantity: Math.max(1, Math.min(nextQuantity, line.product.availableQuantity)) }
-          : line
-      )));
+    setCart((current) => current.map((line) => (
+      line.product.id === productId
+        ? { ...line, quantity: Math.max(1, Math.min(nextQuantity, line.product.availableQuantity)) }
+        : line
+    )));
   };
 
   const removeLine = (productId: string) => {
     setCart((current) => current.filter((line) => line.product.id !== productId));
+  };
+
+  const handleOpenShift = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPageError('');
+    await openShiftMutation.mutateAsync();
+  };
+
+  const handleCloseShift = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPageError('');
+    await closeShiftMutation.mutateAsync();
   };
 
   return (
@@ -135,13 +186,13 @@ export default function POSPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Evaya Naturals POS</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Fast cashier checkout</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Search products, add them quickly, and complete batch-aware sales without leaving the one-branch workflow.
+                  Open shift, sell quickly, then close and reconcile without leaving the operational flow.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <MetricCard label="Today's sales" value={currencyFormatter.format(today?.totalSales ?? 0)} />
                 <MetricCard label="Receipts today" value={String(today?.salesCount ?? 0)} />
-                <MetricCard label="Cash-up" value={today?.pendingCashUp ? 'Pending' : 'Clear'} />
+                <MetricCard label="Shift" value={currentShift ? 'Open' : 'Closed'} />
               </div>
             </div>
           </section>
@@ -154,8 +205,33 @@ export default function POSPage() {
 
           {!canCheckout && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              You can view products and today’s receipts, but your role cannot complete checkout.
+              You can review sales and receipts here, but only Admin and Cashier can open shifts or checkout.
             </div>
+          )}
+
+          {canCheckout && !currentShift && (
+            <section className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-5">
+              <h2 className="text-lg font-semibold text-amber-900">Open shift first</h2>
+              <p className="mt-1 text-sm text-amber-800">Checkout stays locked until the cashier opens a shift.</p>
+              <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleOpenShift}>
+                <input
+                  type="number"
+                  min="0"
+                  value={openingCash}
+                  onChange={(event) => setOpeningCash(event.target.value)}
+                  placeholder="Opening cash"
+                  className="rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={openShiftMutation.isPending}
+                  className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {openShiftMutation.isPending ? 'Opening…' : 'Open shift'}
+                </button>
+              </form>
+            </section>
           )}
 
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -169,7 +245,7 @@ export default function POSPage() {
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                   />
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                    Operating branch: Evaya Naturals
+                    {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift before checkout'}
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
                     {products.length} sellable products
@@ -197,7 +273,7 @@ export default function POSPage() {
                       key={product.id}
                       type="button"
                       onClick={() => addToCart(product)}
-                      disabled={!canCheckout}
+                      disabled={!canCheckout || !currentShift}
                       className="rounded-[28px] border border-white/70 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -357,7 +433,7 @@ export default function POSPage() {
 
                 <button
                   type="button"
-                  disabled={!canCheckout || cart.length === 0 || checkoutMutation.isPending}
+                  disabled={!canCheckout || !currentShift || cart.length === 0 || checkoutMutation.isPending}
                   onClick={() => {
                     setPageError('');
                     checkoutMutation.mutate();
@@ -366,6 +442,53 @@ export default function POSPage() {
                 >
                   {checkoutMutation.isPending ? 'Completing sale…' : 'Checkout'}
                 </button>
+              </div>
+
+              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+                <h2 className="text-xl font-semibold">Shift review</h2>
+                <p className="mt-1 text-sm text-slate-500">Use this to reconcile and close the cashier session.</p>
+                {!currentShift && (
+                  <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                    No active shift yet.
+                  </div>
+                )}
+                {currentShift && (
+                  <form className="mt-5 grid gap-3" onSubmit={handleCloseShift}>
+                    <div className="rounded-3xl bg-slate-50 p-4">
+                      <div className="flex items-center justify-between text-sm text-slate-500">
+                        <span>Expected cash</span>
+                        <span>{currencyFormatter.format(currentShift.paymentTotals.cash + currentShift.openingCash)}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-sm text-slate-500">
+                        <span>Digital payments</span>
+                        <span>{currencyFormatter.format(currentShift.paymentTotals.mtnMobileMoney + currentShift.paymentTotals.airtelMoney + currentShift.paymentTotals.card + currentShift.paymentTotals.bankTransfer)}</span>
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={countedCash}
+                      onChange={(event) => setCountedCash(event.target.value)}
+                      placeholder="Counted cash"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                      required
+                    />
+                    <textarea
+                      value={closeNotes}
+                      onChange={(event) => setCloseNotes(event.target.value)}
+                      placeholder="Close notes"
+                      rows={3}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={closeShiftMutation.isPending}
+                      className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {closeShiftMutation.isPending ? 'Closing…' : 'Close shift'}
+                    </button>
+                  </form>
+                )}
               </div>
 
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -412,34 +535,6 @@ export default function POSPage() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Today&apos;s receipts</h2>
-                <p className="mt-1 text-sm text-slate-500">Recent completed sales for Evaya Naturals.</p>
-                <div className="mt-5 space-y-3">
-                  {(today?.sales ?? []).length === 0 && (
-                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      No completed receipts yet today.
-                    </div>
-                  )}
-                  {(today?.sales ?? []).map((sale) => (
-                    <div key={sale.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-medium text-slate-900">{sale.receiptNumber}</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {sale.cashierName} · {new Date(sale.createdAt).toLocaleTimeString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-slate-900">{currencyFormatter.format(sale.total)}</p>
-                          <p className="mt-1 text-xs text-slate-400">{formatPaymentMethod(sale.paymentMethod)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </section>
           </div>

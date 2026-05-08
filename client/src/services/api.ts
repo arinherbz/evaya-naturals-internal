@@ -10,6 +10,8 @@ import type {
   ProductListItem,
   Receipt,
   Supplier,
+  ShiftSnapshot,
+  TodayReport,
 } from '../types';
 
 const API_BASE_URL = '/api';
@@ -76,7 +78,21 @@ export const api = {
   },
 
   suppliers: {
-    list: () => request<{ suppliers: Supplier[] }>('/catalog/suppliers'),
+    list: (includeInactive = true) => request<{ suppliers: Supplier[] }>(`/catalog/suppliers?includeInactive=${includeInactive}`),
+    create: (payload: Record<string, unknown>) =>
+      request<{ supplier: Supplier }>('/catalog/suppliers', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    update: (id: string, payload: Record<string, unknown>) =>
+      request<{ supplier: Supplier }>(`/catalog/suppliers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/catalog/suppliers/${id}`, {
+        method: 'DELETE',
+      }),
   },
 
   categories: {
@@ -181,6 +197,22 @@ export const api = {
       }),
     today: () => request<PosTodaySummary>('/pos/sales/today'),
     receipt: (id: string) => request<{ receipt: Receipt }>(`/pos/receipts/${id}`),
+    currentShift: () => request<{ shift: ShiftSnapshot | null }>('/pos/shift/current'),
+    openShift: (openingCash: number) =>
+      request<{ shift: ShiftSnapshot }>('/pos/shift/open', {
+        method: 'POST',
+        body: JSON.stringify({ openingCash }),
+      }),
+    closeShift: (payload: { countedCash: number; notes?: string | null }) =>
+      request<{ shift: ShiftSnapshot }>('/pos/shift/close', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    approveShift: (shiftId: string) =>
+      request<{ shift: ShiftSnapshot }>(`/pos/shift/${shiftId}/approve`, {
+        method: 'POST',
+      }),
+    reportToday: () => request<TodayReport>('/pos/reports/today'),
   },
 };
 

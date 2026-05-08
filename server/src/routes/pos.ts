@@ -21,12 +21,25 @@ const salePayloadSchema = z.object({
   })).min(1),
 });
 
+const shiftOpenSchema = z.object({
+  openingCash: z.number().int().min(0),
+});
+
+const shiftCloseSchema = z.object({
+  countedCash: z.number().int().min(0),
+  notes: z.string().trim().max(500).optional().nullable(),
+});
+
 function canViewPos(user: AuthUser) {
   return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
 }
 
 function canCheckout(user: AuthUser) {
   return ['Admin', 'Cashier'].includes(user.role.name);
+}
+
+function canApproveClose(user: AuthUser) {
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 async function getPrimaryBranchId() {
@@ -69,6 +82,87 @@ function createReceiptNumber() {
   return `EVN-${datePart}-${timePart}`;
 }
 
+async function getActiveShift(cashierId: string, branchId: string) {
+  const shifts = await db.select().from(schema.shifts).where(and(
+    eq(schema.shifts.cashierId, cashierId),
+    eq(schema.shifts.branchId, branchId),
+    eq(schema.shifts.status, 'active'),
+  ));
+  return shifts[0] ?? null;
+}
+
+async function getShiftSales(shiftId: string) {
+  return db.select({
+    id: schema.sales.id,
+    subtotal: schema.sales.subtotal,
+    discount: schema.sales.discount,
+    total: schema.sales.total,
+    paymentMethod: schema.sales.paymentMethod,
+    createdAt: schema.sales.createdAt,
+    receiptNumber: schema.sales.receiptNumber,
+  })
+    .from(schema.sales)
+    .where(and(eq(schema.sales.shiftId, shiftId), eq(schema.sales.status, 'completed')))
+    .orderBy(desc(schema.sales.createdAt));
+}
+
+function buildPaymentTotals(sales: Array<{ paymentMethod: string; total: number }>) {
+  return sales.reduce((totals, sale) => {
+    if (sale.paymentMethod === 'cash') totals.cash += sale.total;
+    if (sale.paymentMethod === 'mtn_mobile_money') totals.mtnMobileMoney += sale.total;
+    if (sale.paymentMethod === 'airtel_money') totals.airtelMoney += sale.total;
+    if (sale.paymentMethod === 'bank_card') totals.card += sale.total;
+    if (sale.paymentMethod === 'bank_transfer') totals.bankTransfer += sale.total;
+    return totals;
+  }, {
+    cash: 0,
+    mtnMobileMoney: 0,
+    airtelMoney: 0,
+    card: 0,
+    bankTransfer: 0,
+  });
+}
+
+async function buildShiftSnapshot(shiftId: string) {
+  const [shift] = await db.select({
+    id: schema.shifts.id,
+    cashierId: schema.shifts.cashierId,
+    branchId: schema.shifts.branchId,
+    openingCash: schema.shifts.openingCash,
+    closingCash: schema.shifts.closingCash,
+    expectedCash: schema.shifts.expectedCash,
+    mtnMobileMoneyTotal: schema.shifts.mtnMobileMoneyTotal,
+    airtelMoneyTotal: schema.shifts.airtelMoneyTotal,
+    cardTotal: schema.shifts.cardTotal,
+    bankTransferTotal: schema.shifts.bankTransferTotal,
+    variance: schema.shifts.variance,
+    openedAt: schema.shifts.openedAt,
+    closedAt: schema.shifts.closedAt,
+    approvedBy: schema.shifts.approvedBy,
+    approvedAt: schema.shifts.approvedAt,
+    notes: schema.shifts.notes,
+    status: schema.shifts.status,
+    cashierName: schema.users.firstName,
+    cashierLastName: schema.users.lastName,
+  })
+    .from(schema.shifts)
+    .innerJoin(schema.users, eq(schema.shifts.cashierId, schema.users.id))
+    .where(eq(schema.shifts.id, shiftId));
+
+  if (!shift) return null;
+
+  const sales = await getShiftSales(shiftId);
+  const paymentTotals = buildPaymentTotals(sales);
+  return {
+    ...shift,
+    cashierName: `${shift.cashierName} ${shift.cashierLastName}`.trim(),
+    countedCash: shift.closingCash,
+    saleCount: sales.length,
+    salesTotal: sales.reduce((sum, sale) => sum + sale.total, 0),
+    paymentTotals,
+  };
+}
+
 async function buildTodaySummary(branchId: string) {
   const sales = await db.select({
     id: schema.sales.id,
@@ -88,10 +182,13 @@ async function buildTodaySummary(branchId: string) {
     ))
     .orderBy(desc(schema.sales.createdAt));
 
+  const paymentTotals = buildPaymentTotals(sales);
+
   return {
     totalSales: sales.reduce((sum, sale) => sum + sale.total, 0),
     salesCount: sales.length,
     pendingCashUp: sales.length > 0,
+    paymentTotals,
     sales,
   };
 }
@@ -187,6 +284,182 @@ posRoutes.get('/customers', async (c) => {
   return c.json({ customers });
 });
 
+posRoutes.get('/shift/current', async (c) => {
+  const user = c.get('user');
+  if (!canViewPos(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const activeShift = await getActiveShift(user.id, branchId);
+  if (!activeShift) {
+    return c.json({ shift: null });
+  }
+
+  const shift = await buildShiftSnapshot(activeShift.id);
+  return c.json({ shift });
+});
+
+posRoutes.post('/shift/open', async (c) => {
+  const user = c.get('user');
+  if (!canCheckout(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const existing = await getActiveShift(user.id, branchId);
+  if (existing) {
+    return c.json({ error: 'You already have an active shift' }, 409);
+  }
+
+  const payload = shiftOpenSchema.parse(await c.req.json());
+  const [shift] = await db.insert(schema.shifts).values({
+    cashierId: user.id,
+    branchId,
+    openingCash: payload.openingCash,
+    updatedAt: new Date().toISOString(),
+  }).returning();
+
+  await db.insert(schema.auditLogs).values({
+    userId: user.id,
+    action: 'open_shift',
+    entityType: 'shift',
+    entityId: shift.id,
+    newValue: { openingCash: payload.openingCash },
+  });
+
+  const snapshot = await buildShiftSnapshot(shift.id);
+  return c.json({ shift: snapshot }, 201);
+});
+
+posRoutes.post('/shift/close', async (c) => {
+  const user = c.get('user');
+  if (!canCheckout(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const activeShift = await getActiveShift(user.id, branchId);
+  if (!activeShift) {
+    return c.json({ error: 'Open a shift before closing it' }, 409);
+  }
+
+  const payload = shiftCloseSchema.parse(await c.req.json());
+  const sales = await getShiftSales(activeShift.id);
+  const paymentTotals = buildPaymentTotals(sales);
+  const expectedCash = activeShift.openingCash + paymentTotals.cash;
+  const variance = payload.countedCash - expectedCash;
+  const closedAt = new Date().toISOString();
+  const closeDate = closedAt.slice(0, 10);
+
+  const [updatedShift] = await db.update(schema.shifts)
+    .set({
+      closingCash: payload.countedCash,
+      expectedCash,
+      mtnMobileMoneyTotal: paymentTotals.mtnMobileMoney,
+      airtelMoneyTotal: paymentTotals.airtelMoney,
+      cardTotal: paymentTotals.card,
+      bankTransferTotal: paymentTotals.bankTransfer,
+      variance,
+      notes: normalizeText(payload.notes),
+      closedAt,
+      status: 'closed',
+      updatedAt: closedAt,
+    })
+    .where(eq(schema.shifts.id, activeShift.id))
+    .returning();
+
+  const existingClose = await db.select().from(schema.dailyCloses).where(eq(schema.dailyCloses.shiftId, activeShift.id));
+  const dailyClosePayload = {
+    branchId,
+    cashierId: user.id,
+    shiftId: activeShift.id,
+    closeDate,
+    cashExpected: expectedCash,
+    cashCounted: payload.countedCash,
+    mtnMobileMoney: paymentTotals.mtnMobileMoney,
+    airtelMobileMoney: paymentTotals.airtelMoney,
+    cardPayments: paymentTotals.card,
+    bankTransfers: paymentTotals.bankTransfer,
+    difference: variance,
+    notes: normalizeText(payload.notes),
+    status: variance === 0 ? 'pending' : 'discrepant',
+    updatedAt: closedAt,
+  };
+
+  if (existingClose.length === 0) {
+    await db.insert(schema.dailyCloses).values(dailyClosePayload);
+  } else {
+    await db.update(schema.dailyCloses)
+      .set(dailyClosePayload)
+      .where(eq(schema.dailyCloses.id, existingClose[0].id));
+  }
+
+  await db.insert(schema.auditLogs).values({
+    userId: user.id,
+    action: 'close_shift',
+    entityType: 'shift',
+    entityId: activeShift.id,
+    newValue: {
+      expectedCash,
+      countedCash: payload.countedCash,
+      variance,
+    },
+  });
+
+  const snapshot = await buildShiftSnapshot(updatedShift.id);
+  return c.json({ shift: snapshot });
+});
+
+posRoutes.post('/shift/:id/approve', async (c) => {
+  const user = c.get('user');
+  if (!canApproveClose(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const shiftId = c.req.param('id');
+  const existing = await db.select().from(schema.shifts).where(eq(schema.shifts.id, shiftId));
+  if (existing.length === 0) {
+    return c.json({ error: 'Shift not found' }, 404);
+  }
+
+  if (existing[0].status === 'active') {
+    return c.json({ error: 'Close the shift before approval' }, 409);
+  }
+
+  const approvedAt = new Date().toISOString();
+  await db.update(schema.shifts)
+    .set({
+      status: 'approved',
+      approvedBy: user.id,
+      approvedAt,
+      updatedAt: approvedAt,
+    })
+    .where(eq(schema.shifts.id, shiftId));
+
+  const closeRecord = await db.select().from(schema.dailyCloses).where(eq(schema.dailyCloses.shiftId, shiftId));
+  if (closeRecord.length > 0) {
+    await db.update(schema.dailyCloses)
+      .set({
+        status: 'approved',
+        approvedBy: user.id,
+        approvedAt,
+        updatedAt: approvedAt,
+      })
+      .where(eq(schema.dailyCloses.id, closeRecord[0].id));
+  }
+
+  await db.insert(schema.auditLogs).values({
+    userId: user.id,
+    action: 'approve_shift_close',
+    entityType: 'shift',
+    entityId: shiftId,
+  });
+
+  const snapshot = await buildShiftSnapshot(shiftId);
+  return c.json({ shift: snapshot });
+});
+
 posRoutes.get('/sales/today', async (c) => {
   const user = c.get('user');
   if (!canViewPos(user)) {
@@ -196,6 +469,30 @@ posRoutes.get('/sales/today', async (c) => {
   const branchId = await resolveBranchId(user);
   const summary = await buildTodaySummary(branchId);
   return c.json(summary);
+});
+
+posRoutes.get('/reports/today', async (c) => {
+  const user = c.get('user');
+  if (!canViewPos(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const todaySummary = await buildTodaySummary(branchId);
+  const shifts = await db.select().from(schema.shifts).where(and(
+    eq(schema.shifts.branchId, branchId),
+    gte(schema.shifts.openedAt, startOfToday().toISOString()),
+    lt(schema.shifts.openedAt, endOfToday().toISOString()),
+  ));
+
+  const shiftSummaries = await Promise.all(shifts.map((shift) => buildShiftSnapshot(shift.id)));
+  return c.json({
+    todaySales: todaySummary.totalSales,
+    paymentTotals: todaySummary.paymentTotals,
+    salesCount: todaySummary.salesCount,
+    varianceSummary: shiftSummaries.reduce((sum, shift) => sum + (shift?.variance ?? 0), 0),
+    shifts: shiftSummaries.filter(Boolean),
+  });
 });
 
 posRoutes.get('/receipts/:id', async (c) => {
@@ -273,6 +570,10 @@ posRoutes.post('/sales', async (c) => {
 
   const branchId = await resolveBranchId(user);
   const payload = salePayloadSchema.parse(await c.req.json());
+  const activeShift = await getActiveShift(user.id, branchId);
+  if (!activeShift) {
+    return c.json({ error: 'Open a shift before checkout' }, 409);
+  }
 
   if (payload.customerId) {
     const customer = await db.select().from(schema.customers).where(eq(schema.customers.id, payload.customerId));
@@ -374,6 +675,7 @@ posRoutes.post('/sales', async (c) => {
       receiptNumber,
       branchId,
       cashierId: user.id,
+      shiftId: activeShift.id,
       customerId: payload.customerId ?? null,
       subtotal,
       discount: payload.discount,
