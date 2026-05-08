@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import POSPage from './pages/POSPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
+import InventoryUpdatePage from './pages/InventoryUpdatePage';
 import CustomersPage from './pages/CustomersPage';
 import ExpensesPage from './pages/ExpensesPage';
 import ReportsPage from './pages/ReportsPage';
@@ -60,6 +61,14 @@ function App() {
               element={
                 <ProtectedRoute permission="manage_inventory" allowRoles={['Cashier']}>
                   <InventoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/update"
+              element={
+                <ProtectedRoute permission="manage_inventory">
+                  <InventoryUpdatePage />
                 </ProtectedRoute>
               }
             />

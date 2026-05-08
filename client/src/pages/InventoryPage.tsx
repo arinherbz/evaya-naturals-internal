@@ -1,53 +1,41 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
-type BatchFormState = {
+type AddStockFormState = {
   productId: string;
   branchId: string;
-  supplierId: string;
-  batchNumber: string;
   expiryDate: string;
-  quantityReceived: string;
+  quantity: string;
   costPrice: string;
   sellingPrice: string;
 };
 
-type AdjustmentFormState = {
-  productId: string;
-  branchId: string;
-  batchId: string;
-  movementType: 'adjustment' | 'damaged' | 'expired' | 'returned';
-  quantityDelta: string;
-  reason: string;
-};
-
-const emptyBatchForm: BatchFormState = {
+const emptyAddStockForm: AddStockFormState = {
   productId: '',
   branchId: '',
-  supplierId: '',
-  batchNumber: '',
   expiryDate: '',
-  quantityReceived: '',
+  quantity: '',
   costPrice: '',
   sellingPrice: '',
-};
-
-const emptyAdjustmentForm: AdjustmentFormState = {
-  productId: '',
-  branchId: '',
-  batchId: '',
-  movementType: 'adjustment',
-  quantityDelta: '',
-  reason: '',
 };
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return 'Something went wrong';
+}
+
+function createBatchNumber(productName: string) {
+  const prefix = productName
+    .trim()
+    .slice(0, 3)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '') || 'EVA';
+  return `${prefix}-${Date.now()}`;
 }
 
 function warningBadge(count: number, label: string, color: 'amber' | 'rose') {
@@ -65,12 +53,11 @@ function warningBadge(count: number, label: string, color: 'amber' | 'rose') {
 export default function InventoryPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pageError, setPageError] = useState('');
-  const [batchForm, setBatchForm] = useState<BatchFormState>(emptyBatchForm);
-  const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>(emptyAdjustmentForm);
-  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
+  const [addStockForm, setAddStockForm] = useState<AddStockFormState>(emptyAddStockForm);
 
   const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(user?.role.name ?? '');
 
@@ -78,9 +65,6 @@ export default function InventoryPage() {
     queryKey: ['catalog-branches'],
     queryFn: () => api.branches.list(),
   });
-
-  const branches = branchesQuery.data?.branches ?? [];
-  const primaryBranch = branches.find((branch) => branch.name === 'Evaya Naturals') ?? branches[0];
 
   const productsQuery = useQuery({
     queryKey: ['catalog-products-for-inventory'],
@@ -95,74 +79,57 @@ export default function InventoryPage() {
     }),
   });
 
-  const suppliersQuery = useQuery({
-    queryKey: ['catalog-suppliers'],
-    queryFn: () => api.suppliers.list(),
-    enabled: canManageInventory,
-  });
-
-  const batchesQuery = useQuery({
-    queryKey: ['catalog-batches', adjustmentForm.productId],
-    queryFn: () => api.inventory.batches({
-      branchId: adjustmentForm.branchId || undefined,
-      productId: adjustmentForm.productId || undefined,
-    }),
-  });
+  const branches = branchesQuery.data?.branches ?? [];
+  const primaryBranch = branches.find((branch) => branch.name === 'Evaya Naturals') ?? branches[0];
+  const products = productsQuery.data?.products ?? [];
+  const inventory = inventoryQuery.data?.inventory ?? [];
 
   useEffect(() => {
-    const products = productsQuery.data?.products ?? [];
-
-    if (!batchForm.branchId && primaryBranch?.id) {
-      setBatchForm((current) => ({ ...current, branchId: primaryBranch.id }));
+    if (!addStockForm.branchId && primaryBranch?.id) {
+      setAddStockForm((current) => ({ ...current, branchId: primaryBranch.id }));
     }
-    if (!adjustmentForm.branchId && primaryBranch?.id) {
-      setAdjustmentForm((current) => ({ ...current, branchId: primaryBranch.id }));
-    }
-    if (!batchForm.productId && products.length > 0) {
-      setBatchForm((current) => ({
+    if (!addStockForm.productId && products.length > 0) {
+      setAddStockForm((current) => ({
         ...current,
         productId: products[0].id,
         sellingPrice: String(products[0].sellingPrice),
       }));
     }
-    if (!adjustmentForm.productId && products.length > 0) {
-      setAdjustmentForm((current) => ({ ...current, productId: products[0].id }));
-    }
-  }, [
-    adjustmentForm.branchId,
-    adjustmentForm.productId,
-    batchForm.branchId,
-    batchForm.productId,
-    primaryBranch?.id,
-    productsQuery.data,
-  ]);
+  }, [addStockForm.branchId, addStockForm.productId, primaryBranch?.id, products]);
 
   const invalidateInventory = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-batches'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-today'] }),
     ]);
   };
 
-  const batchMutation = useMutation({
-    mutationFn: () => api.inventory.createBatch({
-      productId: batchForm.productId,
-      branchId: batchForm.branchId,
-      supplierId: batchForm.supplierId || null,
-      batchNumber: batchForm.batchNumber,
-      expiryDate: batchForm.expiryDate,
-      quantityReceived: Number(batchForm.quantityReceived),
-      costPrice: Number(batchForm.costPrice),
-      sellingPrice: batchForm.sellingPrice ? Number(batchForm.sellingPrice) : null,
-    }),
+  const addStockMutation = useMutation({
+    mutationFn: () => {
+      const selectedProduct = products.find((product) => product.id === addStockForm.productId);
+      return api.inventory.createBatch({
+        productId: addStockForm.productId,
+        branchId: addStockForm.branchId,
+        supplierId: null,
+        batchNumber: createBatchNumber(selectedProduct?.name ?? 'Evaya'),
+        expiryDate: addStockForm.expiryDate,
+        quantityReceived: Number(addStockForm.quantity),
+        costPrice: Number(addStockForm.costPrice),
+        sellingPrice: addStockForm.sellingPrice ? Number(addStockForm.sellingPrice) : null,
+      });
+    },
     onSuccess: async () => {
-      const defaultProduct = productsQuery.data?.products?.find((product) => product.id === batchForm.productId);
-      setBatchForm({
-        ...emptyBatchForm,
-        branchId: batchForm.branchId,
-        productId: batchForm.productId,
-        sellingPrice: defaultProduct ? String(defaultProduct.sellingPrice) : '',
+      const selectedProduct = products.find((product) => product.id === addStockForm.productId);
+      setAddStockForm({
+        ...emptyAddStockForm,
+        branchId: addStockForm.branchId,
+        productId: addStockForm.productId,
+        sellingPrice: selectedProduct ? String(selectedProduct.sellingPrice) : '',
       });
       setPageError('');
       await invalidateInventory();
@@ -170,49 +137,11 @@ export default function InventoryPage() {
     onError: (error) => setPageError(getErrorMessage(error)),
   });
 
-  const adjustmentMutation = useMutation({
-    mutationFn: () => api.inventory.adjust({
-      productId: adjustmentForm.productId,
-      branchId: adjustmentForm.branchId,
-      batchId: adjustmentForm.batchId || null,
-      movementType: adjustmentForm.movementType,
-      quantityDelta: Number(adjustmentForm.quantityDelta),
-      reason: adjustmentForm.reason,
-    }),
-    onSuccess: async () => {
-      setAdjustmentForm((current) => ({
-        ...emptyAdjustmentForm,
-        branchId: current.branchId,
-        productId: current.productId,
-      }));
-      setPageError('');
-      await invalidateInventory();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
-
-  const thresholdMutation = useMutation({
-    mutationFn: ({ id, threshold }: { id: string; threshold: number }) => api.inventory.updateThreshold(id, threshold),
-    onSuccess: invalidateInventory,
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
-
-  const handleBatchSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAddStock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPageError('');
-    await batchMutation.mutateAsync();
+    await addStockMutation.mutateAsync();
   };
-
-  const handleAdjustmentSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPageError('');
-    await adjustmentMutation.mutateAsync();
-  };
-
-  const inventory = inventoryQuery.data?.inventory ?? [];
-  const products = productsQuery.data?.products ?? [];
-  const suppliers = suppliersQuery.data?.suppliers ?? [];
-  const batchRows = batchesQuery.data?.batches ?? [];
 
   const lowStockCount = inventory.filter((row) => row.lowStock).length;
   const expiringSoonCount = inventory.filter((row) => row.expiringSoonCount > 0).length;
@@ -233,18 +162,9 @@ export default function InventoryPage() {
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Low stock</p>
-                  <p className="mt-1 text-2xl font-semibold">{lowStockCount}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Expiring soon</p>
-                  <p className="mt-1 text-2xl font-semibold">{expiringSoonCount}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Expired</p>
-                  <p className="mt-1 text-2xl font-semibold">{expiredCount}</p>
-                </div>
+                <MetricCard label="Low stock" value={String(lowStockCount)} />
+                <MetricCard label="Expiring soon" value={String(expiringSoonCount)} />
+                <MetricCard label="Expired" value={String(expiredCount)} />
               </div>
             </div>
           </div>
@@ -255,16 +175,13 @@ export default function InventoryPage() {
             </div>
           )}
 
-          <div className="grid gap-4 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)] lg:grid-cols-4">
+          <div className="grid gap-4 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)] lg:grid-cols-[minmax(0,1.4fr)_220px_220px]">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search products"
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             />
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              Evaya Naturals
-            </div>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -275,176 +192,78 @@ export default function InventoryPage() {
               <option value="expiring">Expiring soon</option>
               <option value="expired">Expired</option>
             </select>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              {inventory.length} items
-            </div>
+            {canManageInventory ? (
+              <button
+                type="button"
+                onClick={() => navigate('/inventory/update')}
+                className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Update Stock
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                {inventory.length} items
+              </div>
+            )}
           </div>
 
           {canManageInventory && (
-            <div className="grid gap-6 xl:grid-cols-2">
-              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Add Stock</h2>
-                <p className="mt-1 text-sm text-slate-500">Add new stock and save expiry details.</p>
-                <form className="mt-5 grid gap-3" onSubmit={handleBatchSubmit}>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <select
-                      value={batchForm.productId}
-                      onChange={(event) => {
-                        const selected = products.find((product) => product.id === event.target.value);
-                        setBatchForm((current) => ({
-                          ...current,
-                          productId: event.target.value,
-                          sellingPrice: selected ? String(selected.sellingPrice) : current.sellingPrice,
-                        }));
-                      }}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>{product.name}</option>
-                      ))}
-                    </select>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                      Adding to {primaryBranch?.name ?? 'Evaya Naturals'}
-                    </div>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <select
-                      value={batchForm.supplierId}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, supplierId: event.target.value }))}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      <option value="">No supplier</option>
-                      {suppliers.map((supplier) => (
-                        <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      value={batchForm.batchNumber}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, batchNumber: event.target.value }))}
-                      placeholder="Batch number"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <input
-                      type="date"
-                      value={batchForm.expiryDate}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, expiryDate: event.target.value }))}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      value={batchForm.quantityReceived}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, quantityReceived: event.target.value }))}
-                      placeholder="Quantity"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      value={batchForm.costPrice}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, costPrice: event.target.value }))}
-                      placeholder="Cost price"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      value={batchForm.sellingPrice}
-                      onChange={(event) => setBatchForm((current) => ({ ...current, sellingPrice: event.target.value }))}
-                      placeholder="Selling price"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={batchMutation.isPending}
-                    className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    {batchMutation.isPending ? 'Saving…' : 'Add Stock'}
-                  </button>
-                </form>
-              </section>
-
-              <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Update Stock</h2>
-                <p className="mt-1 text-sm text-slate-500">Fix counts and record damaged, expired, or returned items.</p>
-                <form className="mt-5 grid gap-3" onSubmit={handleAdjustmentSubmit}>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <select
-                      value={adjustmentForm.productId}
-                      onChange={(event) => {
-                        setAdjustmentForm((current) => ({
-                          ...current,
-                          productId: event.target.value,
-                          batchId: '',
-                        }));
-                      }}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>{product.name}</option>
-                      ))}
-                    </select>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                      Updating {primaryBranch?.name ?? 'Evaya Naturals'}
-                    </div>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <select
-                      value={adjustmentForm.batchId}
-                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, batchId: event.target.value }))}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      <option value="">No specific batch</option>
-                      {batchRows.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          {batch.batchNumber} · {batch.quantityRemaining} left
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={adjustmentForm.movementType}
-                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, movementType: event.target.value as AdjustmentFormState['movementType'] }))}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      <option value="adjustment">Stock count correction</option>
-                      <option value="damaged">Damaged</option>
-                      <option value="expired">Expired</option>
-                      <option value="returned">Returned</option>
-                    </select>
-                    <input
-                      type="number"
-                      value={adjustmentForm.quantityDelta}
-                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, quantityDelta: event.target.value }))}
-                      placeholder="Quantity change"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                  </div>
-                  <textarea
-                    value={adjustmentForm.reason}
-                    onChange={(event) => setAdjustmentForm((current) => ({ ...current, reason: event.target.value }))}
-                    placeholder="Reason"
-                    rows={3}
+            <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <h2 className="text-xl font-semibold">Add Stock</h2>
+              <p className="mt-1 text-sm text-slate-500">Add new stock and save expiry details.</p>
+              <form className="mt-5 grid gap-3 md:grid-cols-4" onSubmit={handleAddStock}>
+                <select
+                  value={addStockForm.productId}
+                  onChange={(event) => {
+                    const selected = products.find((product) => product.id === event.target.value);
+                    setAddStockForm((current) => ({
+                      ...current,
+                      productId: event.target.value,
+                      sellingPrice: selected ? String(selected.sellingPrice) : current.sellingPrice,
+                    }));
+                  }}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                >
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>{product.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={addStockForm.expiryDate}
+                  onChange={(event) => setAddStockForm((current) => ({ ...current, expiryDate: event.target.value }))}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  required
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={addStockForm.quantity}
+                  onChange={(event) => setAddStockForm((current) => ({ ...current, quantity: event.target.value }))}
+                  placeholder="Quantity"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  required
+                />
+                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:col-span-1">
+                  <input
+                    type="number"
+                    min="0"
+                    value={addStockForm.costPrice}
+                    onChange={(event) => setAddStockForm((current) => ({ ...current, costPrice: event.target.value }))}
+                    placeholder="Cost price"
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     required
                   />
                   <button
                     type="submit"
-                    disabled={adjustmentMutation.isPending}
-                    className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                    disabled={addStockMutation.isPending}
+                    className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
                   >
-                    {adjustmentMutation.isPending ? 'Saving…' : 'Update Stock'}
+                    {addStockMutation.isPending ? 'Saving…' : 'Add Stock'}
                   </button>
-                </form>
-              </section>
-            </div>
+                </div>
+              </form>
+            </section>
           )}
 
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -454,21 +273,21 @@ export default function InventoryPage() {
                 <p className="mt-1 text-sm text-slate-500">Watch low items and products nearing expiry.</p>
               </div>
             </div>
+
             <div className="space-y-3 md:hidden">
               {inventory.map((row) => (
                 <div key={row.id} className="rounded-[28px] bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-slate-900">{row.productName}</p>
-                      <p className="mt-1 text-sm text-slate-500">{row.categoryName}</p>
                     </div>
                     <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                       {row.quantity} left
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <MobileValue label="Quantity" value={String(row.quantity)} />
                     <MobileValue label="Low stock level" value={String(row.lowStockThreshold)} />
-                    <MobileValue label="Batches" value={String(row.batches.length)} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {row.lowStock && (
@@ -477,40 +296,13 @@ export default function InventoryPage() {
                       </span>
                     )}
                     {warningBadge(row.expiringSoonCount, 'expiring soon', 'amber')}
-                    {warningBadge(row.expiredCount, 'expired batches', 'rose')}
+                    {warningBadge(row.expiredCount, 'expired', 'rose')}
                   </div>
                   {canManageInventory && (
-                    <div className="mt-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={thresholdDrafts[row.id] ?? String(row.lowStockThreshold)}
-                          onChange={(event) => setThresholdDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
-                          className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            thresholdMutation.mutate({
-                              id: row.id,
-                              threshold: Number(thresholdDrafts[row.id] ?? row.lowStockThreshold),
-                            });
-                          }}
-                          className="rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Save
-                        </button>
-                      </div>
+                    <div className="mt-4">
                       <button
                         type="button"
-                        onClick={() => {
-                          setAdjustmentForm((current) => ({
-                            ...current,
-                            branchId: row.branchId,
-                            productId: row.productId,
-                          }));
-                        }}
+                        onClick={() => navigate(`/inventory/update?productId=${row.productId}`)}
                         className="rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                       >
                         Update Stock
@@ -522,56 +314,22 @@ export default function InventoryPage() {
             </div>
 
             <div className="hidden overflow-x-auto rounded-3xl border border-slate-100 md:block">
-              <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
+              <table className="min-w-[720px] divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Product</th>
                     <th className="px-4 py-3 font-medium">Quantity</th>
                     <th className="px-4 py-3 font-medium">Low stock level</th>
-                    <th className="px-4 py-3 font-medium">Warnings</th>
-                    {canManageInventory && <th className="px-4 py-3 font-medium">Actions</th>}
+                    <th className="px-4 py-3 font-medium">Warning</th>
+                    {canManageInventory && <th className="px-4 py-3 font-medium">Update</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {inventory.map((row) => (
                     <tr key={row.id}>
-                      <td className="px-4 py-4">
-                        <div className="font-medium">{row.productName}</div>
-                        <div className="mt-1 text-xs text-slate-400">
-                          {row.categoryName} · {row.unitType.toUpperCase()}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium">{row.quantity}</div>
-                        <div className="text-xs text-slate-400">{row.batches.length} batches tracked</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        {canManageInventory ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              value={thresholdDrafts[row.id] ?? String(row.lowStockThreshold)}
-                              onChange={(event) => setThresholdDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
-                              className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                thresholdMutation.mutate({
-                                  id: row.id,
-                                  threshold: Number(thresholdDrafts[row.id] ?? row.lowStockThreshold),
-                                });
-                              }}
-                              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        ) : (
-                          row.lowStockThreshold
-                        )}
-                      </td>
+                      <td className="px-4 py-4 font-medium">{row.productName}</td>
+                      <td className="px-4 py-4">{row.quantity}</td>
+                      <td className="px-4 py-4">{row.lowStockThreshold}</td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
                           {row.lowStock && (
@@ -580,20 +338,14 @@ export default function InventoryPage() {
                             </span>
                           )}
                           {warningBadge(row.expiringSoonCount, 'expiring soon', 'amber')}
-                          {warningBadge(row.expiredCount, 'expired batches', 'rose')}
+                          {warningBadge(row.expiredCount, 'expired', 'rose')}
                         </div>
                       </td>
                       {canManageInventory && (
                         <td className="px-4 py-4">
                           <button
                             type="button"
-                            onClick={() => {
-                              setAdjustmentForm((current) => ({
-                                ...current,
-                                branchId: row.branchId,
-                                productId: row.productId,
-                              }));
-                            }}
+                            onClick={() => navigate(`/inventory/update?productId=${row.productId}`)}
                             className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
                             Update Stock
@@ -608,6 +360,15 @@ export default function InventoryPage() {
           </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
 }
