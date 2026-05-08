@@ -3,16 +3,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
-import dotenv from 'dotenv';
 import { initializeDatabase } from './db/init';
 import authRoutes from './routes/auth';
 import catalogRoutes from './routes/catalog';
 import posRoutes from './routes/pos';
 import settingsRoutes from './routes/settings';
-
-dotenv.config();
-
-const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+import { appEnv, logServerError } from './env';
 
 export function createApp() {
   const app = new Hono();
@@ -20,7 +16,7 @@ export function createApp() {
   app.use('*', logger());
   app.use('*', secureHeaders());
   app.use('*', cors({
-    origin: clientUrl,
+    origin: appEnv.clientUrl,
     credentials: true,
   }));
 
@@ -48,9 +44,9 @@ export function createApp() {
   app.route('/api/settings', settingsRoutes);
 
   app.onError((err: Error, c) => {
-    console.error('Error:', err);
+    logServerError('Unhandled request', err);
     return c.json(
-      { error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message },
+      { error: appEnv.isProduction ? 'Internal server error' : err.message },
       500
     );
   });
@@ -61,9 +57,9 @@ export function createApp() {
 const app = createApp();
 
 // Start server
-const port = parseInt(process.env.PORT || '3001', 10);
+const port = appEnv.port;
 
-if (process.env.NODE_ENV !== 'test') {
+if (appEnv.nodeEnv !== 'test') {
   initializeDatabase().then(() => {
     console.log('Database initialized');
     
@@ -74,7 +70,7 @@ if (process.env.NODE_ENV !== 'test') {
       console.log(`Server running on http://localhost:${port}`);
     });
   }).catch((err) => {
-    console.error('Failed to initialize database:', err);
+    logServerError('Database initialization', err);
     process.exit(1);
   });
 }

@@ -22,7 +22,7 @@ A modern internal operations management system for Evaya Naturals, a Uganda-base
 
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS
 - **Backend**: Node.js + Hono + TypeScript
-- **Database**: SQLite (dev) / PostgreSQL (production) with Drizzle ORM
+- **Database**: PostgreSQL with Drizzle ORM, plus local `PGlite` fallback for development and tests when `DATABASE_URL` is not set
 - **Validation**: Zod
 - **State Management**: TanStack React Query
 - **Routing**: React Router v6
@@ -45,17 +45,22 @@ cd evaya-naturals-internal
 2. Install dependencies:
 ```bash
 npm install
-cd server && npm install
-cd ../client && npm install
-cd ..
+npm run install:all
 ```
 
 3. Set up environment variables:
 ```bash
+cp .env.example .env
 cp server/.env.example server/.env
 ```
 
-4. Start the development servers:
+4. Run migrations and seed:
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+5. Start the development servers:
 ```bash
 npm run dev
 ```
@@ -166,8 +171,8 @@ npm run check
 # Generate migrations
 npm run db:generate
 
-# Push schema to database
-npm run db:push
+# Run migrations
+npm run db:migrate
 
 # Seed initial data
 npm run db:seed
@@ -175,6 +180,10 @@ npm run db:seed
 # Open Drizzle Studio
 npm run db:studio
 ```
+
+## Deployment
+
+See `DEPLOYMENT.md` for Hostinger VPS setup, PostgreSQL configuration, PM2, Nginx, SSL, backups, and staff-access instructions.
 
 ## Currency
 

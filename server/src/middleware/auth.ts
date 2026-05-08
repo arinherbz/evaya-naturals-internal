@@ -2,6 +2,7 @@ import { Context, Next } from 'hono';
 import { db } from '../db/index';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '../db/schema/index';
+import { appEnv, logServerError } from '../env';
 
 // User type for context
 export interface AuthUser {
@@ -86,8 +87,8 @@ export const authMiddleware = async (c: Context, next: Next) => {
     
     return next();
   } catch (error) {
-    console.error('Auth error:', error);
-    return c.json({ error: 'Authentication failed' }, 500);
+    logServerError('Authentication', error);
+    return c.json({ error: appEnv.isProduction ? 'Internal server error' : 'Authentication failed' }, 500);
   }
 };
 

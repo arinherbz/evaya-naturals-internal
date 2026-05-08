@@ -1,15 +1,11 @@
-import dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { Pool } from 'pg';
 import { PGlite } from '@electric-sql/pglite';
 import * as schema from './schema/index';
-import path from 'node:path';
+import { appEnv } from '../env';
 
-dotenv.config();
-
-const nodeEnv = process.env.NODE_ENV || 'development';
-const databaseUrl = process.env.DATABASE_URL?.trim();
+const databaseUrl = appEnv.databaseUrl;
 
 function isPostgresUrl(url: string) {
   return url.startsWith('postgres://') || url.startsWith('postgresql://');
@@ -19,7 +15,7 @@ function isSqliteUrl(url: string) {
   return url.startsWith('file:') || url.endsWith('.db') || url.endsWith('.sqlite');
 }
 
-if (nodeEnv === 'production' && !databaseUrl) {
+if (appEnv.isProduction && !databaseUrl) {
   throw new Error('Production requires DATABASE_URL to be set to a PostgreSQL connection string.');
 }
 
@@ -31,19 +27,17 @@ if (databaseUrl && !isPostgresUrl(databaseUrl)) {
   throw new Error('Unsupported DATABASE_URL. Use a PostgreSQL connection string.');
 }
 
-export const usingPglite = !databaseUrl && nodeEnv !== 'production';
-
-const pgliteDataDir = path.resolve(process.cwd(), '.pglite');
+export const usingPglite = !databaseUrl && !appEnv.isProduction;
 
 const pgPool = !usingPglite
   ? new Pool({
     connectionString: databaseUrl,
-    ssl: nodeEnv === 'production' ? { rejectUnauthorized: false } : undefined,
+    ssl: appEnv.isProduction ? { rejectUnauthorized: false } : undefined,
   })
   : null;
 
 const pglite = usingPglite
-  ? new PGlite(nodeEnv === 'test' ? undefined : pgliteDataDir)
+  ? new PGlite()
   : null;
 
 export const db = pgPool

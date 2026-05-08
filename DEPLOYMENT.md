@@ -105,6 +105,7 @@ Notes:
 - never commit real secrets
 - `CLIENT_URL` is used for backend CORS
 - `VITE_API_URL` is used by the frontend production build
+- `SESSION_SECRET` is required in production and should be a long random string
 
 ## 5. Database Commands
 
@@ -226,6 +227,7 @@ Expected:
 
 - HTTP `200`
 - JSON with `status: "ok"`
+- no secrets, stack traces, or database details
 
 ## 12. Staff Access
 
@@ -258,9 +260,21 @@ Notes:
 - [ ] mobile layout is checked on a phone
 - [ ] tablet layout is checked
 - [ ] backups are configured
+- [ ] daily PostgreSQL backup is configured
+- [ ] backup is stored outside the server
+- [ ] backup is taken before major updates
 - [ ] PM2 restarts cleanly after reboot
 
-## 14. Staff Pilot Access
+## 14. Backup Recommendation
+
+For the pilot:
+
+- take a daily PostgreSQL backup
+- take a manual backup before major updates
+- store backups outside the Hostinger server
+- periodically test restoring a backup to a non-production database
+
+## 15. Staff Pilot Access
 
 For the pilot:
 
@@ -269,23 +283,23 @@ For the pilot:
 3. use POS, Inventory, Reports, and other allowed pages in the browser
 4. report any broken layout or slow workflow immediately
 
-## 15. Local Verification Links
+## 16. Local Verification Links
 
 - `http://127.0.0.1:3000/login`
 - `http://127.0.0.1:3000/pos`
 - `http://127.0.0.1:3001/api/health`
 
-## 16. Local Development Behavior
+## 17. Local Development Behavior
 
 When `DATABASE_URL` is not set:
 
 - production will fail fast
-- local development uses `PGlite` in `.pglite/`
+- local development uses in-memory `PGlite`
 - tests use in-memory `PGlite`
 
-This keeps local work and CI fast without falling back to SQLite.
+This keeps local work and CI fast without falling back to SQLite. For persistent local data, use a real PostgreSQL `DATABASE_URL`.
 
-## 17. Production Database Verification
+## 18. Production Database Verification
 
 After migration and seed:
 
@@ -296,7 +310,7 @@ After migration and seed:
 5. confirm report preview and PDF download work
 6. confirm a sale can be completed and appears in reports
 
-## 18. Deployment Reality Check
+## 19. Deployment Reality Check
 
 This repo is now PostgreSQL-ready for deployment review and pilot setup.
 
@@ -307,15 +321,4 @@ What is done:
 - seed is idempotent
 - frontend production API config is environment-driven
 - local and test environments still work without a PostgreSQL server
-
-- production env template
-- production script cleanup
-- frontend production API URL support
-- Hostinger deployment docs
-- production safety guard against accidental SQLite deployment
-
-What is still required before real PostgreSQL deployment:
-
-- migrate the Drizzle schema from SQLite core to PostgreSQL-compatible schema files
-- replace the SQLite runtime adapter with a PostgreSQL adapter
 - validate migrations and seed flow against PostgreSQL

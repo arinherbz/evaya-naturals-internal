@@ -1,11 +1,11 @@
 import { seedDatabase } from './init';
+import { logServerError } from '../env';
 
 async function seed() {
   await seedDatabase();
 }
 
 seed().catch((error) => {
-  console.error('Database seed failed');
-  console.error(error);
+  logServerError('Database seed', error);
   process.exit(1);
 });

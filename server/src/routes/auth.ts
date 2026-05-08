@@ -5,6 +5,7 @@ import { db } from '../db/index';
 import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema/index';
 import { authMiddleware } from '../middleware/auth';
+import { appEnv, logServerError } from '../env';
 
 const authRoutes = new Hono();
 
@@ -103,8 +104,8 @@ authRoutes.post('/login', async (c) => {
     if (error instanceof z.ZodError) {
       return c.json({ error: 'Validation error', details: error.errors }, 400);
     }
-    console.error('Login error:', error);
-    return c.json({ error: 'Login failed' }, 500);
+    logServerError('Login', error);
+    return c.json({ error: appEnv.isProduction ? 'Internal server error' : 'Login failed' }, 500);
   }
 });
 
@@ -131,8 +132,8 @@ authRoutes.post('/logout', authMiddleware, async (c) => {
 
     return c.json({ message: 'Logout successful' });
   } catch (error) {
-    console.error('Logout error:', error);
-    return c.json({ error: 'Logout failed' }, 500);
+    logServerError('Logout', error);
+    return c.json({ error: appEnv.isProduction ? 'Internal server error' : 'Logout failed' }, 500);
   }
 });
 
@@ -142,8 +143,8 @@ authRoutes.get('/me', authMiddleware, async (c) => {
     const user = c.get('user');
     return c.json({ user });
   } catch (error) {
-    console.error('Get user error:', error);
-    return c.json({ error: 'Failed to get user' }, 500);
+    logServerError('Get current user', error);
+    return c.json({ error: appEnv.isProduction ? 'Internal server error' : 'Failed to get user' }, 500);
   }
 });
 
