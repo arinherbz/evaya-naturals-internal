@@ -12,13 +12,15 @@ import settingsRoutes from './routes/settings';
 
 dotenv.config();
 
+const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+
 export function createApp() {
   const app = new Hono();
 
   app.use('*', logger());
   app.use('*', secureHeaders());
   app.use('*', cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: clientUrl,
     credentials: true,
   }));
 

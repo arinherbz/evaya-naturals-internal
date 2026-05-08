@@ -6,9 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "install:all": "npm --prefix server install && npm --prefix client install",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "npm run build:client && npm run build:server",
+    "build:production": "npm run build",
     "build:client": "cd client && npm run build",
     "build:server": "cd server && npm run build",
     "test": "npm run test:server && npm run test:client",
@@ -21,7 +23,9 @@
     "db:push": "cd server && npm run db:push",
     "db:seed": "cd server && npm run db:seed",
     "db:migrate": "cd server && npm run db:migrate",
-    "db:studio": "cd server && npx drizzle-kit studio"
+    "db:studio": "cd server && npx drizzle-kit studio",
+    "start:server": "cd server && npm start",
+    "start:production": "npm run start:server"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
