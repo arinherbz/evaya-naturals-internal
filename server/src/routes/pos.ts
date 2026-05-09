@@ -529,7 +529,12 @@ posRoutes.get('/products', async (c) => {
 
   const branchId = await resolveBranchId(user);
   const search = c.req.query('search')?.trim();
-  const productFilters = [eq(schema.products.isActive, true)];
+  // Allowed unit types for POS (pilot: only standard units)
+  const allowedUnitTypes = ['piece', 'kg', 'g', 'ml', 'l'];
+  const productFilters = [
+    eq(schema.products.isActive, true),
+    inArray(schema.products.unitType, allowedUnitTypes),
+  ];
   if (search) {
     productFilters.push(or(
       like(schema.products.name, `%${search}%`),
