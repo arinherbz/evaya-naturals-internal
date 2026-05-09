@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 async function run() {
   const migrate = usingPglite ? migratePglite : migrateNodePg;
   await migrate(db as never, {
-    migrationsFolder: path.join(__dirname, 'migrations'),
+    migrationsFolder: path.resolve(__dirname, '../../src/db/migrations'),
   });
   console.log('Database migrations complete');
 }
