@@ -312,6 +312,26 @@ export default function POSPage() {
                     No products found.
                   </div>
                 )}
+                {!productsQuery.isLoading && products.length > 0 && products.every((p) => p.isOutOfStock) && (
+                  <div className="md:col-span-2 rounded-[28px] border border-rose-200 bg-rose-50/50 p-8 text-center">
+                    <p className="text-base font-semibold text-rose-800">No products in stock</p>
+                    <p className="mt-2 text-sm text-rose-700">All products are currently out of stock. Add inventory before selling.</p>
+                    <div className="mt-6 flex justify-center gap-3">
+                      <a
+                        href="/inventory"
+                        className="inline-flex items-center rounded-full bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700"
+                      >
+                        Add inventory
+                      </a>
+                      <a
+                        href="/receiving"
+                        className="inline-flex items-center rounded-full border border-rose-300 bg-white px-5 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
+                      >
+                        Receive stock
+                      </a>
+                    </div>
+                  </div>
+                )}
                 {products.map((product) => {
                   const cartLine = cart.find((line) => line.product.id === product.id);
                   const inCartQuantity = cartLine?.quantity ?? 0;
