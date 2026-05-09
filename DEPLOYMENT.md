@@ -181,7 +181,7 @@ Database discipline:
 - after `npm run db:migrate`, verify the Drizzle tracking table exists:
 
 ```sql
-select * from __drizzle_migrations order by created_at desc;
+select * from drizzle.__drizzle_migrations order by created_at desc;
 ```
 
 ## 6. Build Commands

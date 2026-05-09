@@ -18,9 +18,8 @@ async function run() {
   const result = await db.execute(sql`
     select exists (
       select 1
-      from information_schema.tables
-      where table_schema = 'public'
-        and table_name = '__drizzle_migrations'
+      from pg_tables
+      where tablename = '__drizzle_migrations'
     ) as exists
   `);
   const row = result.rows[0] as { exists?: boolean } | undefined;
