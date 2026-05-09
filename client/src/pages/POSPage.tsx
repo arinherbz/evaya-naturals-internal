@@ -59,10 +59,11 @@ export default function POSPage() {
     queryFn: () => api.pos.products({ search: deferredSearch }),
   });
 
-  const customersQuery = useQuery({
+  // Customer query kept for refresh after creating quick customer
+  useQuery({
     queryKey: ['pos-customers'],
     queryFn: () => api.pos.customers(),
-    enabled: ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user?.role.name ?? ''),
+    enabled: false,
   });
 
   const todaySummaryQuery = useQuery({
@@ -171,7 +172,6 @@ export default function POSPage() {
   });
 
   const products = productsQuery.data?.products ?? [];
-  const customers = customersQuery.data?.customers ?? [];
   const today = todaySummaryQuery.data;
   const enabledPaymentMethods = paymentMethodOptions.filter((option) => settingsQuery.data?.paymentMethods?.[option.value] ?? true);
   const currentShift = shiftQuery.data?.shift ?? null;
@@ -222,8 +222,6 @@ export default function POSPage() {
     setPageError('');
     await closeShiftMutation.mutateAsync();
   };
-
-  const selectedCustomer = customers.find((entry) => entry.id === customerId) ?? null;
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
@@ -424,29 +422,9 @@ export default function POSPage() {
                 </div>
 
                 <div className="mt-5 grid gap-3">
-                  <select
-                    value={customerId}
-                    onChange={(event) => {
-                      setCustomerId(event.target.value);
-                      if (event.target.value) {
-                        setShowQuickCustomer(false);
-                      }
-                    }}
-                    disabled={!canCheckout}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                  >
-                    <option value="">Walk-in</option>
-                    {customers.filter((entry) => entry.isActive).map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} · {customer.phone}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedCustomer && (
-                    <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {selectedCustomer.name} · {selectedCustomer.phone}
-                    </div>
-                  )}
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Customer: <span className="font-medium text-slate-900">Walk-in</span>
+                  </div>
                   <button
                     type="button"
                     disabled={!canCheckout}
