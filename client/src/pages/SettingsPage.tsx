@@ -30,14 +30,6 @@ export default function SettingsPage() {
   const [receiptFooterMessage, setReceiptFooterMessage] = useState('');
   const [reportFooterMessage, setReportFooterMessage] = useState('');
 
-  const [paymentMethods, setPaymentMethods] = useState({
-    cash: true,
-    mtn_mobile_money: true,
-    airtel_money: true,
-    bank_card: true,
-    bank_transfer: true,
-  });
-
   const [editingUserId, setEditingUserId] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -56,7 +48,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!settingsQuery.data) return;
-    const { businessProfile, systemSettings, paymentMethods: methodSettings, roles } = settingsQuery.data;
+    const { businessProfile, systemSettings, roles } = settingsQuery.data;
     setBusinessName(businessProfile.businessName);
     setLogoDataUrl(businessProfile.logoDataUrl ?? null);
     setPhone(businessProfile.phone);
@@ -66,7 +58,6 @@ export default function SettingsPage() {
     setLowStockDefaultThreshold(String(systemSettings.lowStockDefaultThreshold));
     setReceiptFooterMessage(systemSettings.receiptFooterMessage ?? '');
     setReportFooterMessage(systemSettings.reportFooterMessage ?? '');
-    setPaymentMethods(methodSettings);
     if (!roleId && roles.length > 0) {
       setRoleId(roles[0].id);
     }
@@ -108,15 +99,6 @@ export default function SettingsPage() {
       receiptFooterMessage: receiptFooterMessage || null,
       reportFooterMessage: reportFooterMessage || null,
     }),
-    onSuccess: async () => {
-      setPageError('');
-      await refreshSettings();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
-
-  const paymentMethodsMutation = useMutation({
-    mutationFn: () => api.settings.updatePaymentMethods(paymentMethods),
     onSuccess: async () => {
       setPageError('');
       await refreshSettings();
@@ -206,12 +188,6 @@ export default function SettingsPage() {
     event.preventDefault();
     setPageError('');
     await systemMutation.mutateAsync();
-  };
-
-  const handlePaymentMethodsSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPageError('');
-    await paymentMethodsMutation.mutateAsync();
   };
 
   const handleStaffSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -351,37 +327,6 @@ export default function SettingsPage() {
                 </form>
               </Card>
 
-              <Card title="Payment types" subtitle="Turn on only what staff should use at the counter.">
-                <form className="grid gap-3" onSubmit={handlePaymentMethodsSubmit}>
-                  {[
-                    ['cash', 'Cash'],
-                    ['mtn_mobile_money', 'MTN Mobile Money'],
-                    ['airtel_money', 'Airtel Money'],
-                    ['bank_card', 'Bank Card'],
-                    ['bank_transfer', 'Bank Transfer'],
-                  ].map(([key, label]) => (
-                    <label key={key} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      <span>{label}</span>
-                      <input
-                        type="checkbox"
-                        checked={paymentMethods[key as keyof typeof paymentMethods]}
-                        onChange={(event) => setPaymentMethods((current) => ({
-                          ...current,
-                          [key]: event.target.checked,
-                        }))}
-                        className="h-4 w-4 rounded border-slate-300 text-emerald-600"
-                      />
-                    </label>
-                  ))}
-                  <button
-                    type="submit"
-                    disabled={paymentMethodsMutation.isPending}
-                    className="justify-self-start rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {paymentMethodsMutation.isPending ? 'Saving…' : 'Save payment types'}
-                  </button>
-                </form>
-              </Card>
             </section>
 
             <section className="space-y-6">
