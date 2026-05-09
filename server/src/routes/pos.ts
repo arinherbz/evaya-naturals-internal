@@ -729,12 +729,19 @@ posRoutes.post('/customers/broadcasts', async (c) => {
   const nowIso = new Date().toISOString();
   if (payload.channel === 'whatsapp') {
     const recipients = activeCustomers
-      .map((customer) => ({
-        id: customer.id,
-        name: customer.name,
-        phone: customer.whatsappNumber || customer.phone,
-      }))
-      .filter((customer) => customer.phone);
+      .flatMap((customer) => (
+        customer.whatsappNumber
+          ? [{
+              id: customer.id,
+              name: customer.name,
+              phone: customer.whatsappNumber,
+            }]
+          : []
+      ));
+
+    if (recipients.length === 0) {
+      return c.json({ error: 'Selected customers do not have WhatsApp numbers' }, 400);
+    }
 
     const links = recipients.map((customer) => ({
       customerId: customer.id,
@@ -742,6 +749,8 @@ posRoutes.post('/customers/broadcasts', async (c) => {
       phone: customer.phone,
       url: toWhatsappLink(customer.phone, payload.messageBody),
     }));
+
+    const missingWhatsappCount = activeCustomers.length - recipients.length;
 
     const [broadcast] = await db.insert(schema.broadcasts).values({
       channel: 'whatsapp',
@@ -755,7 +764,9 @@ posRoutes.post('/customers/broadcasts', async (c) => {
 
     return c.json({
       broadcast,
-      statusLabel: 'Prepared WhatsApp links',
+      statusLabel: missingWhatsappCount > 0
+        ? `Prepared WhatsApp links. ${missingWhatsappCount} selected customers do not have WhatsApp numbers.`
+        : 'Prepared WhatsApp links',
       links,
     }, 201);
   }

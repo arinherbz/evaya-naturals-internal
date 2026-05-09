@@ -680,7 +680,7 @@ describe('pos slice', () => {
     const customerOne = await createCustomer(adminToken, {
       name: 'Broadcast One',
       phone: '+256700100100',
-      whatsappNumber: '+256700100100',
+      whatsappNumber: '+256 700-100-100',
     });
     const customerTwo = await createCustomer(adminToken, {
       name: 'Broadcast Two',
@@ -704,9 +704,25 @@ describe('pos slice', () => {
     });
     expect(whatsappRes.status).toBe(201);
     const whatsappPayload = await json(whatsappRes);
-    expect(whatsappPayload.statusLabel).toBe('Prepared WhatsApp links');
-    expect(whatsappPayload.links).toHaveLength(2);
-    expect(whatsappPayload.links[0].url).toContain('wa.me');
+    expect(whatsappPayload.statusLabel).toContain('Prepared WhatsApp links');
+    expect(whatsappPayload.statusLabel).toContain('do not have WhatsApp numbers');
+    expect(whatsappPayload.links).toHaveLength(1);
+    expect(whatsappPayload.links[0].url).toBe('https://wa.me/256700100100?text=Your%20herbs%20are%20back%20in%20stock.');
+
+    const noWhatsappRes = await app.request('/api/pos/customers/broadcasts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        channel: 'whatsapp',
+        customerIds: [customerTwo.id],
+        messageBody: 'Need a WhatsApp number.',
+      }),
+    });
+    expect(noWhatsappRes.status).toBe(400);
+    expect((await json(noWhatsappRes)).error).toBe('Selected customers do not have WhatsApp numbers');
 
     const smsRes = await app.request('/api/pos/customers/broadcasts', {
       method: 'POST',

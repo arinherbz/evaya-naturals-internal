@@ -5,12 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { api, ApiError } from '../services/api';
 import type { BroadcastLink, Customer } from '../types';
 
-const currencyFormatter = new Intl.NumberFormat('en-UG', {
-  style: 'currency',
-  currency: 'UGX',
-  maximumFractionDigits: 0,
-});
-
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
@@ -31,7 +25,6 @@ export default function CustomersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -54,17 +47,10 @@ export default function CustomersPage() {
     queryFn: () => api.pos.customers({ search: deferredSearch, includeInactive: true }),
   });
 
-  const historyQuery = useQuery({
-    queryKey: ['customer-history', selectedCustomerId],
-    queryFn: () => api.pos.customerHistory(selectedCustomerId),
-    enabled: Boolean(selectedCustomerId),
-  });
-
   const refreshCustomers = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['customers'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-customers'] }),
-      queryClient.invalidateQueries({ queryKey: ['customer-history'] }),
     ]);
   };
 
@@ -89,7 +75,6 @@ export default function CustomersPage() {
     onSuccess: async (payload) => {
       setEditingCustomer(null);
       resetForm(payload.customer);
-      setSelectedCustomerId(payload.customer.id);
       setPageError('');
       await refreshCustomers();
     },
@@ -111,9 +96,6 @@ export default function CustomersPage() {
   });
 
   const customers = customersQuery.data?.customers ?? [];
-  const activeCustomers = customers.filter((customer) => customer.isActive);
-  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) ?? null;
-  const purchaseHistory = historyQuery.data;
 
   function resetForm(customer?: Customer | null) {
     setName(customer?.name ?? '');
@@ -140,6 +122,8 @@ export default function CustomersPage() {
   };
 
   const toggleRecipient = (customerId: string) => {
+    setBroadcastLinks([]);
+    setBroadcastStatus('');
     setSelectedRecipients((current) => (
       current.includes(customerId)
         ? current.filter((id) => id !== customerId)
@@ -240,7 +224,7 @@ export default function CustomersPage() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <h2 className="text-xl font-semibold">Customer list</h2>
-                    <p className="mt-1 text-sm text-slate-500">Search by name or phone and open purchase history instantly.</p>
+                    <p className="mt-1 text-sm text-slate-500">Search by name or phone and keep the list clean.</p>
                   </div>
                   <input
                     value={search}
@@ -259,13 +243,7 @@ export default function CustomersPage() {
                     <div key={customer.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCustomerId(customer.id)}
-                            className="text-left font-medium text-slate-900 underline-offset-4 hover:underline"
-                          >
-                            {customer.name}
-                          </button>
+                          <p className="font-medium text-slate-900">{customer.name}</p>
                           <p className="mt-1 text-sm text-slate-500">{customer.phone}</p>
                           <p className="mt-1 text-xs text-slate-400">
                             {customer.isActive ? 'Available' : 'Hidden'}
@@ -303,49 +281,6 @@ export default function CustomersPage() {
 
             <section className="space-y-6">
               <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Purchase history</h2>
-                <p className="mt-1 text-sm text-slate-500">Select a customer to review their sales.</p>
-                {!selectedCustomer && (
-                  <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    No customer selected yet.
-                  </div>
-                )}
-                {selectedCustomer && (
-                  <div className="mt-5 space-y-4">
-                    <div className="rounded-3xl bg-slate-50 p-4">
-                      <p className="font-medium text-slate-900">{selectedCustomer.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{selectedCustomer.phone}</p>
-                      <p className="mt-3 text-sm text-slate-600">
-                        Total spent: {currencyFormatter.format(purchaseHistory?.totalSpent ?? 0)}
-                      </p>
-                    </div>
-                    <div className="space-y-3">
-                      {(purchaseHistory?.sales ?? []).length === 0 && (
-                        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                          No purchases recorded for this customer yet.
-                        </div>
-                      )}
-                      {(purchaseHistory?.sales ?? []).map((sale) => (
-                        <div key={sale.id} className="rounded-3xl border border-slate-100 bg-slate-50 px-4 py-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <p className="font-medium text-slate-900">{sale.receiptNumber}</p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {new Date(sale.createdAt).toLocaleString()} · {sale.cashierName}
-                              </p>
-                            </div>
-                            <div className="text-right text-sm font-semibold text-slate-900">
-                              {currencyFormatter.format(sale.total)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold">Message Customers</h2>
@@ -363,7 +298,11 @@ export default function CustomersPage() {
                 <div className="mt-5 grid gap-3">
                   <select
                     value={broadcastChannel}
-                    onChange={(event) => setBroadcastChannel(event.target.value as 'whatsapp' | 'sms')}
+                    onChange={(event) => {
+                      setBroadcastChannel(event.target.value as 'whatsapp' | 'sms');
+                      setBroadcastLinks([]);
+                      setBroadcastStatus('');
+                    }}
                     disabled={!canBroadcast}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                   >
@@ -372,7 +311,11 @@ export default function CustomersPage() {
                   </select>
                   <textarea
                     value={broadcastMessage}
-                    onChange={(event) => setBroadcastMessage(event.target.value)}
+                    onChange={(event) => {
+                      setBroadcastMessage(event.target.value);
+                      setBroadcastLinks([]);
+                      setBroadcastStatus('');
+                    }}
                     rows={5}
                     placeholder="Type your message"
                     disabled={!canBroadcast}
@@ -397,6 +340,12 @@ export default function CustomersPage() {
                   </div>
                 )}
 
+                {broadcastChannel === 'whatsapp' && !broadcastLinks.length && selectedRecipients.length > 0 && (
+                  <p className="mt-4 text-sm text-slate-500">
+                    Choose customers with WhatsApp numbers, then prepare the links for staff to open and send manually.
+                  </p>
+                )}
+
                 {broadcastChannel === 'whatsapp' && broadcastLinks.length > 0 && (
                   <div className="mt-5 space-y-3">
                     {broadcastLinks.map((link) => (
@@ -416,15 +365,6 @@ export default function CustomersPage() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Reachable now</h2>
-                <p className="mt-1 text-sm text-slate-500">Customers ready to message.</p>
-                <div className="mt-5 rounded-3xl bg-slate-50 p-4">
-                  <p className="text-3xl font-semibold text-slate-900">{activeCustomers.length}</p>
-                  <p className="mt-1 text-sm text-slate-500">active customers</p>
-                </div>
               </div>
             </section>
           </div>

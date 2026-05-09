@@ -294,10 +294,14 @@ export default function ProductsPage() {
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     required
                   />
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Category</span>
-                      {isAdmin && (
+                  <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Categories</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Category stays in the background for now.
+                      </p>
+                    </div>
+                    {isAdmin && (
                       <button
                         type="button"
                         onClick={() => {
@@ -309,17 +313,7 @@ export default function ProductsPage() {
                       >
                         Manage Categories
                       </button>
-                      )}
-                    </div>
-                    <select
-                      value={productForm.categoryId}
-                      onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    >
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
+                    )}
                   </div>
                 </div>
 
@@ -367,6 +361,12 @@ export default function ProductsPage() {
                   Evaya Naturals
                 </div>
 
+                {!productForm.categoryId && (
+                  <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                    Add a category first, then create products.
+                  </div>
+                )}
+
                 <label className="flex items-center justify-between rounded-3xl bg-white px-4 py-4 text-sm">
                   <span className="text-slate-500">Active</span>
                   <input
@@ -380,7 +380,7 @@ export default function ProductsPage() {
                 <div className="flex flex-col gap-3 pt-1">
                   <button
                     type="submit"
-                    disabled={productMutation.isPending}
+                    disabled={productMutation.isPending || !productForm.categoryId}
                     className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
                   >
                     {productMutation.isPending ? 'Saving…' : editingProduct ? 'Save product' : 'Create product'}
@@ -411,7 +411,7 @@ export default function ProductsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-slate-900">{product.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{product.categoryName}</p>
+                      <p className="mt-1 text-sm text-slate-500">{product.unitType.toUpperCase()}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${product.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                       {product.isActive ? 'Active' : 'Inactive'}
@@ -454,7 +454,6 @@ export default function ProductsPage() {
                 <thead className="bg-slate-50/70 text-slate-500">
                   <tr>
                     <th className="px-5 py-3 font-medium">Product</th>
-                    <th className="px-5 py-3 font-medium">Category</th>
                     <th className="px-5 py-3 font-medium">Selling price</th>
                     <th className="px-5 py-3 font-medium">Cost price</th>
                     <th className="px-5 py-3 font-medium">Low stock level</th>
@@ -469,7 +468,6 @@ export default function ProductsPage() {
                         <div className="font-medium text-slate-900">{product.name}</div>
                         <div className="mt-1 text-xs text-slate-400">{product.unitType.toUpperCase()}</div>
                       </td>
-                      <td className="px-5 py-4.5">{product.categoryName}</td>
                       <td className="px-5 py-4.5">{currencyFormatter.format(product.sellingPrice)}</td>
                       <td className="px-5 py-4.5">{product.costPrice == null ? '—' : currencyFormatter.format(product.costPrice)}</td>
                       <td className="px-5 py-4.5">{product.lowStockThreshold}</td>

@@ -220,6 +220,43 @@ npm run db:seed
 npm run db:studio
 ```
 
+## Deployment Discipline
+
+Use GitHub and migrations as the source of truth:
+
+- commit every app and schema change with a clear message
+- keep `.env` files and secrets out of GitHub
+- add a migration for every schema change
+- run migrations on local, VPS, and production in the same order
+- avoid manual PostgreSQL edits unless they are documented and matched in code
+- back up the database before production migrations
+
+Standard deployment checklist:
+
+```bash
+git pull
+npm install
+npm run install:all
+npm run db:migrate
+npm run build
+pm2 restart evaya-api
+```
+
+After deploy, smoke test:
+
+- `/api/health`
+- login
+- POS
+- products
+- inventory
+- reports and PDF download
+
+Before production migrations:
+
+- take a PostgreSQL backup
+- store the backup outside the server
+- confirm rollback access
+
 ## Deployment
 
 See `DEPLOYMENT.md` for local PostgreSQL setup, Hostinger VPS setup, production PostgreSQL configuration, PM2, Nginx, SSL, backups, and staff-access instructions.

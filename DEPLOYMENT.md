@@ -146,12 +146,14 @@ Notes:
 - `CLIENT_URL` is used for backend CORS
 - `VITE_API_URL` is used by the frontend production build
 - `SESSION_SECRET` is required in production and should be a long random string
+- keep `.env` files local to the server or workstation and out of GitHub
 
 ## 5. Database Commands
 
 Run these in order:
 
 ```bash
+git pull
 npm install
 npm run install:all
 npm run db:generate
@@ -169,6 +171,13 @@ What they do:
   - applies migrations to the configured PostgreSQL database
 - `npm run db:seed`
   - creates core data and sample pilot data without duplicating records
+
+Database discipline:
+
+- use code and migrations as the schema source of truth
+- do not change the Hostinger PostgreSQL schema manually unless it is documented and followed by a migration-backed code change
+- take a backup before production migrations
+- run the same migration flow on local, VPS, and production
 
 ## 6. Build Commands
 
@@ -290,9 +299,14 @@ Notes:
 - [ ] domain and SSL are working
 - [ ] PostgreSQL database exists
 - [ ] PostgreSQL credentials work
+- [ ] latest code is pulled from GitHub
+- [ ] dependencies are installed
+- [ ] production backup is taken before migrations
 - [ ] database schema is migrated
 - [ ] admin user is created
 - [ ] seed data completed
+- [ ] app is rebuilt
+- [ ] PM2 is restarted
 - [ ] `/api/health` returns `200`
 - [ ] login works
 - [ ] POS works
@@ -311,6 +325,7 @@ For the pilot:
 
 - take a daily PostgreSQL backup
 - take a manual backup before major updates
+- take a manual backup before production migrations
 - store backups outside the Hostinger server
 - periodically test restoring a backup to a non-production database
 
