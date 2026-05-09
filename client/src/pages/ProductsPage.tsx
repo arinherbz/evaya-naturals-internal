@@ -209,6 +209,15 @@ export default function ProductsPage() {
 
                 <div className="grid gap-3 md:grid-cols-4">
                   <select
+                    value={productForm.categoryId}
+                    onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  >
+                    {categoriesQuery.data?.categories?.filter((cat) => cat.isActive).map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                  <select
                     value={productForm.unitType}
                     onChange={(event) => setProductForm((current) => ({ ...current, unitType: event.target.value }))}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
@@ -315,10 +324,11 @@ export default function ProductsPage() {
             </div>
 
             <div className="mt-8 hidden overflow-x-auto rounded-[28px] bg-white md:block">
-              <table className="min-w-[760px] divide-y divide-slate-100 text-left text-sm">
+              <table className="min-w-[860px] divide-y divide-slate-100 text-left text-sm">
                 <thead className="bg-slate-50/70 text-slate-500">
                   <tr>
                     <th className="px-5 py-3 font-medium">Product</th>
+                    <th className="px-5 py-3 font-medium">Category</th>
                     <th className="px-5 py-3 font-medium">Selling price</th>
                     <th className="px-5 py-3 font-medium">Cost price</th>
                     <th className="px-5 py-3 font-medium">Low stock level</th>
@@ -331,6 +341,11 @@ export default function ProductsPage() {
                       <td className="px-5 py-4.5">
                         <div className="font-medium text-slate-900">{product.name}</div>
                         <div className="mt-1 text-xs text-slate-400">{product.unitType.toUpperCase()}</div>
+                      </td>
+                      <td className="px-5 py-4.5">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                          {product.categoryName}
+                        </span>
                       </td>
                       <td className="px-5 py-4.5">{currencyFormatter.format(product.sellingPrice)}</td>
                       <td className="px-5 py-4.5">{product.costPrice == null ? '—' : currencyFormatter.format(product.costPrice)}</td>
