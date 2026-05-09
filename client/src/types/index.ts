@@ -218,6 +218,7 @@ export interface PosProduct {
   availableQuantity: number;
   inventoryQuantity: number;
   lowStock: boolean;
+  isOutOfStock: boolean;
   nextExpiryDate?: string | null;
 }
 

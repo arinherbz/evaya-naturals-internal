@@ -317,27 +317,49 @@ export default function POSPage() {
                 {products.map((product) => {
                   const cartLine = cart.find((line) => line.product.id === product.id);
                   const inCartQuantity = cartLine?.quantity ?? 0;
+                  const isDisabled = !canCheckout || !currentShift || product.isOutOfStock;
+                  const showOutOfStock = product.isOutOfStock;
 
                   return (
                     <button
                       key={product.id}
                       type="button"
-                      onClick={() => addToCart(product)}
-                      disabled={!canCheckout || !currentShift}
-                      className="rounded-[28px] border border-white/70 bg-white/90 p-4 text-left shadow-[0_20px_50px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-70 sm:p-5"
+                      onClick={() => !showOutOfStock && addToCart(product)}
+                      disabled={isDisabled}
+                      className={`rounded-[28px] border p-4 text-left transition sm:p-5 ${
+                        showOutOfStock
+                          ? 'border-rose-100 bg-rose-50/50 cursor-not-allowed opacity-70'
+                          : product.lowStock
+                          ? 'border-amber-100 bg-amber-50/30 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]'
+                          : 'border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]'
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-lg font-semibold">{product.name}</p>
+                          <p className={`text-lg font-semibold ${showOutOfStock ? 'text-rose-800' : ''}`}>{product.name}</p>
                           <p className="mt-1 text-sm text-slate-500">{product.categoryName} · {product.unitType.toUpperCase()}</p>
+                          {showOutOfStock && (
+                            <p className="mt-1 text-xs font-medium text-rose-600">Out of stock</p>
+                          )}
+                          {product.lowStock && !showOutOfStock && (
+                            <p className="mt-1 text-xs font-medium text-amber-600">Low stock · {product.availableQuantity} left</p>
+                          )}
                         </div>
-                        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                          {product.availableQuantity} left
-                        </div>
+                        {!showOutOfStock && (
+                          <div className={`rounded-full px-3 py-1 text-xs font-medium ${
+                            product.lowStock
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {product.availableQuantity} left
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 flex items-end justify-between gap-4">
                         <div>
-                          <p className="text-xl font-semibold">{currencyFormatter.format(product.sellingPrice)}</p>
+                          <p className={`text-xl font-semibold ${showOutOfStock ? 'text-rose-700 line-through' : ''}`}>
+                            {currencyFormatter.format(product.sellingPrice)}
+                          </p>
                         </div>
                         <div className="text-right">
                           {inCartQuantity > 0 && (

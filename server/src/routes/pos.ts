@@ -583,11 +583,13 @@ posRoutes.get('/products', async (c) => {
       branchId,
       availableQuantity,
       inventoryQuantity: inventory?.quantity ?? 0,
-      lowStock: availableQuantity <= product.lowStockThreshold,
+      lowStock: availableQuantity > 0 && availableQuantity <= product.lowStockThreshold,
+      isOutOfStock: availableQuantity === 0,
       nextExpiryDate: sellableBatches[0]?.expiryDate ?? null,
     };
-  }).filter((product) => product.availableQuantity > 0);
+  });
 
+  // Return all products (including out of stock) so POS shows them with clear status
   return c.json({ products: data });
 });
 
