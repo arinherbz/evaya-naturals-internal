@@ -1,5 +1,5 @@
 import { pgTable, text, integer, boolean } from 'drizzle-orm/pg-core';
-import { products } from './products';
+import { products } from './products.js';
 
 export const bundles = pgTable('bundles', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

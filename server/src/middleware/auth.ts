@@ -1,8 +1,8 @@
 import { Context, Next } from 'hono';
-import { db } from '../db/index';
+import { db } from '../db/index.js';
 import { eq, and } from 'drizzle-orm';
-import * as schema from '../db/schema/index';
-import { appEnv, logServerError } from '../env';
+import * as schema from '../db/schema/index.js';
+import { appEnv, logServerError } from '../env.js';
 
 // User type for context
 export interface AuthUser {

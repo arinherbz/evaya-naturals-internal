@@ -4,9 +4,9 @@ import { migrate as migrateNodePg } from 'drizzle-orm/node-postgres/migrator';
 import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, usingPglite } from './index';
-import * as schema from './schema/index';
-import { defaultAppSettings } from '../lib/app-settings';
+import { db, usingPglite } from './index.js';
+import * as schema from './schema/index.js';
+import { defaultAppSettings } from '../lib/app-settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

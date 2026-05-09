@@ -1,6 +1,6 @@
 import { pgTable, text } from 'drizzle-orm/pg-core';
-import { products } from './products';
-import { branches } from './branches';
+import { products } from './products.js';
+import { branches } from './branches.js';
 
 export const productVisibility = pgTable('product_visibility', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

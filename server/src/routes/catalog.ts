@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { and, eq, inArray, like, or } from 'drizzle-orm';
 import { z } from 'zod';
-import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth';
-import { db } from '../db';
-import * as schema from '../db/schema';
+import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
+import { db } from '../db/index.js';
+import * as schema from '../db/schema/index.js';
 
 const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';

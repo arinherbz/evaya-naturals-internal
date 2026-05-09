@@ -1,7 +1,7 @@
 import { pgTable, text, doublePrecision } from 'drizzle-orm/pg-core';
-import { branches } from './branches';
-import { users } from './users';
-import { customers } from './customers';
+import { branches } from './branches.js';
+import { users } from './users.js';
+import { customers } from './customers.js';
 
 export const deliveries = pgTable('deliveries', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -25,7 +25,7 @@ export const deliveries = pgTable('deliveries', {
 });
 
 // Fix circular reference with sales
-import { sales } from './sales';
+import { sales } from './sales.js';
 
 export type Delivery = typeof deliveries.$inferSelect;
 export type NewDelivery = typeof deliveries.$inferInsert;

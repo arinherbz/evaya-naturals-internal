@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { and, asc, desc, eq, gte, inArray, like, lt, or } from 'drizzle-orm';
 import { z } from 'zod';
-import { authMiddleware, type AuthUser } from '../middleware/auth';
-import { db } from '../db';
-import * as schema from '../db/schema';
-import { generateReportPdf } from '../lib/report-pdf';
-import { getAppSettings } from '../lib/app-settings';
+import { authMiddleware, type AuthUser } from '../middleware/auth.js';
+import { db } from '../db/index.js';
+import * as schema from '../db/schema/index.js';
+import { generateReportPdf } from '../lib/report-pdf.js';
+import { getAppSettings } from '../lib/app-settings.js';
 
 const posRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';

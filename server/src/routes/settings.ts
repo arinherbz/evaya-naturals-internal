@@ -2,10 +2,10 @@ import { Context, Hono } from 'hono';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/auth';
-import { db } from '../db';
-import * as schema from '../db/schema';
-import { getAppSettings, updateAppSettings } from '../lib/app-settings';
+import { authMiddleware } from '../middleware/auth.js';
+import { db } from '../db/index.js';
+import * as schema from '../db/schema/index.js';
+import { getAppSettings, updateAppSettings } from '../lib/app-settings.js';
 
 const settingsRoutes = new Hono();
 

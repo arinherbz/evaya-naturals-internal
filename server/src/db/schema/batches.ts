@@ -1,7 +1,7 @@
 import { pgTable, text, doublePrecision, integer, boolean } from 'drizzle-orm/pg-core';
-import { products } from './products';
-import { suppliers } from './suppliers';
-import { branches } from './branches';
+import { products } from './products.js';
+import { suppliers } from './suppliers.js';
+import { branches } from './branches.js';
 
 export const batches = pgTable('batches', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

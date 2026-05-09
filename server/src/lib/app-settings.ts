@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
-import * as schema from '../db/schema';
+import { db } from '../db/index.js';
+import * as schema from '../db/schema/index.js';
 
 export const paymentMethodKeys = [
   'cash',

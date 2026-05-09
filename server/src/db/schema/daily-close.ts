@@ -1,7 +1,7 @@
 import { pgTable, text, doublePrecision } from 'drizzle-orm/pg-core';
-import { branches } from './branches';
-import { users } from './users';
-import { shifts } from './shifts';
+import { branches } from './branches.js';
+import { users } from './users.js';
+import { shifts } from './shifts.js';
 
 export const dailyCloses = pgTable('daily_closes', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

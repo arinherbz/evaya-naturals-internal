@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { db } from '../db/index';
+import { db } from '../db/index.js';
 import { eq } from 'drizzle-orm';
-import * as schema from '../db/schema/index';
-import { authMiddleware } from '../middleware/auth';
-import { appEnv, logServerError } from '../env';
+import * as schema from '../db/schema/index.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { appEnv, logServerError } from '../env.js';
 
 const authRoutes = new Hono();
 

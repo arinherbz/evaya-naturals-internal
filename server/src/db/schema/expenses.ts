@@ -1,6 +1,6 @@
 import { pgTable, text, integer } from 'drizzle-orm/pg-core';
-import { branches } from './branches';
-import { users } from './users';
+import { branches } from './branches.js';
+import { users } from './users.js';
 
 export const expenses = pgTable('expenses', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

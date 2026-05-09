@@ -1,7 +1,7 @@
 import { pgTable, text, integer } from 'drizzle-orm/pg-core';
-import { products } from './products';
-import { branches } from './branches';
-import { users } from './users';
+import { products } from './products.js';
+import { branches } from './branches.js';
+import { users } from './users.js';
 
 export const inventory = pgTable('inventory', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -28,7 +28,7 @@ export const inventoryMovements = pgTable('inventory_movements', {
 });
 
 // Fix the circular reference by importing batches after it's defined
-import { batches } from './batches';
+import { batches } from './batches.js';
 
 export type Inventory = typeof inventory.$inferSelect;
 export type NewInventory = typeof inventory.$inferInsert;

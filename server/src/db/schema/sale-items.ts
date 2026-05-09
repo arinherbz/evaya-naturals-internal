@@ -1,7 +1,7 @@
 import { pgTable, text, doublePrecision, integer } from 'drizzle-orm/pg-core';
-import { sales } from './sales';
-import { products } from './products';
-import { batches } from './batches';
+import { sales } from './sales.js';
+import { products } from './products.js';
+import { batches } from './batches.js';
 
 export const saleItems = pgTable('sale_items', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

@@ -2,8 +2,8 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { Pool } from 'pg';
 import { PGlite } from '@electric-sql/pglite';
-import * as schema from './schema/index';
-import { appEnv } from '../env';
+import * as schema from './schema/index.js';
+import { appEnv } from '../env.js';
 
 const databaseUrl = appEnv.databaseUrl;
 
@@ -54,4 +54,4 @@ export async function closeDatabase() {
   }
 }
 
-export * from './schema/index';
+export * from './schema/index.js';

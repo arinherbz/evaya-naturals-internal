@@ -1,5 +1,5 @@
 import { pgTable, text, integer, jsonb } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 
 export const broadcasts = pgTable('broadcasts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

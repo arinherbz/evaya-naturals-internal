@@ -3,12 +3,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
-import { initializeDatabase } from './db/init';
-import authRoutes from './routes/auth';
-import catalogRoutes from './routes/catalog';
-import posRoutes from './routes/pos';
-import settingsRoutes from './routes/settings';
-import { appEnv, logServerError } from './env';
+import { initializeDatabase } from './db/init.js';
+import authRoutes from './routes/auth.js';
+import catalogRoutes from './routes/catalog.js';
+import posRoutes from './routes/pos.js';
+import settingsRoutes from './routes/settings.js';
+import { appEnv, logServerError } from './env.js';
 
 export function createApp() {
   const app = new Hono();
