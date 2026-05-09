@@ -1,5 +1,10 @@
 # Hostinger Pilot Deployment
 
+This document covers both:
+
+- standard local development on Homebrew PostgreSQL 16
+- Hostinger pilot deployment on PostgreSQL
+
 This document prepares `evaya-naturals-internal` for a Hostinger pilot on:
 
 - Hostinger VPS or Hostinger Node.js hosting
@@ -8,10 +13,44 @@ This document prepares `evaya-naturals-internal` for a Hostinger pilot on:
 
 The app now supports:
 
+- PostgreSQL in local development through `DATABASE_URL`
 - PostgreSQL in production through `DATABASE_URL`
 - Drizzle PostgreSQL migrations
 - idempotent seed data
-- local and test fallback on `PGlite` when `DATABASE_URL` is not set outside production
+- in-memory `PGlite` fallback only when `DATABASE_URL` is not set outside production
+
+## 0. Standard Local Development Database
+
+Evaya local development should use:
+
+- Homebrew PostgreSQL 16
+- `localhost:5432`
+- database name: `evaya_naturals`
+
+Example local environment:
+
+```env
+DATABASE_URL=postgresql://YOUR_MAC_USERNAME@localhost:5432/evaya_naturals
+```
+
+Standard local setup:
+
+```bash
+brew services start postgresql@16
+createdb evaya_naturals
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+Useful local service commands:
+
+```bash
+brew services stop postgresql@16
+brew services restart postgresql@16
+```
+
+If you also use Postgres.app locally, move it to port `5433`. Homebrew PostgreSQL on `5432` is the Evaya default.
 
 ## 1. Hostinger VPS Setup
 
@@ -82,10 +121,11 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
 
 Current status:
 
+- local development should use PostgreSQL through `DATABASE_URL`
 - production uses PostgreSQL through `DATABASE_URL`
 - production fails clearly if `DATABASE_URL` is missing
 - production fails clearly if a non-PostgreSQL URL is supplied
-- local development and tests can run without a PostgreSQL server by using `PGlite`
+- local experiments and tests can run without PostgreSQL by using in-memory `PGlite`
 
 ## 4. Environment Variables
 
@@ -294,10 +334,10 @@ For the pilot:
 When `DATABASE_URL` is not set:
 
 - production will fail fast
-- local development uses in-memory `PGlite`
+- local development falls back to in-memory `PGlite`
 - tests use in-memory `PGlite`
 
-This keeps local work and CI fast without falling back to SQLite. For persistent local data, use a real PostgreSQL `DATABASE_URL`.
+That fallback is only for quick experiments and CI. For persistent local Evaya work, use Homebrew PostgreSQL 16 on `localhost:5432`.
 
 ## 18. Production Database Verification
 
@@ -316,9 +356,9 @@ This repo is now PostgreSQL-ready for deployment review and pilot setup.
 
 What is done:
 - PostgreSQL runtime support is in place
-- SQLite is no longer allowed in production
+- SQLite is no longer allowed in local or production `DATABASE_URL` usage
 - Drizzle PostgreSQL migrations are generated
 - seed is idempotent
 - frontend production API config is environment-driven
-- local and test environments still work without a PostgreSQL server
+- local and test environments can still run without PostgreSQL when needed
 - validate migrations and seed flow against PostgreSQL

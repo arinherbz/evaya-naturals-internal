@@ -1,6 +1,6 @@
 # Evaya Naturals Internal Management System
 
-A modern internal operations management system for Evaya Naturals, a Uganda-based natural wellness and beauty business with 3 branches.
+A modern internal operations management system for Evaya Naturals.
 
 ## Features
 
@@ -22,7 +22,7 @@ A modern internal operations management system for Evaya Naturals, a Uganda-base
 
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS
 - **Backend**: Node.js + Hono + TypeScript
-- **Database**: PostgreSQL with Drizzle ORM, plus local `PGlite` fallback for development and tests when `DATABASE_URL` is not set
+- **Database**: PostgreSQL with Drizzle ORM
 - **Validation**: Zod
 - **State Management**: TanStack React Query
 - **Routing**: React Router v6
@@ -54,13 +54,24 @@ cp .env.example .env
 cp server/.env.example server/.env
 ```
 
-4. Run migrations and seed:
+4. Start local PostgreSQL:
+```bash
+brew services start postgresql@16
+createdb evaya_naturals
+```
+
+5. Set `DATABASE_URL` in `.env` and `server/.env`:
+```env
+DATABASE_URL=postgresql://YOUR_MAC_USERNAME@localhost:5432/evaya_naturals
+```
+
+6. Run migrations and seed:
 ```bash
 npm run db:migrate
 npm run db:seed
 ```
 
-5. Start the development servers:
+7. Start the development servers:
 ```bash
 npm run dev
 ```
@@ -68,6 +79,34 @@ npm run dev
 This will start:
 - Backend API on http://localhost:3001
 - Frontend on http://localhost:3000
+
+### Local PostgreSQL Standard
+
+Local development should use:
+
+- Homebrew PostgreSQL 16
+- `localhost:5432`
+- a local database named `evaya_naturals`
+
+Common commands:
+
+```bash
+brew services start postgresql@16
+brew services stop postgresql@16
+brew services restart postgresql@16
+createdb evaya_naturals
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+If you also keep Postgres.app installed, run it on `5433` so it does not conflict with Homebrew PostgreSQL on `5432`.
+
+### Local Fallback Behavior
+
+If `DATABASE_URL` is not set outside production, the app can fall back to in-memory `PGlite` for quick local experiments and tests.
+
+That fallback is not the standard local development setup. Use Homebrew PostgreSQL for normal Evaya work.
 
 ### Default Login
 
@@ -183,7 +222,7 @@ npm run db:studio
 
 ## Deployment
 
-See `DEPLOYMENT.md` for Hostinger VPS setup, PostgreSQL configuration, PM2, Nginx, SSL, backups, and staff-access instructions.
+See `DEPLOYMENT.md` for local PostgreSQL setup, Hostinger VPS setup, production PostgreSQL configuration, PM2, Nginx, SSL, backups, and staff-access instructions.
 
 ## Currency
 
