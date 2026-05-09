@@ -10,6 +10,13 @@ async function json(response: Response) {
   return response.json() as Promise<Record<string, any>>;
 }
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function login(email: string, password: string) {
   const response = await app.request('/api/auth/login', {
     method: 'POST',
@@ -209,10 +216,27 @@ describe('operations slices', () => {
       }),
     });
 
+    await app.request('/api/pos/expenses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accountantToken}`,
+      },
+      body: JSON.stringify({
+        title: 'Same-day till float',
+        category: 'Miscellaneous',
+        amount: 3000,
+        paymentMethod: 'cash',
+        expenseDate: localDateKey(),
+      }),
+    });
+
     const dailyResponse = await app.request('/api/pos/reports/summary?period=daily', {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     expect(dailyResponse.status).toBe(200);
+    const dailyPayload = await json(dailyResponse);
+    expect(dailyPayload.expensesTotal).toBe(3000);
 
     const weeklyResponse = await app.request('/api/pos/reports/summary?period=weekly', {
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -220,7 +244,7 @@ describe('operations slices', () => {
     expect(weeklyResponse.status).toBe(200);
     const weeklyPayload = await json(weeklyResponse);
     expect(weeklyPayload.totalSales).toBe(23000);
-    expect(weeklyPayload.expensesTotal).toBe(5000);
+    expect(weeklyPayload.expensesTotal).toBe(8000);
 
     const customResponse = await app.request(`/api/pos/reports/summary?period=custom&startDate=${customDay}&endDate=${customDay}`, {
       headers: { Authorization: `Bearer ${adminToken}` },

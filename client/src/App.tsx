@@ -35,7 +35,7 @@ function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowRoles={['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant']}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -43,7 +43,7 @@ function App() {
             <Route
               path="/pos"
               element={
-                <ProtectedRoute permission="process_sales" allowRoles={['Branch Manager', 'Accountant']}>
+                <ProtectedRoute permission="process_sales" allowRoles={['Branch Manager']}>
                   <POSPage />
                 </ProtectedRoute>
               }
@@ -75,7 +75,7 @@ function App() {
             <Route
               path="/customers"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowRoles={['Branch Manager', 'Cashier']}>
                   <CustomersPage />
                 </ProtectedRoute>
               }

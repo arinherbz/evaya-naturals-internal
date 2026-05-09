@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, asc, desc, eq, gte, inArray, like, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, like, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { authMiddleware, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
@@ -94,7 +94,7 @@ const deliveryUpdateSchema = z.object({
 });
 
 function canViewPos(user: AuthUser) {
-  return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
+  return ['Admin', 'Cashier', 'Branch Manager'].includes(user.role.name);
 }
 
 function canViewReports(user: AuthUser) {
@@ -102,7 +102,7 @@ function canViewReports(user: AuthUser) {
 }
 
 function canViewCustomers(user: AuthUser) {
-  return ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user.role.name);
+  return ['Admin', 'Cashier', 'Branch Manager'].includes(user.role.name);
 }
 
 function canManageCustomers(user: AuthUser) {
@@ -202,6 +202,17 @@ function parseDateEnd(value: string) {
   const date = parseDateStart(value);
   date.setDate(date.getDate() + 1);
   return date;
+}
+
+function toDateKey(value: Date | string) {
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function createReceiptNumber() {
@@ -388,6 +399,8 @@ async function buildCustomerPurchaseHistory(customerId: string, branchId: string
 async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
   const settings = await getAppSettings();
   const range = resolveReportRange(period, startDate, endDate);
+  const expenseStartKey = toDateKey(range.start);
+  const expenseEndKey = toDateKey(range.end);
   const filters = and(
     eq(schema.sales.branchId, branchId),
     eq(schema.sales.status, 'completed'),
@@ -429,8 +442,8 @@ async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' |
     .innerJoin(schema.users, eq(schema.expenses.recordedBy, schema.users.id))
     .where(and(
       eq(schema.expenses.branchId, branchId),
-      gte(schema.expenses.expenseDate, range.start.toISOString()),
-      lt(schema.expenses.expenseDate, range.end.toISOString()),
+      gte(sql<string>`left(${schema.expenses.expenseDate}, 10)`, expenseStartKey),
+      lt(sql<string>`left(${schema.expenses.expenseDate}, 10)`, expenseEndKey),
     ))
     .orderBy(desc(schema.expenses.expenseDate));
 
@@ -1062,8 +1075,8 @@ posRoutes.get('/expenses', async (c) => {
   const dateFilter = startDate && endDate
     ? and(
         eq(schema.expenses.branchId, branchId),
-        gte(schema.expenses.expenseDate, parseDateStart(startDate).toISOString()),
-        lt(schema.expenses.expenseDate, parseDateEnd(endDate).toISOString()),
+        gte(sql<string>`left(${schema.expenses.expenseDate}, 10)`, toDateKey(parseDateStart(startDate))),
+        lt(sql<string>`left(${schema.expenses.expenseDate}, 10)`, toDateKey(parseDateEnd(endDate))),
       )
     : eq(schema.expenses.branchId, branchId);
 
@@ -1100,7 +1113,7 @@ posRoutes.post('/expenses', async (c) => {
     category: payload.category,
     amount: payload.amount,
     paymentMethod: payload.paymentMethod,
-    expenseDate: parseDateStart(payload.expenseDate).toISOString(),
+    expenseDate: toDateKey(parseDateStart(payload.expenseDate)),
     description: normalizeText(payload.description),
     recordedBy: user.id,
     updatedAt: new Date().toISOString(),
@@ -1129,7 +1142,7 @@ posRoutes.patch('/expenses/:id', async (c) => {
       category: payload.category ?? existing.category,
       amount: payload.amount ?? existing.amount,
       paymentMethod: payload.paymentMethod ?? existing.paymentMethod,
-      expenseDate: payload.expenseDate ? parseDateStart(payload.expenseDate).toISOString() : existing.expenseDate,
+      expenseDate: payload.expenseDate ? toDateKey(parseDateStart(payload.expenseDate)) : existing.expenseDate,
       description: payload.description !== undefined ? normalizeText(payload.description) : existing.description,
       updatedAt: new Date().toISOString(),
     })

@@ -8,13 +8,13 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
-    { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard' },
-    { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales', allowRoles: ['Branch Manager', 'Accountant'] },
+    { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant'] },
+    { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales', allowRoles: ['Branch Manager'] },
     { label: 'Products', href: '/products', icon: 'package', permission: null, allowRoles: ['Branch Manager'] },
     { label: 'Inventory', href: '/inventory', icon: 'database', permission: 'manage_inventory', allowRoles: ['Cashier'] },
-    { label: 'Customers', href: '/customers', icon: 'users', permission: null },
+    { label: 'Customers', href: '/customers', icon: 'users', permission: null, allowRoles: ['Branch Manager', 'Cashier'] },
     { label: 'Expenses', href: '/expenses', icon: 'wallet', permission: 'view_reports', allowRoles: ['Branch Manager'] },
-    { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', permission: null },
+    { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', permission: null, allowRoles: ['Branch Manager', 'Delivery Rider'] },
     { label: 'Reports', href: '/reports', icon: 'bar-chart', permission: 'view_reports' },
     { label: 'Settings', href: '/settings', icon: 'settings', permission: null, allowRoles: ['Admin'] },
   ];

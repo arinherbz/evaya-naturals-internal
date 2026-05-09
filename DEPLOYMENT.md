@@ -178,6 +178,11 @@ Database discipline:
 - do not change the Hostinger PostgreSQL schema manually unless it is documented and followed by a migration-backed code change
 - take a backup before production migrations
 - run the same migration flow on local, VPS, and production
+- after `npm run db:migrate`, verify the Drizzle tracking table exists:
+
+```sql
+select * from __drizzle_migrations order by created_at desc;
+```
 
 ## 6. Build Commands
 
@@ -212,6 +217,13 @@ Use PM2 on a VPS:
 pm2 start npm --name evaya-api -- run start:production
 pm2 save
 pm2 startup
+```
+
+After `pm2 startup`, run the generated `systemd` command once, then save again:
+
+```bash
+pm2 save
+systemctl status pm2-root
 ```
 
 To inspect logs:
@@ -254,6 +266,23 @@ sudo ln -s /etc/nginx/sites-available/evaya /etc/nginx/sites-enabled/evaya
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+## 10.5 Backups
+
+Production should have automatic PostgreSQL backups.
+
+Recommended daily backup command:
+
+```bash
+pg_dump "$DATABASE_URL" | gzip > /var/backups/evaya/evaya_internal-$(date +%F-%H%M%S).sql.gz
+```
+
+Recommended practice:
+
+- run daily backups
+- take a backup before migrations or major updates
+- keep backup files outside the app directory
+- copy backups off-server regularly
 
 ## 10. SSL and Domain
 

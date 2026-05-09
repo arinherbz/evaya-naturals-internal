@@ -169,6 +169,8 @@ describe('pos slice', () => {
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.pos@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'rider.pos@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'accountant.pos@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'manager.pos@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'inventory.pos@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.shift@evaya.ug'));
     await resetAppSettings();
     adminToken = await login('admin@evaya.ug', 'admin123');
@@ -360,7 +362,7 @@ describe('pos slice', () => {
     expect((await json(response)).error).toContain('Insufficient stock');
   });
 
-  it('allows cashier checkout and blocks delivery rider and accountant from checkout', async () => {
+  it('allows cashier checkout and blocks delivery rider and accountant from POS access', async () => {
     const category = await createCategory(adminToken, 'POS Category');
     const product = await createProduct(adminToken, branchId, category.id, 'Moringa Tea');
     const futureDate = new Date();
@@ -397,7 +399,7 @@ describe('pos slice', () => {
     const accountantToday = await app.request('/api/pos/sales/today', {
       headers: { Authorization: `Bearer ${accountantToken}` },
     });
-    expect(accountantToday.status).toBe(200);
+    expect(accountantToday.status).toBe(403);
 
     await openShift(cashierToken);
 
@@ -439,6 +441,33 @@ describe('pos slice', () => {
       }),
     });
     expect(accountantCheckout.status).toBe(403);
+  });
+
+  it('allows only admin, branch manager, and cashier to view customers', async () => {
+    const customer = await createCustomer(adminToken, {
+      name: 'Visibility Customer',
+      phone: '+256700333444',
+      whatsappNumber: '+256700333444',
+    });
+    expect(customer.id).toBeDefined();
+
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    await createUser('Branch Manager', 'manager.pos@evaya.ug', branchId);
+    await createUser('Accountant', 'accountant.pos@evaya.ug', branchId);
+    await createUser('Delivery Rider', 'rider.pos@evaya.ug', branchId);
+    await createUser('Inventory Officer', 'inventory.pos@evaya.ug', branchId);
+
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    const managerToken = await login('manager.pos@evaya.ug', 'secret123');
+    const accountantToken = await login('accountant.pos@evaya.ug', 'secret123');
+    const riderToken = await login('rider.pos@evaya.ug', 'secret123');
+    const inventoryToken = await login('inventory.pos@evaya.ug', 'secret123');
+
+    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${cashierToken}` } })).status).toBe(200);
+    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${managerToken}` } })).status).toBe(200);
+    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${accountantToken}` } })).status).toBe(403);
+    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${riderToken}` } })).status).toBe(403);
+    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${inventoryToken}` } })).status).toBe(403);
   });
 
   it('opens shifts, blocks second active shift, closes with variance, and enforces approval permissions', async () => {
