@@ -1,13 +1,38 @@
-import { Hono } from 'hono';
+import { Hono, type Context, type Next } from 'hono';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, invalidateSessionCache } from '../middleware/auth.js';
 import { appEnv, logServerError } from '../env.js';
 
 const authRoutes = new Hono();
+
+// Simple in-process rate limiter for the login endpoint (max 10 per IP per 15 min)
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 10;
+
+function loginRateLimit(c: Context, next: Next) {
+  // Skip rate limiting in test environment so integration tests can log in freely
+  if (process.env.NODE_ENV === 'test') return next();
+
+  const ip = c.req.header('X-Forwarded-For') ?? c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= RATE_LIMIT_MAX) {
+      return c.json({ error: 'Too many login attempts. Try again in 15 minutes.' }, 429);
+    }
+    entry.count++;
+  } else {
+    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+  }
+
+  return next();
+}
 
 // Login schema
 const loginSchema = z.object({
@@ -16,7 +41,7 @@ const loginSchema = z.object({
 });
 
 // POST /api/auth/login
-authRoutes.post('/login', async (c) => {
+authRoutes.post('/login', loginRateLimit, async (c) => {
   try {
     const body = await c.req.json();
     const { email, password } = loginSchema.parse(body);
@@ -116,10 +141,11 @@ authRoutes.post('/logout', authMiddleware, async (c) => {
     const user = c.get('user');
 
     if (sessionToken) {
-      // Invalidate session
+      // Invalidate session in DB and evict from in-memory cache
       await db.update(schema.sessions)
         .set({ isActive: false })
         .where(eq(schema.sessions.token, sessionToken));
+      invalidateSessionCache(sessionToken);
     }
 
     // Log audit

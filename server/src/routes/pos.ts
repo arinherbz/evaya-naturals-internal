@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, asc, desc, eq, gte, inArray, like, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { authMiddleware, type AuthUser } from '../middleware/auth.js';
+import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
 import { generateReportPdf } from '../lib/report-pdf.js';
@@ -1282,14 +1282,14 @@ posRoutes.post('/deliveries', async (c) => {
   return c.json({ delivery }, 201);
 });
 
-posRoutes.patch('/deliveries/:id', async (c) => {
+posRoutes.patch('/deliveries/:id', requirePermission('update_delivery_status'), async (c) => {
   const user = c.get('user');
   if (!canViewDeliveries(user)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
   const branchId = await resolveBranchId(user);
-  const deliveryId = c.req.param('id');
+  const deliveryId = c.req.param('id') as string;
   const payload = deliveryUpdateSchema.parse(await c.req.json());
   const [existing] = await db.select().from(schema.deliveries).where(eq(schema.deliveries.id, deliveryId));
   if (!existing || existing.branchId !== branchId) {

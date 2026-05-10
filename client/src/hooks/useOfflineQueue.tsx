@@ -96,7 +96,10 @@ export function useOfflineQueue() {
       try {
         const response = await fetch(request.url, {
           method: request.method,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+          },
           body: request.body ? JSON.stringify(request.body) : undefined,
         });
 

@@ -307,7 +307,7 @@ export default function CustomersPage() {
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
                   >
                     <option value="whatsapp">WhatsApp</option>
-                    <option value="sms">SMS</option>
+                    <option value="sms" disabled>SMS (provider not configured — contact administrator)</option>
                   </select>
                   <textarea
                     value={broadcastMessage}

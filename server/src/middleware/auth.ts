@@ -1,8 +1,26 @@
 import { Context, Next } from 'hono';
 import { db } from '../db/index.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
 import { appEnv, logServerError } from '../env.js';
+
+const sessionCache = new Map<string, { user: AuthUser; expiresAt: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
+function getCachedSession(token: string): AuthUser | null {
+  const entry = sessionCache.get(token);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { sessionCache.delete(token); return null; }
+  return entry.user;
+}
+
+function setCachedSession(token: string, user: AuthUser): void {
+  sessionCache.set(token, { user, expiresAt: Date.now() + CACHE_TTL });
+}
+
+export function invalidateSessionCache(token: string): void {
+  sessionCache.delete(token);
+}
 
 // User type for context
 export interface AuthUser {
@@ -33,11 +51,18 @@ export const authMiddleware = async (c: Context, next: Next) => {
   }
 
   try {
+    const cached = getCachedSession(sessionToken);
+    if (cached) {
+      c.set('user', cached);
+      return next();
+    }
+
     // Look up session in database
     const sessions = await db.select().from(schema.sessions).where(
       and(
         eq(schema.sessions.token, sessionToken),
-        eq(schema.sessions.isActive, true)
+        eq(schema.sessions.isActive, true),
+        gt(schema.sessions.expiresAt, new Date().toISOString())
       )
     );
 
@@ -46,7 +71,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     }
 
     const session = sessions[0];
-    
+
     // Get user with role and branch info
     const users = await db.select({
       id: schema.users.id,
@@ -76,15 +101,17 @@ export const authMiddleware = async (c: Context, next: Next) => {
     }
 
     const user = users[0];
-    
+
     // Ensure role is not null (should always exist for valid users)
     if (!user.role) {
       return c.json({ error: 'User role not found' }, 401);
     }
 
+    setCachedSession(sessionToken, user as AuthUser);
+
     // Attach user to context
     c.set('user', user as AuthUser);
-    
+
     return next();
   } catch (error) {
     logServerError('Authentication', error);
