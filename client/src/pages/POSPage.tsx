@@ -1,74 +1,72 @@
-import { FormEvent, useDeferredValue, useEffect, useState } from 'react';
+import { useState, useDeferredValue } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { PosProduct } from '../types';
 
-const currencyFormatter = new Intl.NumberFormat('en-UG', {
-  style: 'currency',
-  currency: 'UGX',
-  maximumFractionDigits: 0,
-});
+const ugx = (n: number) =>
+  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
 
-const paymentMethodOptions = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'mtn_mobile_money', label: 'MTN Mobile Money' },
-  { value: 'airtel_money', label: 'Airtel Money' },
-  { value: 'bank_card', label: 'Bank Card' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-] as const;
+const PAYMENT_OPTIONS = [
+  { value: 'mtn_mobile_money' as const, label: 'MTN Mobile Money', shortLabel: 'MTN', bg: '#FFD100', color: '#1B1B1B' },
+  { value: 'airtel_money' as const, label: 'Airtel Money', shortLabel: 'Airtel', bg: '#E4002B', color: '#FFFFFF' },
+  { value: 'cash' as const, label: 'Cash', shortLabel: 'Cash', bg: '#1B4332', color: '#FFFFFF' },
+  { value: 'bank_card' as const, label: 'Bank Card', shortLabel: 'Card', bg: '#1E293B', color: '#FFFFFF' },
+];
 
-type CartLine = {
-  product: PosProduct;
-  quantity: number;
+type PaymentValue = (typeof PAYMENT_OPTIONS)[number]['value'];
+
+const CAT_COLORS: Record<string, { bg: string; text: string }> = {
+  Skincare: { bg: '#FEF3C7', text: '#92400E' },
+  'Hair Care': { bg: '#EDE9FE', text: '#5B21B6' },
+  'Body Care': { bg: '#D1FAE5', text: '#065F46' },
+  'Face Care': { bg: '#FEE2E2', text: '#991B1B' },
+  Oils: { bg: '#FEF9C3', text: '#713F12' },
+  Supplements: { bg: '#DBEAFE', text: '#1E40AF' },
+  Fragrances: { bg: '#FCE7F3', text: '#9D174D' },
+  'Baby Care': { bg: '#E0F2FE', text: '#075985' },
+  'Men Care': { bg: '#F1F5F9', text: '#334155' },
+  'Lip Care': { bg: '#FDF2F8', text: '#BE185D' },
+  Other: { bg: '#F3F4F6', text: '#374151' },
 };
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
+interface CartLine {
+  product: PosProduct;
+  qty: number;
+}
+
+function getError(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  if (e instanceof Error) return e.message;
   return 'Something went wrong';
 }
 
 export default function POSPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [discount, setDiscount] = useState('0');
-  const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethodOptions)[number]['value']>('cash');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [openingCash, setOpeningCash] = useState('0');
-  const [countedCash, setCountedCash] = useState('');
-  const [closeNotes, setCloseNotes] = useState('');
-  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
-  const [quickCustomerName, setQuickCustomerName] = useState('');
-  const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
-  const [quickCustomerWhatsapp, setQuickCustomerWhatsapp] = useState('');
-  const [quickCustomerEmail, setQuickCustomerEmail] = useState('');
-  const [cart, setCart] = useState<CartLine[]>([]);
-  const [pageError, setPageError] = useState('');
-  const [latestReceiptNumber, setLatestReceiptNumber] = useState('');
-  const deferredSearch = useDeferredValue(search);
 
-  const canCheckout = ['Admin', 'Cashier'].includes(user?.role.name ?? '');
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentValue>('mtn_mobile_money');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [discount, setDiscount] = useState('0');
+  const [notes, setNotes] = useState('');
+  const [receipt, setReceipt] = useState<{ receiptNumber: string; total: number; method: PaymentValue } | null>(null);
+  const [openingCash, setOpeningCash] = useState('0');
+  const [err, setErr] = useState('');
+  const deferredSearch = useDeferredValue(search);
 
   const productsQuery = useQuery({
     queryKey: ['pos-products', deferredSearch],
     queryFn: () => api.pos.products({ search: deferredSearch }),
   });
 
-  // Customer query kept for refresh after creating quick customer
-  useQuery({
-    queryKey: ['pos-customers'],
-    queryFn: () => api.pos.customers(),
-    enabled: false,
-  });
-
-  const todaySummaryQuery = useQuery({
-    queryKey: ['pos-today-summary'],
-    queryFn: () => api.pos.today(),
+  const shiftQuery = useQuery({
+    queryKey: ['pos-current-shift'],
+    queryFn: () => api.pos.currentShift(),
   });
 
   const settingsQuery = useQuery({
@@ -76,560 +74,580 @@ export default function POSPage() {
     queryFn: () => api.settings.public(),
   });
 
-  const shiftQuery = useQuery({
-    queryKey: ['pos-current-shift'],
-    queryFn: () => api.pos.currentShift(),
-    enabled: canCheckout,
-  });
-
-  const refreshOps = async () => {
-    await Promise.all([
+  const invalidate = () =>
+    Promise.all([
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
-      queryClient.invalidateQueries({ queryKey: ['pos-customers'] }),
-      queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
     ]);
-  };
-
-  const createCustomerMutation = useMutation({
-    mutationFn: () => api.pos.createCustomer({
-      name: quickCustomerName,
-      phone: quickCustomerPhone,
-      whatsappNumber: quickCustomerWhatsapp || null,
-      email: quickCustomerEmail || null,
-    }),
-    onSuccess: async (payload) => {
-      setCustomerId(payload.customer.id);
-      setShowQuickCustomer(false);
-      setQuickCustomerName('');
-      setQuickCustomerPhone('');
-      setQuickCustomerWhatsapp('');
-      setQuickCustomerEmail('');
-      setPageError('');
-      await refreshOps();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
-
-  const checkoutMutation = useMutation({
-    mutationFn: async () => api.pos.createSale({
-      customerId: customerId || null,
-      quickCustomer: !customerId && quickCustomerName && quickCustomerPhone ? {
-        name: quickCustomerName,
-        phone: quickCustomerPhone,
-        whatsappNumber: quickCustomerWhatsapp || null,
-        email: quickCustomerEmail || null,
-      } : null,
-      discount: Number(discount || 0),
-      paymentMethod,
-      paymentReference: paymentReference || null,
-      notes: notes || null,
-      items: cart.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
-    }),
-    onSuccess: async (payload) => {
-      setLatestReceiptNumber(payload.receiptNumber);
-      setCart([]);
-      setCustomerId('');
-      setDiscount('0');
-      setPaymentMethod('cash');
-      setPaymentReference('');
-      setNotes('');
-      setShowQuickCustomer(false);
-      setQuickCustomerName('');
-      setQuickCustomerPhone('');
-      setQuickCustomerWhatsapp('');
-      setQuickCustomerEmail('');
-      setPageError('');
-      await refreshOps();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
 
   const openShiftMutation = useMutation({
     mutationFn: () => api.pos.openShift(Number(openingCash)),
-    onSuccess: async () => {
-      setOpeningCash('0');
-      setPageError('');
-      await refreshOps();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
+    onSuccess: async () => { setOpeningCash('0'); setErr(''); await invalidate(); },
+    onError: (e) => setErr(getError(e)),
   });
 
-  const closeShiftMutation = useMutation({
-    mutationFn: () => api.pos.closeShift({
-      countedCash: Number(countedCash),
-      notes: closeNotes || null,
-    }),
-    onSuccess: async () => {
-      setCountedCash('');
-      setCloseNotes('');
-      setPageError('');
-      await refreshOps();
+  const saleMutation = useMutation({
+    mutationFn: () =>
+      api.pos.createSale({
+        customerId: null,
+        quickCustomer: null,
+        discount: Number(discount || 0),
+        paymentMethod,
+        paymentReference: paymentRef || null,
+        notes: notes || null,
+        items: cart.map((l) => ({ productId: l.product.id, quantity: l.qty })),
+      }),
+    onSuccess: async (payload) => {
+      const total = cartTotal;
+      setReceipt({ receiptNumber: payload.receiptNumber, total, method: paymentMethod });
+      setCart([]);
+      setShowPayment(false);
+      setDiscount('0');
+      setPaymentRef('');
+      setNotes('');
+      setErr('');
+      await invalidate();
     },
-    onError: (error) => setPageError(getErrorMessage(error)),
+    onError: (e) => setErr(getError(e)),
   });
 
   const products = productsQuery.data?.products ?? [];
-  const today = todaySummaryQuery.data;
-  const enabledPaymentMethods = paymentMethodOptions.filter((option) => settingsQuery.data?.paymentMethods?.[option.value] ?? true);
   const currentShift = shiftQuery.data?.shift ?? null;
-  const subtotal = cart.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0);
-  const total = Math.max(0, subtotal - Number(discount || 0));
+  const enabledMethods = PAYMENT_OPTIONS.filter(
+    (o) => settingsQuery.data?.paymentMethods?.[o.value] ?? true,
+  );
 
-  useEffect(() => {
-    if (!enabledPaymentMethods.some((option) => option.value === paymentMethod)) {
-      setPaymentMethod(enabledPaymentMethods[0]?.value ?? 'cash');
-    }
-  }, [enabledPaymentMethods, paymentMethod]);
+  const categories = [...new Set(products.map((p) => p.categoryName).filter(Boolean))];
+  const visibleProducts = activeCategory
+    ? products.filter((p) => p.categoryName === activeCategory)
+    : products;
+
+  const subtotal = cart.reduce((s, l) => s + l.product.sellingPrice * l.qty, 0);
+  const cartTotal = Math.max(0, subtotal - Number(discount || 0));
+  const cartCount = cart.reduce((s, l) => s + l.qty, 0);
 
   const addToCart = (product: PosProduct) => {
-    if (!canCheckout || !currentShift) return;
-    setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
-      if (!existing) {
-        return [...current, { product, quantity: 1 }];
-      }
-      return current.map((line) => (
-        line.product.id === product.id
-          ? { ...line, quantity: Math.min(line.quantity + 1, line.product.availableQuantity) }
-          : line
-      ));
+    if (!currentShift || product.isOutOfStock) return;
+    setCart((c) => {
+      const ex = c.find((l) => l.product.id === product.id);
+      if (!ex) return [...c, { product, qty: 1 }];
+      return c.map((l) =>
+        l.product.id === product.id
+          ? { ...l, qty: Math.min(l.qty + 1, l.product.availableQuantity) }
+          : l,
+      );
     });
   };
 
-  const updateQuantity = (productId: string, nextQuantity: number) => {
-    setCart((current) => current.map((line) => (
-      line.product.id === productId
-        ? { ...line, quantity: Math.max(1, Math.min(nextQuantity, line.product.availableQuantity)) }
-        : line
-    )));
-  };
-
-  const removeLine = (productId: string) => {
-    setCart((current) => current.filter((line) => line.product.id !== productId));
-  };
-
-  const handleOpenShift = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPageError('');
-    await openShiftMutation.mutateAsync();
-  };
-
-  const handleCloseShift = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPageError('');
-    await closeShiftMutation.mutateAsync();
+  const setQty = (id: string, qty: number) => {
+    if (qty <= 0) { setCart((c) => c.filter((l) => l.product.id !== id)); return; }
+    const max = cart.find((l) => l.product.id === id)?.product.availableQuantity ?? qty;
+    setCart((c) => c.map((l) => (l.product.id === id ? { ...l, qty: Math.min(qty, max) } : l)));
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
-      <Sidebar />
-      <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">POS</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quick checkout</h1>
-                <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Sell quickly, add a customer when needed, and finish cleanly.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <MetricCard label="Sales" value={currencyFormatter.format(today?.totalSales ?? 0)} />
-                <MetricCard label="Receipts" value={String(today?.salesCount ?? 0)} />
-                <MetricCard label="Shift" value={currentShift ? 'Open' : 'Closed'} />
-              </div>
-            </div>
-          </section>
+    <div className="flex h-screen flex-col overflow-hidden" style={{ background: '#F7F4EE' }}>
 
-          {pageError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {pageError}
-            </div>
-          )}
-
-          {!canCheckout && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Only Admin and Cashier can sell from POS.
-            </div>
-          )}
-
-          {canCheckout && !currentShift && (
-            <section className="rounded-[28px] border border-amber-200 bg-amber-50/70 p-5">
-              <h2 className="text-lg font-semibold text-amber-900">Open shift first</h2>
-              <p className="mt-1 text-sm text-amber-800">Open a shift before checkout.</p>
-              <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleOpenShift}>
-                <input
-                  type="number"
-                  min="0"
-                  value={openingCash}
-                  onChange={(event) => setOpeningCash(event.target.value)}
-                  placeholder="Opening cash"
-                  className="rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={openShiftMutation.isPending}
-                  className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {openShiftMutation.isPending ? 'Opening…' : 'Open shift'}
-                </button>
-              </form>
-            </section>
-          )}
-
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <section className="space-y-6">
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto]">
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search products"
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                  />
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                    {currentShift ? `Shift open · ${currencyFormatter.format(currentShift.openingCash)}` : 'Open shift to start'}
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    {products.length} ready today
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {productsQuery.isLoading && (
-                  <div className="md:col-span-2 rounded-[28px] border border-dashed border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500">
-                    Loading POS catalog…
-                  </div>
-                )}
-                {!productsQuery.isLoading && products.length === 0 && (
-                  <div className="md:col-span-2 rounded-[28px] border border-dashed border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500">
-                    No products found.
-                  </div>
-                )}
-                {!productsQuery.isLoading && products.length > 0 && products.every((p) => p.isOutOfStock) && (
-                  <div className="md:col-span-2 rounded-[28px] border border-rose-200 bg-rose-50/50 p-8 text-center">
-                    <p className="text-base font-semibold text-rose-800">No products in stock</p>
-                    <p className="mt-2 text-sm text-rose-700">All products are currently out of stock. Add inventory before selling.</p>
-                    <div className="mt-6 flex justify-center gap-3">
-                      <a
-                        href="/inventory"
-                        className="inline-flex items-center rounded-full bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700"
-                      >
-                        Add inventory
-                      </a>
-                      <a
-                        href="/receiving"
-                        className="inline-flex items-center rounded-full border border-rose-300 bg-white px-5 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
-                      >
-                        Receive stock
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {products.map((product) => {
-                  const cartLine = cart.find((line) => line.product.id === product.id);
-                  const inCartQuantity = cartLine?.quantity ?? 0;
-                  const isDisabled = !canCheckout || !currentShift || product.isOutOfStock;
-                  const showOutOfStock = product.isOutOfStock;
-
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => !showOutOfStock && addToCart(product)}
-                      disabled={isDisabled}
-                      className={`rounded-[28px] border p-4 text-left transition sm:p-5 ${
-                        showOutOfStock
-                          ? 'border-rose-100 bg-rose-50/50 cursor-not-allowed opacity-70'
-                          : product.lowStock
-                          ? 'border-amber-100 bg-amber-50/30 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]'
-                          : 'border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]'
-                      } disabled:cursor-not-allowed disabled:opacity-70`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className={`text-lg font-semibold ${showOutOfStock ? 'text-rose-800' : ''}`}>{product.name}</p>
-                          <p className="mt-1 text-sm text-slate-500">{product.categoryName} · {product.unitType.toUpperCase()}</p>
-                          {showOutOfStock && (
-                            <p className="mt-1 text-xs font-medium text-rose-600">Out of stock</p>
-                          )}
-                          {product.lowStock && !showOutOfStock && (
-                            <p className="mt-1 text-xs font-medium text-amber-600">Low stock · {product.availableQuantity} left</p>
-                          )}
-                        </div>
-                        {!showOutOfStock && (
-                          <div className={`rounded-full px-3 py-1 text-xs font-medium ${
-                            product.lowStock
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {product.availableQuantity} left
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-4 flex items-end justify-between gap-4">
-                        <div>
-                          <p className={`text-xl font-semibold ${showOutOfStock ? 'text-rose-700 line-through' : ''}`}>
-                            {currencyFormatter.format(product.sellingPrice)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          {inCartQuantity > 0 && (
-                            <p className="mt-2 text-xs font-medium text-emerald-700">{inCartQuantity} in cart</p>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="space-y-6">
-              <div className="rounded-[32px] bg-white/92 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Cart</h2>
-                <p className="mt-1 text-sm text-slate-500">Add items, take payment, and finish.</p>
-
-                <div className="mt-5 space-y-3">
-                  {cart.length === 0 && (
-                    <div className="rounded-3xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      No items yet
-                    </div>
-                  )}
-                  {cart.map((line) => (
-                    <div key={line.product.id} className="rounded-3xl bg-slate-50 px-4 py-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-medium text-slate-900">{line.product.name}</p>
-                          <p className="mt-1 text-xs text-slate-400">{currencyFormatter.format(line.product.sellingPrice)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeLine(line.product.id)}
-                          className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="mt-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(line.product.id, line.quantity - 1)}
-                            className="h-9 w-9 rounded-full border border-slate-200 text-lg text-slate-700 hover:bg-white"
-                          >
-                            -
-                          </button>
-                          <div className="w-10 text-center text-sm font-medium">{line.quantity}</div>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(line.product.id, line.quantity + 1)}
-                            className="h-9 w-9 rounded-full border border-slate-200 text-lg text-slate-700 hover:bg-white"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <p className="font-semibold text-slate-900">{currencyFormatter.format(line.product.sellingPrice * line.quantity)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-5 grid gap-3">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Customer: <span className="font-medium text-slate-900">Walk-in</span>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!canCheckout}
-                    onClick={() => {
-                      setShowQuickCustomer((current) => !current);
-                      setCustomerId('');
-                    }}
-                    className="justify-self-start rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    {showQuickCustomer ? 'Hide quick add' : 'Add customer'}
-                  </button>
-                  {showQuickCustomer && (
-                    <div className="grid gap-3 rounded-3xl bg-slate-50 p-4">
-                      <input
-                        value={quickCustomerName}
-                        onChange={(event) => setQuickCustomerName(event.target.value)}
-                        placeholder="Customer name"
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      />
-                      <input
-                        value={quickCustomerPhone}
-                        onChange={(event) => setQuickCustomerPhone(event.target.value)}
-                        placeholder="Phone number"
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <input
-                          value={quickCustomerWhatsapp}
-                          onChange={(event) => setQuickCustomerWhatsapp(event.target.value)}
-                          placeholder="WhatsApp number"
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                        />
-                        <input
-                          value={quickCustomerEmail}
-                          onChange={(event) => setQuickCustomerEmail(event.target.value)}
-                          placeholder="Email"
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={createCustomerMutation.isPending || !quickCustomerName || !quickCustomerPhone}
-                        onClick={() => {
-                          setPageError('');
-                          createCustomerMutation.mutate();
-                        }}
-                        className="justify-self-start rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                      >
-                        {createCustomerMutation.isPending ? 'Saving…' : 'Save customer'}
-                      </button>
-                    </div>
-                  )}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                      type="number"
-                      min="0"
-                      value={discount}
-                      onChange={(event) => setDiscount(event.target.value)}
-                      disabled={!canCheckout}
-                        placeholder="Discount"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                    />
-                    <select
-                      value={paymentMethod}
-                      onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)}
-                      disabled={!canCheckout}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                    >
-                      {enabledPaymentMethods.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {paymentMethod !== 'cash' && (
-                    <input
-                      value={paymentReference}
-                      onChange={(event) => setPaymentReference(event.target.value)}
-                      disabled={!canCheckout}
-                      placeholder="Payment reference"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                    />
-                  )}
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    disabled={!canCheckout}
-                    placeholder="Notes (optional)"
-                    rows={3}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-100"
-                  />
-                </div>
-
-                <div className="mt-6 rounded-3xl bg-slate-50 p-5">
-                  <div className="flex items-center justify-between text-sm text-slate-500">
-                    <span>Subtotal</span>
-                    <span>{currencyFormatter.format(subtotal)}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-sm text-slate-500">
-                    <span>Discount</span>
-                    <span>{currencyFormatter.format(Number(discount || 0))}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-base font-semibold text-slate-900">
-                    <span>Total</span>
-                    <span>{currencyFormatter.format(total)}</span>
-                  </div>
-                </div>
-
-                {latestReceiptNumber && (
-                  <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    Sale complete · Receipt {latestReceiptNumber}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  disabled={!canCheckout || !currentShift || cart.length === 0 || checkoutMutation.isPending}
-                  onClick={() => {
-                    setPageError('');
-                    checkoutMutation.mutate();
-                  }}
-                  className="mt-5 w-full rounded-full bg-emerald-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {checkoutMutation.isPending ? 'Completing sale…' : 'Complete sale'}
-                </button>
-              </div>
-
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <h2 className="text-xl font-semibold">Cash-Up</h2>
-                <p className="mt-1 text-sm text-slate-500">Review totals and close the shift.</p>
-                {!currentShift && (
-                  <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    No active shift yet.
-                  </div>
-                )}
-                {currentShift && (
-                  <form className="mt-5 grid gap-3" onSubmit={handleCloseShift}>
-                    <div className="rounded-3xl bg-slate-50 p-4">
-                      <div className="flex items-center justify-between text-sm text-slate-500">
-                        <span>Expected cash</span>
-                        <span>{currencyFormatter.format(currentShift.paymentTotals.cash + currentShift.openingCash)}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm text-slate-500">
-                        <span>Digital</span>
-                        <span>{currencyFormatter.format(currentShift.paymentTotals.mtnMobileMoney + currentShift.paymentTotals.airtelMoney + currentShift.paymentTotals.card + currentShift.paymentTotals.bankTransfer)}</span>
-                      </div>
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={countedCash}
-                      onChange={(event) => setCountedCash(event.target.value)}
-                      placeholder="Counted cash"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                      required
-                    />
-                    <textarea
-                      value={closeNotes}
-                      onChange={(event) => setCloseNotes(event.target.value)}
-                      placeholder="Notes"
-                      rows={3}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                    />
-                    <button
-                      type="submit"
-                      disabled={closeShiftMutation.isPending}
-                      className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                    >
-                      {closeShiftMutation.isPending ? 'Closing…' : 'Close shift'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            </section>
+      {/* ── Top header ── */}
+      <header className="flex shrink-0 items-center justify-between border-b border-black/8 bg-white px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] lg:px-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: '#1B4332' }}
+          >
+            <span className="text-base font-bold leading-none text-white">E</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-tight text-slate-900">Evaya Naturals</p>
+            <p className="text-xs leading-tight text-slate-400">{user?.firstName} {user?.lastName}</p>
           </div>
         </div>
-      </main>
+
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              currentShift ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+            }`}
+          >
+            {currentShift ? 'Shift Open' : 'No Shift'}
+          </span>
+          <button
+            type="button"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 lg:hidden"
+            onClick={() => setCartOpen(true)}
+          >
+            <svg className="h-5 w-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            {cartCount > 0 && (
+              <span
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ background: '#1B4332' }}
+              >
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* ── Open shift banner ── */}
+      {!currentShift && (
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 lg:px-6">
+          <span className="text-sm font-semibold text-amber-800">Open a shift to start selling.</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              value={openingCash}
+              onChange={(e) => setOpeningCash(e.target.value)}
+              placeholder="Opening cash (UGX)"
+              className="w-40 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400"
+            />
+            <button
+              type="button"
+              onClick={() => { setErr(''); openShiftMutation.mutate(); }}
+              disabled={openShiftMutation.isPending}
+              className="rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-60"
+              style={{ background: '#1B4332' }}
+            >
+              {openShiftMutation.isPending ? 'Opening…' : 'Open Shift'}
+            </button>
+          </div>
+          {err && <span className="text-xs text-rose-600">{err}</span>}
+        </div>
+      )}
+
+      {/* ── Body ── */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+
+        {/* Products panel */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Search + category chips */}
+          <div className="shrink-0 border-b border-black/5 bg-white px-4 py-3 lg:px-6">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products…"
+              className="mb-3 w-full rounded-xl border border-slate-200 bg-[#F7F4EE] px-4 py-2.5 text-sm outline-none transition focus:border-[#1B4332]/50"
+            />
+            <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+              <Chip active={activeCategory === null} onClick={() => setActiveCategory(null)}>All</Chip>
+              {categories.map((cat) => (
+                <Chip
+                  key={cat}
+                  active={activeCategory === cat}
+                  onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                >
+                  {cat}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Product grid */}
+          <div className="flex-1 overflow-y-auto p-4 lg:p-5">
+            {productsQuery.isLoading && (
+              <p className="py-16 text-center text-sm text-slate-400">Loading catalog…</p>
+            )}
+            {!productsQuery.isLoading && visibleProducts.length === 0 && (
+              <p className="py-16 text-center text-sm text-slate-400">No products found</p>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {visibleProducts.map((product) => {
+                const cat = product.categoryName ?? 'Other';
+                const catStyle = CAT_COLORS[cat] ?? CAT_COLORS.Other;
+                const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
+                const disabled = !currentShift || product.isOutOfStock;
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => addToCart(product)}
+                    className={`group relative flex flex-col rounded-2xl border p-3 text-left transition select-none active:scale-95 ${
+                      product.isOutOfStock
+                        ? 'cursor-not-allowed border-rose-100 bg-rose-50 opacity-60'
+                        : inCart > 0
+                        ? 'border-[#1B4332]/25 bg-white shadow-md'
+                        : 'cursor-pointer border-white bg-white shadow-sm hover:-translate-y-0.5 hover:shadow-md'
+                    }`}
+                  >
+                    {inCart > 0 && (
+                      <span
+                        className="absolute right-2 top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                        style={{ background: '#1B4332' }}
+                      >
+                        {inCart}
+                      </span>
+                    )}
+                    <span
+                      className="mb-2 self-start rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                      style={{ background: catStyle.bg, color: catStyle.text }}
+                    >
+                      {cat}
+                    </span>
+                    <p className="flex-1 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
+                    {product.isOutOfStock ? (
+                      <p className="mt-1.5 text-[10px] font-semibold text-rose-500">Out of stock</p>
+                    ) : product.lowStock ? (
+                      <p className="mt-1.5 text-[10px] font-semibold text-amber-500">
+                        Low · {product.availableQuantity} left
+                      </p>
+                    ) : null}
+                    <p className="mt-2 font-mono-nums text-base font-bold" style={{ color: '#1B4332' }}>
+                      {ugx(product.sellingPrice)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Cart — desktop fixed right */}
+        <CartDrawer
+          cart={cart}
+          subtotal={subtotal}
+          total={cartTotal}
+          discount={discount}
+          notes={notes}
+          currentShift={!!currentShift}
+          err={err}
+          onSetQty={setQty}
+          onDiscount={setDiscount}
+          onNotes={setNotes}
+          onCheckout={() => { setErr(''); setShowPayment(true); }}
+          onClose={() => setCartOpen(false)}
+          isDesktop
+        />
+      </div>
+
+      {/* ── Mobile cart drawer ── */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close cart"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setCartOpen(false)}
+          />
+          <div className="absolute inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl">
+            <CartDrawer
+              cart={cart}
+              subtotal={subtotal}
+              total={cartTotal}
+              discount={discount}
+              notes={notes}
+              currentShift={!!currentShift}
+              err={err}
+              onSetQty={setQty}
+              onDiscount={setDiscount}
+              onNotes={setNotes}
+              onCheckout={() => { setCartOpen(false); setErr(''); setShowPayment(true); }}
+              onClose={() => setCartOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment modal ── */}
+      {showPayment && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Select Payment</h2>
+              <button
+                type="button"
+                onClick={() => setShowPayment(false)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-slate-500">
+              Total:{' '}
+              <span className="font-mono-nums text-base font-black text-slate-900">{ugx(cartTotal)}</span>
+            </p>
+            {err && (
+              <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {enabledMethods.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(opt.value)}
+                  className={`flex flex-col rounded-2xl p-4 text-left transition active:scale-95 ${
+                    paymentMethod === opt.value ? 'ring-4 ring-offset-2' : 'opacity-75 hover:opacity-100'
+                  }`}
+                  style={{ background: opt.bg, color: opt.color } as React.CSSProperties}
+                >
+                  <span className="text-2xl font-black leading-none">{opt.shortLabel}</span>
+                  <span className="mt-1.5 text-xs font-medium">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+            {paymentMethod !== 'cash' && (
+              <input
+                value={paymentRef}
+                onChange={(e) => setPaymentRef(e.target.value)}
+                placeholder="Reference / transaction ID"
+                className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400"
+              />
+            )}
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPayment(false)}
+                className="flex-1 rounded-xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => saleMutation.mutate()}
+                disabled={saleMutation.isPending}
+                className="flex-1 rounded-xl py-3.5 text-sm font-bold text-white transition disabled:opacity-60"
+                style={{ background: '#1B4332' }}
+              >
+                {saleMutation.isPending ? 'Processing…' : `Pay ${ugx(cartTotal)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Receipt modal ── */}
+      {receipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-full"
+                style={{ background: '#1B4332' }}
+              >
+                <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="mt-3 text-xl font-bold text-slate-900">Sale Complete!</h2>
+              <p className="mt-1 text-sm text-slate-400">Receipt #{receipt.receiptNumber}</p>
+            </div>
+            <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <Row label="Total paid" value={ugx(receipt.total)} bold />
+              <Row
+                label="Method"
+                value={PAYMENT_OPTIONS.find((o) => o.value === receipt.method)?.label ?? receipt.method}
+              />
+              <Row label="Date &amp; time" value={new Date().toLocaleString('en-UG')} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setReceipt(null)}
+              className="mt-5 w-full rounded-xl py-3.5 text-sm font-bold text-white"
+              style={{ background: '#1B4332' }}
+            >
+              New Sale
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+// ──────────── sub-components ────────────
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-none whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold transition"
+      style={
+        active
+          ? { background: '#1B4332', color: '#fff' }
+          : { background: '#EAE7E1', color: '#374151' }
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+interface CartDrawerProps {
+  cart: CartLine[];
+  subtotal: number;
+  total: number;
+  discount: string;
+  notes: string;
+  currentShift: boolean;
+  err: string;
+  onSetQty: (id: string, qty: number) => void;
+  onDiscount: (v: string) => void;
+  onNotes: (v: string) => void;
+  onCheckout: () => void;
+  onClose: () => void;
+  isDesktop?: boolean;
+}
+
+function CartDrawer({
+  cart,
+  subtotal,
+  total,
+  discount,
+  notes,
+  currentShift,
+  err,
+  onSetQty,
+  onDiscount,
+  onNotes,
+  onCheckout,
+  onClose,
+  isDesktop = false,
+}: CartDrawerProps) {
+  const canCheckout = currentShift && cart.length > 0;
+  const fmtUGX = (n: number) =>
+    new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
+
+  return (
+    <div
+      className={`flex flex-col ${
+        isDesktop
+          ? 'hidden w-80 shrink-0 border-l border-black/8 bg-white lg:flex'
+          : 'h-full bg-white'
+      }`}
+    >
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+        <h2 className="text-base font-bold text-slate-900">Cart</h2>
+        {!isDesktop && (
+          <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {cart.length === 0 ? (
+          <div className="flex h-36 flex-col items-center justify-center gap-2 text-sm text-slate-400">
+            <svg className="h-8 w-8 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Tap products to add
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-50 px-4 py-2">
+            {cart.map((line) => (
+              <li key={line.product.id} className="py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="flex-1 text-sm font-semibold leading-snug text-slate-900">
+                    {line.product.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onSetQty(line.product.id, 0)}
+                    className="mt-0.5 rounded-md p-0.5 text-slate-300 transition hover:text-rose-400"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(line.product.id, line.qty - 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95"
+                    >
+                      −
+                    </button>
+                    <span className="w-7 text-center text-sm font-bold">{line.qty}</span>
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(line.product.id, line.qty + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="font-mono-nums text-sm font-bold" style={{ color: '#1B4332' }}>
+                    {fmtUGX(line.product.sellingPrice * line.qty)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="shrink-0 space-y-3 border-t border-slate-100 p-4">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-500">Subtotal</span>
+          <span className="font-mono-nums font-semibold text-slate-900">{fmtUGX(subtotal)}</span>
+        </div>
+        <input
+          type="number"
+          min="0"
+          value={discount}
+          onChange={(e) => onDiscount(e.target.value)}
+          placeholder="Discount (UGX)"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+        />
+        <input
+          value={notes}
+          onChange={(e) => onNotes(e.target.value)}
+          placeholder="Notes (optional)"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+        />
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-slate-900">Total</span>
+          <span className="font-mono-nums text-xl font-black" style={{ color: '#1B4332' }}>
+            {fmtUGX(total)}
+          </span>
+        </div>
+        {err && (
+          <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+        )}
+        <button
+          type="button"
+          disabled={!canCheckout}
+          onClick={onCheckout}
+          className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ background: canCheckout ? '#1B4332' : '#94A3B8' }}
+        >
+          {!currentShift
+            ? 'Open a shift first'
+            : cart.length === 0
+            ? 'Cart is empty'
+            : `Charge · ${fmtUGX(total)}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div className="flex justify-between py-1 text-sm">
+      <span className="text-slate-500" dangerouslySetInnerHTML={{ __html: label }} />
+      <span className={bold ? 'font-bold text-slate-900' : 'text-slate-700'}>{value}</span>
     </div>
   );
 }
