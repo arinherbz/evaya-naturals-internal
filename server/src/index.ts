@@ -60,9 +60,9 @@ const app = createApp();
 const port = appEnv.port;
 
 if (appEnv.nodeEnv !== 'test') {
+  console.log('Running database migrations…');
   initializeDatabase().then(() => {
-    console.log('Database initialized');
-    
+    console.log('Migrations applied. Starting server…');
     serve({
       fetch: app.fetch,
       port,
