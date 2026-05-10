@@ -317,6 +317,27 @@ settingsRoutes.patch('/staff/:id', async (c) => {
   return c.json({ user });
 });
 
+settingsRoutes.delete('/staff/:id', async (c) => {
+  const adminCheck = requireAdmin(c);
+  if (adminCheck) return adminCheck;
+
+  const currentUser = c.get('user');
+  const userId = c.req.param('id');
+  if (userId === currentUser.id) {
+    return c.json({ error: 'You cannot delete your own account' }, 400);
+  }
+
+  const [existing] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId));
+  if (!existing) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  await db.update(schema.users)
+    .set({ isActive: false, updatedAt: new Date().toISOString() })
+    .where(eq(schema.users.id, userId));
+  return c.json({ message: 'Staff member deactivated' });
+});
+
 settingsRoutes.post('/staff/:id/reset-password', async (c) => {
   const adminCheck = requireAdmin(c);
   if (adminCheck) return adminCheck;

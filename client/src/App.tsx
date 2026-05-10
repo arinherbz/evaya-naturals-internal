@@ -12,6 +12,7 @@ import ExpensesPage from './pages/ExpensesPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import DeliveriesPage from './pages/DeliveriesPage';
+import OrdersPage from './pages/OrdersPage';
 import { AuthProvider } from './hooks/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
@@ -101,6 +102,14 @@ function App() {
               element={
                 <ProtectedRoute allowRoles={['Branch Manager', 'Delivery Rider']}>
                   <DeliveriesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute allowRoles={['Branch Manager', 'Admin']}>
+                  <OrdersPage />
                 </ProtectedRoute>
               }
             />

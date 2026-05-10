@@ -695,6 +695,24 @@ posRoutes.patch('/customers/:id', async (c) => {
   return c.json({ customer: updated });
 });
 
+posRoutes.delete('/customers/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageCustomers(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const customerId = c.req.param('id');
+  const [existing] = await db.select().from(schema.customers).where(eq(schema.customers.id, customerId));
+  if (!existing) {
+    return c.json({ error: 'Customer not found' }, 404);
+  }
+
+  await db.update(schema.customers)
+    .set({ isActive: false, updatedAt: new Date().toISOString() })
+    .where(eq(schema.customers.id, customerId));
+  return c.json({ message: 'Customer deleted' });
+});
+
 posRoutes.get('/customers/:id/history', async (c) => {
   const user = c.get('user');
   if (!canViewCustomers(user)) {

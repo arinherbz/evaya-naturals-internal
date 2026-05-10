@@ -990,6 +990,25 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
   return c.json({ movement }, 201);
 });
 
+catalogRoutes.delete('/products/:id', async (c) => {
+  const user = c.get('user');
+  if (!canManageProducts(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const productId = c.req.param('id');
+  const existing = await db.select().from(schema.products).where(eq(schema.products.id, productId));
+  if (existing.length === 0) {
+    return c.json({ error: 'Product not found' }, 404);
+  }
+
+  await db.update(schema.products)
+    .set({ isActive: false, updatedAt: new Date().toISOString() })
+    .where(eq(schema.products.id, productId));
+  await logAudit(user, 'delete', 'product', productId, existing[0] as unknown as Record<string, unknown>);
+  return c.json({ message: 'Product deleted' });
+});
+
 catalogRoutes.patch('/inventory/:id/threshold', async (c) => {
   const user = c.get('user');
   if (!canManageInventory(user)) {

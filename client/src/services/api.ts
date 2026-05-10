@@ -180,6 +180,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ password }),
     }),
+    deleteStaffUser: (id: string) =>
+      request<{ message: string }>(`/settings/staff/${id}`, {
+        method: 'DELETE',
+      }),
   },
 
   suppliers: {
@@ -237,6 +241,10 @@ export const api = {
       request<{ product: ProductListItem }>(`/catalog/products/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
+      }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/catalog/products/${id}`, {
+        method: 'DELETE',
       }),
   },
 
@@ -296,6 +304,10 @@ export const api = {
       request<{ customer: Customer }>(`/pos/customers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
+      }),
+    deleteCustomer: (id: string) =>
+      request<{ message: string }>(`/pos/customers/${id}`, {
+        method: 'DELETE',
       }),
     customerHistory: (id: string) => request<CustomerHistory>(`/pos/customers/${id}/history`),
     createBroadcast: (payload: { customerIds: string[]; messageBody: string; channel: 'whatsapp' | 'sms' }) =>
