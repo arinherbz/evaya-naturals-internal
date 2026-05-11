@@ -22,6 +22,8 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const logoHref = user?.role.name === 'Cashier' ? '/pos' : '/';
+
   const canShowItem = (allowRoles?: string[]) => {
     if (!user) return false;
     if (user.role.name === 'Admin') return true;
@@ -41,7 +43,7 @@ export default function Sidebar() {
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
     <>
       <div className="border-b border-slate-100 p-5">
-        <button type="button" onClick={() => { navigate('/pos'); onNav?.(); }}>
+        <button type="button" onClick={() => { navigate(logoHref); onNav?.(); }}>
           <BrandMark compact />
         </button>
         <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
@@ -95,10 +97,15 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile topbar */}
-      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5 shadow-sm lg:hidden">
-        <button type="button" onClick={() => navigate('/pos')}>
-          <BrandMark compact />
+      {/* Mobile topbar — icon only, fixed height 60px */}
+      <div className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b border-slate-100 bg-white px-4 shadow-sm lg:hidden">
+        <button type="button" onClick={() => navigate(logoHref)}>
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-xl"
+            style={{ background: '#1B4332' }}
+          >
+            <span className="text-sm font-bold leading-none text-white">E</span>
+          </div>
         </button>
         <button
           type="button"
