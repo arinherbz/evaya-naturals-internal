@@ -222,6 +222,44 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
             ))}
           </div>
 
+          {/* Daily Breakdown */}
+          {report && report.sales.length > 0 && quickRange !== 'today' && (
+            <div className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <h2 className="text-base font-semibold text-slate-900">Daily Breakdown</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Sales per day in selected period</p>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Date</th>
+                      <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Receipts</th>
+                      <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {Object.entries(
+                      report.sales.reduce<Record<string, { count: number; revenue: number }>>((acc, s) => {
+                        const day = s.createdAt.slice(0, 10);
+                        if (!acc[day]) acc[day] = { count: 0, revenue: 0 };
+                        acc[day].count += 1;
+                        acc[day].revenue += s.total;
+                        return acc;
+                      }, {}),
+                    )
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([day, { count, revenue }]) => (
+                        <tr key={day}>
+                          <td className="py-2.5 text-slate-700">{new Date(day).toLocaleDateString('en-UG', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                          <td className="py-2.5 text-right text-slate-500">{count}</td>
+                          <td className="py-2.5 text-right font-semibold text-slate-900">{currencyFormatter.format(revenue)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-6 xl:grid-cols-2">
             <ReportPanel title="Best Sellers" description="Top products this period.">
               {(report?.bestSellingProducts ?? []).length === 0 && (

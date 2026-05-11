@@ -239,7 +239,7 @@ export default function ExpensesPage() {
                   onClick={() => printExpenses(expenses, total, periodLabel)}
                   className="rounded-full border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
-                  Export PDF
+                  Preview &amp; Print
                 </button>
               </div>
             </div>
