@@ -33,6 +33,7 @@ export default function POSPage() {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>('cash');
   const [paymentRef, setPaymentRef] = useState('');
   const [discount, setDiscount] = useState('');
@@ -95,6 +96,7 @@ export default function POSPage() {
         items: cart.map((l) => ({ productId: l.product.id, quantity: l.qty })),
       }),
     onSuccess: async (payload) => {
+      setShowConfirm(false);
       setCompletedSaleId(payload.sale.id);
       setCart([]);
       setDiscount('');
@@ -116,6 +118,7 @@ export default function POSPage() {
           items: cart.map((l) => ({ productId: l.product.id, quantity: l.qty })),
         };
         await enqueueSale(salePayload);
+        setShowConfirm(false);
         setCart([]);
         setDiscount('');
         setCashOut('');
@@ -128,7 +131,13 @@ export default function POSPage() {
     },
   });
 
-  const products = productsQuery.data?.products ?? [];
+  const rawProducts = productsQuery.data?.products ?? [];
+  // In-stock products first (alphabetical within each group), out-of-stock last
+  const products = [...rawProducts].sort((a, b) => {
+    if (a.isOutOfStock !== b.isOutOfStock) return a.isOutOfStock ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
+
   const currentShift = shiftQuery.data?.shift ?? null;
   const enabledMethods = PAYMENT_OPTIONS.filter(
     (o) => settingsQuery.data?.paymentMethods?.[o.value] ?? true,
@@ -139,6 +148,10 @@ export default function POSPage() {
   const cartCount = cart.reduce((s, l) => s + l.qty, 0);
   const cashChange =
     paymentMethod === 'cash' && cashOut ? Math.max(0, Number(cashOut) - cartTotal) : null;
+
+  const lowStockCartItems = cart.filter(
+    (l) => l.product.availableQuantity > 0 && l.product.availableQuantity <= 5,
+  );
 
   const addToCart = (product: PosProduct) => {
     if (!currentShift || product.isOutOfStock) return;
@@ -207,13 +220,15 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
     <div className="flex h-screen overflow-hidden bg-[#f5f5f7]">
       <Sidebar />
 
-      {/* Main column — offset top by mobile topbar height (60px), reset on lg */}
+      {/* Main content — offset top by mobile topbar on small screens */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[60px] lg:pt-0">
 
-        {/* Shift banner */}
+        {/* Shift banner — shown when no active shift */}
         {!currentShift && (
           <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
-            <span className="text-sm font-semibold text-amber-800">Open a shift to start selling.</span>
+            <span className="text-sm font-semibold text-amber-800">
+              No active shift. Open a shift to start selling.
+            </span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -237,13 +252,26 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           </div>
         )}
 
-        {/* Body: products + cart */}
+        {/* Shift status bar when shift is active */}
+        {currentShift && (
+          <div className="flex shrink-0 items-center gap-3 border-b border-emerald-100 bg-emerald-50/60 px-4 py-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-xs font-semibold text-emerald-800">
+              Shift active · Opened {new Date(currentShift.openedAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <span className="ml-auto text-xs text-emerald-700 font-semibold">
+              {currentShift.saleCount} {currentShift.saleCount === 1 ? 'sale' : 'sales'} · {ugx(currentShift.salesTotal)}
+            </span>
+          </div>
+        )}
+
+        {/* Body: product list + cart */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
 
-          {/* Products panel */}
+          {/* Product list panel */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* Search bar — max 380px, standard 40px height */}
+            {/* Search bar — max 380px, h-10 */}
             <div className="shrink-0 border-b border-black/5 bg-white px-4 py-3">
               <div className="relative w-full max-w-[380px]">
                 <svg
@@ -257,7 +285,10 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && products.length === 1) addToCart(products[0]);
+                    if (e.key === 'Enter') {
+                      const available = products.filter((p) => !p.isOutOfStock);
+                      if (available.length === 1) addToCart(available[0]);
+                    }
                   }}
                   placeholder="Search products..."
                   className="h-10 w-full rounded-xl border border-slate-200 bg-[#F7F4EE] pl-9 pr-4 text-sm outline-none transition focus:border-[#1B4332]/50"
@@ -265,93 +296,87 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
               </div>
             </div>
 
-            {/* Product grid */}
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Products — simple list */}
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-50 bg-white">
               {productsQuery.isLoading && (
                 <p className="py-16 text-center text-sm text-slate-400">Loading catalog…</p>
               )}
               {!productsQuery.isLoading && products.length === 0 && (
                 <p className="py-16 text-center text-sm text-slate-400">No products found</p>
               )}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {products.map((product) => {
-                  const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
-                  const qty = product.availableQuantity;
-                  const disabled = !currentShift || product.isOutOfStock;
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => addToCart(product)}
-                      className={`relative flex flex-col rounded-2xl border p-3 text-left transition select-none active:scale-95 ${
-                        product.isOutOfStock
-                          ? 'cursor-not-allowed border-rose-100 bg-rose-50 opacity-60'
-                          : inCart > 0
-                          ? 'border-[#1B4332]/30 bg-white shadow-md'
-                          : 'cursor-pointer border-white bg-white shadow-sm hover:-translate-y-0.5 hover:shadow-md'
-                      }`}
-                    >
-                      {inCart > 0 && (
-                        <span
-                          className="absolute right-2 top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
-                          style={{ background: '#1B4332' }}
-                        >
-                          {inCart}
-                        </span>
-                      )}
-                      <p className="flex-1 pr-6 text-sm font-semibold leading-snug text-slate-900">
-                        {product.name}
-                      </p>
-                      <p className="mt-2 text-base font-bold" style={{ color: '#1B4332' }}>
-                        {ugx(product.sellingPrice)}
-                      </p>
+              {products.map((product) => {
+                const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
+                const qty = product.availableQuantity;
+                const disabled = !currentShift || product.isOutOfStock;
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => addToCart(product)}
+                    className={`w-full flex items-center gap-4 px-4 py-3.5 text-left transition select-none ${
+                      product.isOutOfStock
+                        ? 'opacity-40 cursor-not-allowed bg-white'
+                        : inCart > 0
+                        ? 'bg-emerald-50/60 hover:bg-emerald-50'
+                        : 'hover:bg-slate-50 active:bg-slate-100'
+                    }`}
+                  >
+                    {/* Cart qty badge or stock dot */}
+                    {inCart > 0 ? (
+                      <span className="flex h-7 min-w-[28px] shrink-0 items-center justify-center rounded-full px-2 text-xs font-bold text-white"
+                        style={{ background: '#1B4332' }}>
+                        {inCart}
+                      </span>
+                    ) : (
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${
+                        product.isOutOfStock ? 'bg-rose-400' : qty <= 5 ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`} />
+                    )}
+
+                    {/* Name + stock info */}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
                       {product.isOutOfStock ? (
-                        <p className="mt-1 text-[10px] font-semibold text-rose-500">Out of stock</p>
+                        <p className="text-xs text-rose-500">Out of stock</p>
                       ) : qty <= 5 ? (
-                        <div className="mt-1 flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                          <p className="text-[10px] font-semibold text-amber-600">Only {qty} left</p>
-                        </div>
+                        <p className="text-xs text-amber-600">Only {qty} left</p>
                       ) : (
-                        <p className="mt-1 text-[10px] text-slate-400">{qty} in stock</p>
+                        <p className="text-xs text-slate-400">{qty} in stock</p>
                       )}
-                    </button>
-                  );
-                })}
-              </div>
+                    </div>
+
+                    {/* Price */}
+                    <span className="shrink-0 text-sm font-bold" style={{ color: '#1B4332' }}>
+                      {ugx(product.sellingPrice)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Cart — desktop (hidden on mobile) */}
+          {/* Cart — desktop sidebar */}
           <CartPanel
             cart={cart}
             subtotal={subtotal}
             total={cartTotal}
             discount={discount}
-            cashOut={cashOut}
-            cashChange={cashChange}
             notes={notes}
-            paymentMethod={paymentMethod}
-            paymentRef={paymentRef}
-            enabledMethods={enabledMethods}
             currentShift={!!currentShift}
             err={err}
             isPending={saleMutation.isPending}
             onSetQty={setQty}
             onDiscount={setDiscount}
-            onCashOut={setCashOut}
             onNotes={setNotes}
-            onPaymentMethod={setPaymentMethod}
-            onPaymentRef={setPaymentRef}
-            onCharge={() => { setErr(''); saleMutation.mutate(); }}
+            onOpenConfirm={() => { setErr(''); setShowConfirm(true); }}
             onClose={() => setCartOpen(false)}
             isDesktop
           />
         </div>
       </div>
 
-      {/* Mobile FAB — cart button */}
+      {/* Mobile FAB — cart */}
       <button
         type="button"
         className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition active:scale-95 lg:hidden"
@@ -383,29 +408,141 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
               subtotal={subtotal}
               total={cartTotal}
               discount={discount}
-              cashOut={cashOut}
-              cashChange={cashChange}
               notes={notes}
-              paymentMethod={paymentMethod}
-              paymentRef={paymentRef}
-              enabledMethods={enabledMethods}
               currentShift={!!currentShift}
               err={err}
               isPending={saleMutation.isPending}
               onSetQty={setQty}
               onDiscount={setDiscount}
-              onCashOut={setCashOut}
               onNotes={setNotes}
-              onPaymentMethod={setPaymentMethod}
-              onPaymentRef={setPaymentRef}
-              onCharge={() => { setCartOpen(false); setErr(''); saleMutation.mutate(); }}
+              onOpenConfirm={() => { setCartOpen(false); setErr(''); setShowConfirm(true); }}
               onClose={() => setCartOpen(false)}
             />
           </div>
         </div>
       )}
 
-      {/* Receipt preview modal */}
+      {/* Sale confirmation modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl">
+            <div className="px-6 pt-6 pb-2">
+              <h2 className="text-xl font-bold text-slate-900">Confirm Sale</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Review, pick payment method, then charge.</p>
+
+              {/* Low-stock warnings */}
+              {lowStockCartItems.length > 0 && (
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  ⚠ Low stock: {lowStockCartItems.map((l) => `${l.product.name} (${l.product.availableQuantity} left)`).join(', ')}
+                </div>
+              )}
+
+              {/* Cart items summary */}
+              <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs space-y-1.5">
+                {cart.map((line) => (
+                  <div key={line.product.id} className="flex justify-between">
+                    <span className="text-slate-600">{line.product.name} × {line.qty}</span>
+                    <span className="font-semibold text-slate-900">{ugx(line.product.sellingPrice * line.qty)}</span>
+                  </div>
+                ))}
+                {Number(discount) > 0 && (
+                  <div className="flex justify-between text-slate-500 border-t border-slate-200 pt-1.5 mt-1">
+                    <span>Discount</span>
+                    <span>-{ugx(Number(discount))}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Total */}
+              <div className="mt-3 flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3">
+                <span className="font-bold text-slate-900">Total</span>
+                <span className="text-2xl font-black" style={{ color: '#1B4332' }}>{ugx(cartTotal)}</span>
+              </div>
+
+              {/* Payment method */}
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Payment method
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {enabledMethods.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(opt.value)}
+                      className="rounded-xl px-3 py-2.5 text-xs font-bold transition active:scale-95"
+                      style={{
+                        background: opt.bg,
+                        color: opt.color,
+                        outline: paymentMethod === opt.value ? `2px solid ${opt.bg}` : 'none',
+                        outlineOffset: '2px',
+                        opacity: paymentMethod === opt.value ? 1 : 0.65,
+                      } as React.CSSProperties}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Transaction reference (non-cash) */}
+              {paymentMethod !== 'cash' && (
+                <input
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                  placeholder="Transaction reference"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                />
+              )}
+
+              {/* Customer pays — cash only */}
+              {paymentMethod === 'cash' && (
+                <input
+                  type="number"
+                  min="0"
+                  value={cashOut}
+                  onChange={(e) => setCashOut(e.target.value)}
+                  placeholder="Customer pays (UGX)"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                />
+              )}
+
+              {/* Change */}
+              {cashChange !== null && cashChange >= 0 && (
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2">
+                  <span className="text-sm font-semibold text-emerald-800">Change</span>
+                  <span className="text-sm font-bold text-emerald-700">{ugx(cashChange)}</span>
+                </div>
+              )}
+
+              {err && (
+                <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-100 p-4 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saleMutation.isPending}
+                onClick={() => { setErr(''); saleMutation.mutate(); }}
+                className="flex-1 rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-50"
+                style={{ background: '#1B4332' }}
+              >
+                {saleMutation.isPending ? 'Processing…' : `Charge ${ugx(cartTotal)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt preview modal — shown after successful sale */}
       {completedSaleId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl">
@@ -501,36 +638,26 @@ interface CartPanelProps {
   subtotal: number;
   total: number;
   discount: string;
-  cashOut: string;
-  cashChange: number | null;
   notes: string;
-  paymentMethod: PaymentValue;
-  paymentRef: string;
-  enabledMethods: typeof PAYMENT_OPTIONS;
   currentShift: boolean;
   err: string;
   isPending: boolean;
   onSetQty: (id: string, qty: number) => void;
   onDiscount: (v: string) => void;
-  onCashOut: (v: string) => void;
   onNotes: (v: string) => void;
-  onPaymentMethod: (v: PaymentValue) => void;
-  onPaymentRef: (v: string) => void;
-  onCharge: () => void;
+  onOpenConfirm: () => void;
   onClose: () => void;
   isDesktop?: boolean;
 }
 
 function CartPanel({
-  cart, subtotal, total, discount, cashOut, cashChange, notes,
-  paymentMethod, paymentRef, enabledMethods, currentShift, err, isPending,
-  onSetQty, onDiscount, onCashOut, onNotes, onPaymentMethod, onPaymentRef,
-  onCharge, onClose, isDesktop = false,
+  cart, subtotal, total, discount, notes, currentShift, err, isPending,
+  onSetQty, onDiscount, onNotes, onOpenConfirm, onClose, isDesktop = false,
 }: CartPanelProps) {
   const canCharge = currentShift && cart.length > 0 && !isPending;
 
   return (
-    <div className={`flex flex-col ${isDesktop ? 'hidden w-[320px] shrink-0 border-l border-black/8 bg-white lg:flex' : 'h-full bg-white'}`}>
+    <div className={`flex flex-col ${isDesktop ? 'hidden w-[300px] shrink-0 border-l border-black/[0.06] bg-white lg:flex' : 'h-full bg-white'}`}>
 
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -544,7 +671,7 @@ function CartPanel({
         )}
       </div>
 
-      {/* Cart items */}
+      {/* Cart items list */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {cart.length === 0 ? (
           <div className="flex h-32 flex-col items-center justify-center gap-2 text-sm text-slate-400">
@@ -573,17 +700,15 @@ function CartPanel({
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onSetQty(line.product.id, line.qty - 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95"
-                    >−</button>
+                    <button type="button" onClick={() => onSetQty(line.product.id, line.qty - 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95">
+                      −
+                    </button>
                     <span className="w-7 text-center text-sm font-bold">{line.qty}</span>
-                    <button
-                      type="button"
-                      onClick={() => onSetQty(line.product.id, line.qty + 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95"
-                    >+</button>
+                    <button type="button" onClick={() => onSetQty(line.product.id, line.qty + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95">
+                      +
+                    </button>
                   </div>
                   <span className="text-sm font-bold" style={{ color: '#1B4332' }}>
                     {ugx(line.product.sellingPrice * line.qty)}
@@ -595,16 +720,14 @@ function CartPanel({
         )}
       </div>
 
-      {/* Bottom controls */}
+      {/* Bottom — totals + charge */}
       <div className="shrink-0 space-y-2.5 border-t border-slate-100 p-4">
 
-        {/* Subtotal */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Subtotal</span>
           <span className="font-semibold text-slate-900">{ugx(subtotal)}</span>
         </div>
 
-        {/* Discount */}
         <input
           type="number"
           min="0"
@@ -614,64 +737,11 @@ function CartPanel({
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
         />
 
-        {/* Total */}
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-900">Total</span>
           <span className="text-xl font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
         </div>
 
-        {/* Payment method 2×2 grid */}
-        <div className="grid grid-cols-2 gap-2">
-          {enabledMethods.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onPaymentMethod(opt.value)}
-              className="rounded-xl px-3 py-2.5 text-xs font-bold transition active:scale-95"
-              style={{
-                background: opt.bg,
-                color: opt.color,
-                outline: paymentMethod === opt.value ? `2px solid ${opt.bg}` : 'none',
-                outlineOffset: '2px',
-                opacity: paymentMethod === opt.value ? 1 : 0.65,
-              } as React.CSSProperties}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Transaction ref (non-cash) */}
-        {paymentMethod !== 'cash' && (
-          <input
-            value={paymentRef}
-            onChange={(e) => onPaymentRef(e.target.value)}
-            placeholder="Transaction reference"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
-          />
-        )}
-
-        {/* Customer pays (cash only) */}
-        {paymentMethod === 'cash' && (
-          <input
-            type="number"
-            min="0"
-            value={cashOut}
-            onChange={(e) => onCashOut(e.target.value)}
-            placeholder="Customer pays (UGX)"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
-          />
-        )}
-
-        {/* Change */}
-        {cashChange !== null && cashChange >= 0 && (
-          <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2">
-            <span className="text-sm font-semibold text-emerald-800">Change</span>
-            <span className="text-sm font-bold text-emerald-700">{ugx(cashChange)}</span>
-          </div>
-        )}
-
-        {/* Notes */}
         <input
           value={notes}
           onChange={(e) => onNotes(e.target.value)}
@@ -683,11 +753,11 @@ function CartPanel({
           <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
         )}
 
-        {/* Charge button */}
+        {/* Complete Sale */}
         <button
           type="button"
           disabled={!canCharge}
-          onClick={onCharge}
+          onClick={onOpenConfirm}
           className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: canCharge ? '#1B4332' : '#94A3B8' }}
         >
@@ -697,7 +767,7 @@ function CartPanel({
             ? 'Open a shift first'
             : cart.length === 0
             ? 'Cart is empty'
-            : `Charge ${ugx(total)}`}
+            : `Complete Sale — ${ugx(total)}`}
         </button>
       </div>
     </div>

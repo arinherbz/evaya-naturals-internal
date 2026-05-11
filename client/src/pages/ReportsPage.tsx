@@ -117,7 +117,7 @@ export default function ReportsPage() {
 <div class="metrics">
   <div class="metric"><div class="metric-label">Sales</div><div class="metric-value">${currencyFormatter.format(report?.totalSales ?? 0)}</div></div>
   <div class="metric"><div class="metric-label">Expenses</div><div class="metric-value">${currencyFormatter.format(report?.expensesTotal ?? 0)}</div></div>
-  <div class="metric"><div class="metric-label">Net</div><div class="metric-value">${currencyFormatter.format(report?.netAmount ?? 0)}</div></div>
+  <div class="metric"><div class="metric-label">Balance</div><div class="metric-value">${currencyFormatter.format(report?.netAmount ?? 0)}</div></div>
   <div class="metric"><div class="metric-label">Receipts</div><div class="metric-value">${report?.salesCount ?? 0}</div></div>
 </div>
 <h3>Best Sellers</h3>
@@ -209,7 +209,7 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
             {[
               { label: 'Sales', value: currencyFormatter.format(report?.totalSales ?? 0) },
               { label: 'Expenses', value: currencyFormatter.format(report?.expensesTotal ?? 0) },
-              { label: 'Net', value: currencyFormatter.format(report?.netAmount ?? 0) },
+              { label: 'Balance', value: currencyFormatter.format(report?.netAmount ?? 0) },
               { label: 'Receipts', value: String(report?.salesCount ?? 0) },
             ].map((metric) => (
               <div key={metric.label} className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -362,7 +362,7 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
               {[
                 { label: 'Sales', value: currencyFormatter.format(report?.totalSales ?? 0) },
                 { label: 'Expenses', value: currencyFormatter.format(report?.expensesTotal ?? 0) },
-                { label: 'Net', value: currencyFormatter.format(report?.netAmount ?? 0) },
+                { label: 'Balance', value: currencyFormatter.format(report?.netAmount ?? 0) },
                 { label: 'Receipts', value: String(report?.salesCount ?? 0) },
               ].map((m) => (
                 <div key={m.label} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">

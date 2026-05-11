@@ -1,67 +1,59 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
-import { api, ApiError } from '../services/api';
-import type { Delivery } from '../types';
+import { api } from '../services/api';
+import type { Receipt } from '../types';
+import { formatUGX as ugx } from '../lib/currency';
 
-const STATUS_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'assigned', label: 'Confirmed' },
-  { key: 'picked_up', label: 'Picked Up' },
-  { key: 'delivered', label: 'Delivered' },
-  { key: 'failed', label: 'Failed' },
-  { key: 'cancelled', label: 'Cancelled' },
-] as const;
-
-type StatusKey = typeof STATUS_TABS[number]['key'];
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  assigned: 'bg-blue-100 text-blue-700',
-  picked_up: 'bg-violet-100 text-violet-700',
-  delivered: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-rose-100 text-rose-700',
-  cancelled: 'bg-slate-100 text-slate-500',
-};
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
-
-function getError(e: unknown) {
-  if (e instanceof ApiError) return e.message;
-  if (e instanceof Error) return e.message;
-  return 'Something went wrong';
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function weekStartStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toISOString().slice(0, 10);
+}
+function monthStartStr() {
+  const d = new Date();
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
 }
 
-const NEXT_STATUS: Record<string, string> = {
-  pending: 'assigned',
-  assigned: 'picked_up',
-  picked_up: 'delivered',
+type QuickRange = 'today' | 'week' | 'month' | 'custom';
+
+const PAYMENT_LABELS: Record<string, string> = {
+  cash: 'Cash',
+  mtn_mobile_money: 'MTN MoMo',
+  airtel_money: 'Airtel Money',
+  bank_card: 'Bank Card',
+  bank_transfer: 'Bank Transfer',
 };
 
 export default function OrdersPage() {
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<StatusKey>('all');
+  const [quickRange, setQuickRange] = useState<QuickRange>('today');
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
+  const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [pageError, setPageError] = useState('');
 
-  const deliveriesQuery = useQuery({
-    queryKey: ['deliveries', activeTab === 'all' ? undefined : activeTab],
-    queryFn: () => api.pos.deliveries(activeTab === 'all' ? undefined : { status: activeTab }),
+  const setRange = (range: QuickRange) => {
+    setQuickRange(range);
+    const today = todayStr();
+    if (range === 'today') { setStartDate(today); setEndDate(today); }
+    else if (range === 'week') { setStartDate(weekStartStr()); setEndDate(today); }
+    else if (range === 'month') { setStartDate(monthStartStr()); setEndDate(today); }
+  };
+
+  const receiptsQuery = useQuery({
+    queryKey: ['receipts', startDate, endDate, search],
+    queryFn: () => api.pos.receipts({ startDate, endDate, search: search || undefined }),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.pos.updateDelivery(id, { status }),
-    onSuccess: async () => {
-      setPageError('');
-      await queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-    },
-    onError: (e) => setPageError(getError(e)),
-  });
+  const receipts = receiptsQuery.data?.receipts ?? [];
+  const total = receipts.reduce((sum, r) => sum + r.total, 0);
 
-  const deliveries = deliveriesQuery.data?.deliveries ?? [];
+  const periodLabel = quickRange === 'today' ? 'Today'
+    : quickRange === 'week' ? 'This Week'
+    : quickRange === 'month' ? 'This Month'
+    : `${startDate} to ${endDate}`;
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
@@ -70,51 +62,74 @@ export default function OrdersPage() {
         <div className="mx-auto max-w-4xl space-y-6">
 
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Orders</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Orders</h1>
-            <p className="mt-1 text-sm text-slate-500">Track and manage all customer orders.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Sales</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Sales &amp; Receipts</h1>
+            <p className="mt-1 text-sm text-slate-500">View all completed sales transactions.</p>
           </section>
 
-          {pageError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {pageError}
-            </div>
-          )}
+          {/* Filter bar */}
+          <div className="rounded-[28px] border border-white/70 bg-white/90 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <div className="flex flex-wrap items-center gap-3">
+              {(['today', 'week', 'month', 'custom'] as QuickRange[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                    quickRange === r
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {r === 'today' ? 'Today' : r === 'week' ? 'This Week' : r === 'month' ? 'This Month' : 'Custom Range'}
+                </button>
+              ))}
 
-          {/* Status tabs */}
-          <div className="flex flex-wrap gap-1">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                  activeTab === tab.key
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              {quickRange === 'custom' && (
+                <>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-emerald-400"
+                  />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-emerald-400"
+                  />
+                </>
+              )}
+
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search receipt #…"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-emerald-400"
+              />
+
+              <div className="ml-auto text-right">
+                <p className="text-xs text-slate-500">{periodLabel} · {receipts.length} sales</p>
+                <p className="font-bold text-emerald-700">{ugx(total)}</p>
+              </div>
+            </div>
           </div>
 
-          {/* Orders list */}
+          {/* Receipts list */}
           <div className="space-y-3">
-            {deliveriesQuery.isLoading && (
-              <p className="py-8 text-center text-sm text-slate-400">Loading orders…</p>
+            {receiptsQuery.isLoading && (
+              <p className="py-8 text-center text-sm text-slate-400">Loading receipts…</p>
             )}
-            {!deliveriesQuery.isLoading && deliveries.length === 0 && (
-              <p className="py-8 text-center text-sm text-slate-400">No orders found</p>
+            {!receiptsQuery.isLoading && receipts.length === 0 && (
+              <p className="py-8 text-center text-sm text-slate-400">No sales found for this period</p>
             )}
-            {deliveries.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                expanded={expandedId === order.id}
-                onToggle={() => setExpandedId(expandedId === order.id ? null : order.id)}
-                onAdvance={(id, status) => updateMutation.mutate({ id, status })}
-                advancing={updateMutation.isPending}
+            {receipts.map((receipt) => (
+              <ReceiptRow
+                key={receipt.id}
+                receipt={receipt}
+                expanded={expandedId === receipt.id}
+                onToggle={() => setExpandedId(expandedId === receipt.id ? null : receipt.id)}
               />
             ))}
           </div>
@@ -124,106 +139,71 @@ export default function OrdersPage() {
   );
 }
 
-function OrderCard({
-  order,
-  expanded,
-  onToggle,
-  onAdvance,
-  advancing,
-}: {
-  order: Delivery;
-  expanded: boolean;
-  onToggle: () => void;
-  onAdvance: (id: string, status: string) => void;
-  advancing: boolean;
-}) {
-  const colorCls = STATUS_COLORS[order.status] ?? 'bg-slate-100 text-slate-500';
-  const nextStatus = NEXT_STATUS[order.status];
-
-  const statusLabel = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
+function ReceiptRow({ receipt, expanded, onToggle }: { receipt: Receipt; expanded: boolean; onToggle: () => void }) {
   return (
     <div className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
       <button type="button" onClick={onToggle} className="w-full px-5 py-4 text-left">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <p className="truncate font-semibold text-slate-900">{order.customerName}</p>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${colorCls}`}>
-                {statusLabel(order.status)}
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="font-mono text-sm font-semibold text-slate-900">#{receipt.receiptNumber}</p>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                {PAYMENT_LABELS[receipt.paymentMethod] ?? receipt.paymentMethod}
               </span>
             </div>
-            <p className="mt-1 truncate text-xs text-slate-500">{order.deliveryAddress}</p>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <p className="text-sm font-bold text-emerald-700">{ugx(order.deliveryFee)}</p>
-            <p className="text-xs text-slate-400">
-              {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('en-UG') : '—'}
+            <p className="mt-0.5 text-xs text-slate-500">
+              {receipt.customerName ?? 'Walk-in'} · {receipt.cashierName} · {new Date(receipt.createdAt).toLocaleString('en-UG')}
             </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="font-bold text-emerald-700">{ugx(receipt.total)}</p>
+            {receipt.discount > 0 && (
+              <p className="text-xs text-slate-400">disc. {ugx(receipt.discount)}</p>
+            )}
           </div>
         </div>
       </button>
 
       {expanded && (
         <div className="border-t border-slate-100 px-5 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-xs text-slate-400">Customer phone</p>
-              <p className="font-medium text-slate-900">{order.customerPhone ?? '—'}</p>
-            </div>
-            {order.receiptReference && (
-              <div>
-                <p className="text-xs text-slate-400">Receipt</p>
-                <p className="font-mono text-xs text-slate-900">{order.receiptReference}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-slate-400">Delivery fee</p>
-              <p className="font-semibold text-slate-900">{ugx(order.deliveryFee)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Status</p>
-              <p className="font-semibold capitalize text-slate-900">{statusLabel(order.status)}</p>
-            </div>
+          <div className="rounded-2xl border border-slate-100 overflow-hidden">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-400">Item</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-400">Qty</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-400">Unit price</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-400">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {receipt.items.map((item, i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-2 text-slate-900">{item.productName}</td>
+                    <td className="px-4 py-2 text-right text-slate-600">{item.quantity}</td>
+                    <td className="px-4 py-2 text-right text-slate-600">{ugx(item.unitPrice)}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-slate-900">{ugx(item.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          {order.notes && (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-              <p className="text-xs font-semibold text-slate-400">Notes</p>
-              <p className="mt-1 text-slate-700">{order.notes}</p>
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500">Subtotal</span>
+            <span className="font-semibold">{ugx(receipt.subtotal)}</span>
+          </div>
+          {receipt.discount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Discount</span>
+              <span className="font-semibold text-rose-600">-{ugx(receipt.discount)}</span>
             </div>
           )}
-
-          {nextStatus && (
-            <button
-              type="button"
-              onClick={() => onAdvance(order.id, nextStatus)}
-              disabled={advancing}
-              className="w-full rounded-full bg-slate-900 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-            >
-              {advancing ? 'Updating…' : `Mark as ${statusLabel(nextStatus)}`}
-            </button>
-          )}
-
-          {(order.status !== 'delivered' && order.status !== 'failed' && order.status !== 'cancelled') && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => onAdvance(order.id, 'cancelled')}
-                disabled={advancing}
-                className="flex-1 rounded-full bg-rose-50 py-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
-              >
-                Cancel order
-              </button>
-              <button
-                type="button"
-                onClick={() => onAdvance(order.id, 'failed')}
-                disabled={advancing}
-                className="flex-1 rounded-full bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
-              >
-                Mark failed
-              </button>
-            </div>
+          <div className="flex justify-between border-t border-slate-100 pt-3 text-sm font-bold">
+            <span>Total</span>
+            <span className="text-emerald-700">{ugx(receipt.total)}</span>
+          </div>
+          {receipt.notes && (
+            <p className="text-xs text-slate-400">Note: {receipt.notes}</p>
           )}
         </div>
       )}

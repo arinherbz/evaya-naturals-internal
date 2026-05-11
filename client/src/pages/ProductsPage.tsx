@@ -3,9 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import type { ProductListItem } from '../types';
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
+import { formatUGX as ugx } from '../lib/currency';
 
 type ProductFormState = {
   name: string;
@@ -193,19 +191,7 @@ export default function ProductsPage() {
                 className={inputCls}
                 required
               />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <input
-                  value={productForm.sku}
-                  onChange={(e) => setProductForm((c) => ({ ...c, sku: e.target.value }))}
-                  placeholder="SKU (optional)"
-                  className={inputNwCls}
-                />
-                <input
-                  value={productForm.barcode}
-                  onChange={(e) => setProductForm((c) => ({ ...c, barcode: e.target.value }))}
-                  placeholder="Barcode (optional)"
-                  className={inputNwCls}
-                />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <select
                   value={productForm.unitType}
                   onChange={(e) => setProductForm((c) => ({ ...c, unitType: e.target.value }))}
@@ -312,7 +298,7 @@ export default function ProductsPage() {
                       onClick={() => setDeletingProductId(product.id)}
                       className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
                     >
-                      Delete
+                      Deactivate
                     </button>
                   </div>
                 </div>
@@ -364,7 +350,7 @@ export default function ProductsPage() {
                             onClick={() => setDeletingProductId(product.id)}
                             className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
                           >
-                            Delete
+                            Deactivate
                           </button>
                         </div>
                       </td>
@@ -388,7 +374,7 @@ export default function ProductsPage() {
       {deletingProductId && deletingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-900">Delete product?</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Deactivate product?</h2>
             <p className="mt-2 text-sm text-slate-500">
               <strong className="text-slate-900">{deletingProduct.name}</strong> will be deactivated and removed from all views. This cannot be undone.
             </p>
@@ -399,7 +385,7 @@ export default function ProductsPage() {
                 disabled={deleteMutation.isPending}
                 className="flex-1 rounded-full bg-rose-600 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
               >
-                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+                {deleteMutation.isPending ? 'Deactivating…' : 'Deactivate'}
               </button>
               <button
                 type="button"

@@ -170,10 +170,10 @@ export default function DashboardPage() {
               onClick={() => navigate('/reports')}
             />
             <KPICard
-              label="Open orders"
+              label="Deliveries"
               value={String(openOrders)}
               sub="pending + confirmed"
-              onClick={() => navigate('/orders')}
+              onClick={() => navigate('/deliveries')}
             />
             <KPICard
               label="Receipts today"

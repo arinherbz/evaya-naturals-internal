@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../hooks/useAuth';
 import { api, ApiError } from '../services/api';
+import { formatUGX as ugx } from '../lib/currency';
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
@@ -39,11 +40,6 @@ const statusColors: Record<DeliveryStatus, string> = {
   cancelled: 'bg-slate-100 text-slate-500',
 };
 
-const currencyFormatter = new Intl.NumberFormat('en-UG', {
-  style: 'currency',
-  currency: 'UGX',
-  maximumFractionDigits: 0,
-});
 
 const STATUS_TABS = [
   { label: 'All', value: '' },
@@ -332,7 +328,7 @@ export default function DeliveriesPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-                      <p className="text-lg font-semibold text-emerald-700">{currencyFormatter.format(delivery.deliveryFee)}</p>
+                      <p className="text-lg font-semibold text-emerald-700">{ugx(delivery.deliveryFee)}</p>
                       <select
                         value={delivery.status}
                         onChange={(e) => updateMutation.mutate({ id: delivery.id, payload: { status: e.target.value } })}
