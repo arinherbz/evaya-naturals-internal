@@ -1562,34 +1562,47 @@ posRoutes.post('/sales', async (c) => {
       const productBatches = batches.filter((batch) => batch.productId === item.productId);
       const sellableBatches = productBatches.filter((batch) => batch.quantityRemaining > 0 && new Date(batch.expiryDate) >= now);
       const expiredAvailable = productBatches.some((batch) => batch.quantityRemaining > 0 && new Date(batch.expiryDate) < now);
-      const availableQuantity = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+      const hasBatches = productBatches.length > 0;
+      const batchAvailable = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+      const inventoryRow = inventoryMap.get(item.productId);
+      const inventoryQty = inventoryRow?.quantity ?? 0;
+      // Mirror POS display logic exactly: batches win if they exist, else use inventory.quantity
+      const availableQuantity = hasBatches ? batchAvailable : inventoryQty;
+
+      // Log for diagnostics
+      console.log(`[SALE STOCK CHECK] product=${item.productId} name="${product.name}" requested=${item.quantity} available=${availableQuantity} hasBatches=${hasBatches} batchAvailable=${batchAvailable} inventoryQty=${inventoryQty} branchId=${branchId}`);
 
       if (availableQuantity <= 0 && expiredAvailable) {
         throw new Error(`${product.name} only has expired stock`);
       }
 
       if (availableQuantity < item.quantity) {
+        console.error(`[SALE STOCK FAIL] product=${item.productId} name="${product.name}" requested=${item.quantity} available=${availableQuantity} hasBatches=${hasBatches} batchAvailable=${batchAvailable} inventoryQty=${inventoryQty} branchId=${branchId}`);
         throw new Error(`Insufficient stock for ${product.name}`);
       }
 
       const allocations: Array<{ batchId: string; quantity: number }> = [];
-      let remaining = item.quantity;
-      for (const batch of sellableBatches) {
-        if (remaining === 0) break;
-        const take = Math.min(batch.quantityRemaining, remaining);
-        allocations.push({ batchId: batch.id, quantity: take });
-        remaining -= take;
+      if (hasBatches) {
+        // FIFO allocation from sellable batches
+        let remaining = item.quantity;
+        for (const batch of sellableBatches) {
+          if (remaining === 0) break;
+          const take = Math.min(batch.quantityRemaining, remaining);
+          allocations.push({ batchId: batch.id, quantity: take });
+          remaining -= take;
+        }
+        if (remaining > 0) {
+          throw new Error(`Insufficient stock for ${product.name}`);
+        }
       }
-
-      if (remaining > 0) {
-        throw new Error(`Insufficient stock for ${product.name}`);
-      }
+      // No batches: inventory.quantity is the sole source; no batch allocation needed.
+      // The transaction below will reduce inventory.quantity directly.
 
       return {
         item,
         product,
         allocations,
-        inventory: inventoryMap.get(item.productId),
+        inventory: inventoryRow,
         lineTotal: product.sellingPrice * item.quantity,
       };
     });
@@ -1634,43 +1647,69 @@ posRoutes.post('/sales', async (c) => {
         })
         .where(eq(schema.inventory.id, inventory.id));
 
-      for (const allocation of line.allocations) {
-        const batch = batches.find((row) => row.id === allocation.batchId);
-        if (!batch) {
-          throw new Error('Batch allocation failed');
+      if (line.allocations.length > 0) {
+        // Batch-tracked: deduct from each batch and record per-allocation sale items
+        for (const allocation of line.allocations) {
+          const batch = batches.find((row) => row.id === allocation.batchId);
+          if (!batch) {
+            throw new Error('Batch allocation failed');
+          }
+
+          await tx.update(schema.batches)
+            .set({
+              quantityRemaining: batch.quantityRemaining - allocation.quantity,
+              isExpired: new Date(batch.expiryDate) < now,
+              updatedAt: nowIso,
+            })
+            .where(eq(schema.batches.id, batch.id));
+
+          await tx.insert(schema.saleItems).values({
+            saleId: sale.id,
+            productId: line.product.id,
+            batchId: batch.id,
+            quantity: allocation.quantity,
+            unitPrice: line.product.sellingPrice,
+            discount: 0,
+            total: allocation.quantity * line.product.sellingPrice,
+          });
+
+          await tx.insert(schema.inventoryMovements).values({
+            productId: line.product.id,
+            branchId,
+            batchId: batch.id,
+            movementType: 'sale',
+            quantity: -allocation.quantity,
+            referenceId: sale.id,
+            referenceType: 'sale',
+            reason: `Sale ${receiptNumber}`,
+            userId: user.id,
+          });
+
+          batch.quantityRemaining -= allocation.quantity;
         }
-
-        await tx.update(schema.batches)
-          .set({
-            quantityRemaining: batch.quantityRemaining - allocation.quantity,
-            isExpired: new Date(batch.expiryDate) < now,
-            updatedAt: nowIso,
-          })
-          .where(eq(schema.batches.id, batch.id));
-
+      } else {
+        // No-batch: inventory.quantity is the sole source; record one sale item without a batch
         await tx.insert(schema.saleItems).values({
           saleId: sale.id,
           productId: line.product.id,
-          batchId: batch.id,
-          quantity: allocation.quantity,
+          batchId: null,
+          quantity: line.item.quantity,
           unitPrice: line.product.sellingPrice,
           discount: 0,
-          total: allocation.quantity * line.product.sellingPrice,
+          total: line.item.quantity * line.product.sellingPrice,
         });
 
         await tx.insert(schema.inventoryMovements).values({
           productId: line.product.id,
           branchId,
-          batchId: batch.id,
+          batchId: null,
           movementType: 'sale',
-          quantity: -allocation.quantity,
+          quantity: -line.item.quantity,
           referenceId: sale.id,
           referenceType: 'sale',
           reason: `Sale ${receiptNumber}`,
           userId: user.id,
         });
-
-        batch.quantityRemaining -= allocation.quantity;
       }
     }
 

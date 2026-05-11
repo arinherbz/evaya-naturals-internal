@@ -7,7 +7,7 @@ export const saleItems = pgTable('sale_items', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   saleId: text('sale_id').notNull().references(() => sales.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => products.id),
-  batchId: text('batch_id').notNull().references(() => batches.id),
+  batchId: text('batch_id').references(() => batches.id),
   quantity: integer('quantity').notNull(),
   unitPrice: doublePrecision('unit_price').notNull(),
   discount: doublePrecision('discount').notNull().default(0),
