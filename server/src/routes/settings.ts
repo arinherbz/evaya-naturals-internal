@@ -292,6 +292,10 @@ settingsRoutes.patch('/staff/:id', async (c) => {
     })
     .where(eq(schema.users.id, userId));
 
+  if (payload.isActive === false) {
+    await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+  }
+
   const [user] = await db.select({
     id: schema.users.id,
     firstName: schema.users.firstName,
@@ -335,6 +339,7 @@ settingsRoutes.delete('/staff/:id', async (c) => {
   await db.update(schema.users)
     .set({ isActive: false, updatedAt: new Date().toISOString() })
     .where(eq(schema.users.id, userId));
+  await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
   return c.json({ message: 'Staff member deactivated' });
 });
 

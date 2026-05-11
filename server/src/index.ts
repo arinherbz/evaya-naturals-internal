@@ -66,6 +66,7 @@ if (appEnv.nodeEnv !== 'test') {
     serve({
       fetch: app.fetch,
       port,
+      hostname: '127.0.0.1',
     }, () => {
       console.log(`Server running on http://localhost:${port}`);
     });

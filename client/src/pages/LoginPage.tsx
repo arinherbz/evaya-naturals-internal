@@ -92,9 +92,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Admin sign in: admin@evaya.ug / admin123
-        </p>
       </div>
     </div>
   );

@@ -367,7 +367,11 @@ export default function ExpensesPage() {
                         {canDeleteExpenses && (
                           <button
                             type="button"
-                            onClick={() => deleteMutation.mutate(expense.id)}
+                            onClick={() => {
+                              if (window.confirm(`Delete "${expense.title}"? This cannot be undone.`)) {
+                                deleteMutation.mutate(expense.id);
+                              }
+                            }}
                             disabled={deleteMutation.isPending}
                             className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
                           >
