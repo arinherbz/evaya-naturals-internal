@@ -15,6 +15,8 @@ function persistBrandProfile(profile: { businessName: string; logoDataUrl?: stri
   window.dispatchEvent(new Event('evaya-brand-updated'));
 }
 
+const inputCls = 'rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400';
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [pageError, setPageError] = useState('');
@@ -218,21 +220,19 @@ export default function SettingsPage() {
     await resetPasswordMutation.mutateAsync();
   };
 
-  const inputStyle = { background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' } as const;
-
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#e2e8f0' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-24 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-5xl space-y-6">
 
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#3ADB82]/70">Settings</p>
-            <h1 className="mt-1 text-2xl font-semibold text-slate-100">Settings</h1>
-          </div>
+          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Settings</p>
+            <h1 className="mt-1 text-2xl font-semibold text-slate-900">Settings</h1>
+          </section>
 
           {pageError && (
-            <div className="rounded-xl border border-rose-800/40 bg-rose-900/20 px-4 py-3 text-sm text-rose-400">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
@@ -243,19 +243,18 @@ export default function SettingsPage() {
               <Card title="Business Profile" subtitle="Your business details and logo.">
                 {editingProfile ? (
                   <form className="grid gap-3" onSubmit={handleBusinessSubmit}>
-                    <div className="rounded-xl p-4" style={{ background: '#141A15' }}>
-                      <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">Logo</p>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Logo</p>
                       <div className="flex items-center gap-4">
                         <BrandMark />
-                        <input type="file" accept="image/*" onChange={handleLogoChange} className="text-sm text-slate-400" />
+                        <input type="file" accept="image/*" onChange={handleLogoChange} className="text-sm text-slate-500" />
                       </div>
                     </div>
                     <input
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                       placeholder="Business name"
-                      className="rounded-xl px-4 py-3 text-sm outline-none"
-                      style={inputStyle}
+                      className={inputCls}
                       required
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -263,8 +262,7 @@ export default function SettingsPage() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="Phone"
-                        className="rounded-xl px-4 py-3 text-sm outline-none"
-                        style={inputStyle}
+                        className={inputCls}
                         required
                       />
                       <input
@@ -272,8 +270,7 @@ export default function SettingsPage() {
                         onChange={(e) => setEmail(e.target.value)}
                         type="email"
                         placeholder="Email"
-                        className="rounded-xl px-4 py-3 text-sm outline-none"
-                        style={inputStyle}
+                        className={inputCls}
                         required
                       />
                     </div>
@@ -281,24 +278,21 @@ export default function SettingsPage() {
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       placeholder="Address (optional)"
-                      className="rounded-xl px-4 py-3 text-sm outline-none"
-                      style={inputStyle}
+                      className={inputCls}
                     />
-                    <div className="rounded-xl px-4 py-3 text-sm text-slate-500" style={{ background: '#141A15' }}>Currency: UGX</div>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-400">Currency: UGX</div>
                     <div className="flex gap-3">
                       <button
                         type="submit"
                         disabled={businessMutation.isPending}
-                        className="rounded-xl px-5 py-3 text-sm font-medium transition disabled:opacity-60"
-                        style={{ background: '#1B4332', color: '#3ADB82' }}
+                        className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                       >
                         {businessMutation.isPending ? 'Saving…' : 'Save'}
                       </button>
                       <button
                         type="button"
                         onClick={() => setEditingProfile(false)}
-                        className="rounded-xl px-5 py-3 text-sm text-slate-400 hover:text-slate-200 transition"
-                        style={{ background: '#141A15' }}
+                        className="rounded-full border border-slate-200 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
                         Cancel
                       </button>
@@ -306,7 +300,7 @@ export default function SettingsPage() {
                   </form>
                 ) : (
                   <div className="space-y-3">
-                    <div className="rounded-xl p-4" style={{ background: '#141A15' }}>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                       <BrandMark />
                     </div>
                     {[
@@ -316,16 +310,15 @@ export default function SettingsPage() {
                       { label: 'Address', value: address || '—' },
                       { label: 'Currency', value: 'UGX' },
                     ].map((row) => (
-                      <div key={row.label} className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: '#141A15' }}>
-                        <span className="text-xs text-slate-500">{row.label}</span>
-                        <span className="text-sm text-slate-200">{row.value}</span>
+                      <div key={row.label} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                        <span className="text-xs text-slate-400">{row.label}</span>
+                        <span className="text-sm text-slate-900">{row.value}</span>
                       </div>
                     ))}
                     <button
                       type="button"
                       onClick={() => setEditingProfile(true)}
-                      className="rounded-xl px-4 py-2 text-sm font-medium transition"
-                      style={{ background: '#141A15', color: '#3ADB82', border: '1px solid rgba(58,219,130,0.2)' }}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       Edit profile
                     </button>
@@ -342,8 +335,7 @@ export default function SettingsPage() {
                       value={expiryAlertDays}
                       onChange={(e) => setExpiryAlertDays(e.target.value)}
                       placeholder="Expiry alert days"
-                      className="rounded-xl px-4 py-3 text-sm outline-none"
-                      style={inputStyle}
+                      className={inputCls}
                       required
                     />
                     <input
@@ -352,8 +344,7 @@ export default function SettingsPage() {
                       value={lowStockDefaultThreshold}
                       onChange={(e) => setLowStockDefaultThreshold(e.target.value)}
                       placeholder="Low stock level"
-                      className="rounded-xl px-4 py-3 text-sm outline-none"
-                      style={inputStyle}
+                      className={inputCls}
                       required
                     />
                   </div>
@@ -362,22 +353,19 @@ export default function SettingsPage() {
                     onChange={(e) => setReceiptFooterMessage(e.target.value)}
                     rows={2}
                     placeholder="Receipt footer message"
-                    className="rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                    style={inputStyle}
+                    className={`${inputCls} resize-none`}
                   />
                   <textarea
                     value={reportFooterMessage}
                     onChange={(e) => setReportFooterMessage(e.target.value)}
                     rows={2}
                     placeholder="Report footer message"
-                    className="rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                    style={inputStyle}
+                    className={`${inputCls} resize-none`}
                   />
                   <button
                     type="submit"
                     disabled={systemMutation.isPending}
-                    className="justify-self-start rounded-xl px-5 py-3 text-sm font-medium transition disabled:opacity-60"
-                    style={{ background: '#1B4332', color: '#3ADB82' }}
+                    className="justify-self-start rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
                     {systemMutation.isPending ? 'Saving…' : 'Save alerts'}
                   </button>
@@ -393,14 +381,17 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => { resetStaffForm(); setShowStaffForm((v) => !v); }}
-                    className="w-full rounded-xl py-2.5 text-sm font-medium transition"
-                    style={{ background: showStaffForm ? '#141A15' : '#1B4332', color: showStaffForm ? '#94a3b8' : '#3ADB82', border: '1px solid rgba(255,255,255,0.06)' }}
+                    className={`w-full rounded-full py-2.5 text-sm font-medium transition ${
+                      showStaffForm && !editingUserId
+                        ? 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                        : 'bg-slate-900 text-white hover:bg-slate-800'
+                    }`}
                   >
                     {showStaffForm && !editingUserId ? 'Cancel' : '+ Add staff member'}
                   </button>
 
                   {showStaffForm && (
-                    <form className="grid gap-3 rounded-xl p-4" style={{ background: '#141A15' }} onSubmit={handleStaffSubmit}>
+                    <form className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4" onSubmit={handleStaffSubmit}>
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                         {editingUserId ? 'Edit staff member' : 'New staff member'}
                       </p>
@@ -409,16 +400,14 @@ export default function SettingsPage() {
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
                           placeholder="First name"
-                          className="rounded-xl px-4 py-3 text-sm outline-none"
-                          style={inputStyle}
+                          className={inputCls}
                           required
                         />
                         <input
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
                           placeholder="Last name"
-                          className="rounded-xl px-4 py-3 text-sm outline-none"
-                          style={inputStyle}
+                          className={inputCls}
                           required
                         />
                       </div>
@@ -427,8 +416,7 @@ export default function SettingsPage() {
                         onChange={(e) => setStaffEmail(e.target.value)}
                         type="email"
                         placeholder="Email"
-                        className="rounded-xl px-4 py-3 text-sm outline-none"
-                        style={inputStyle}
+                        className={inputCls}
                         required
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -436,14 +424,12 @@ export default function SettingsPage() {
                           value={staffPhone}
                           onChange={(e) => setStaffPhone(e.target.value)}
                           placeholder="Phone"
-                          className="rounded-xl px-4 py-3 text-sm outline-none"
-                          style={inputStyle}
+                          className={inputCls}
                         />
                         <select
                           value={roleId}
                           onChange={(e) => setRoleId(e.target.value)}
-                          className="rounded-xl px-4 py-3 text-sm outline-none"
-                          style={inputStyle}
+                          className={inputCls}
                         >
                           {roles.map((role) => (
                             <option key={role.id} value={role.id}>{role.name}</option>
@@ -456,21 +442,19 @@ export default function SettingsPage() {
                           onChange={(e) => setPassword(e.target.value)}
                           type="password"
                           placeholder="Temporary password"
-                          className="rounded-xl px-4 py-3 text-sm outline-none"
-                          style={inputStyle}
+                          className={inputCls}
                           required
                         />
                       )}
-                      <label className="flex items-center justify-between rounded-xl px-4 py-3 text-sm" style={{ background: '#0D1610' }}>
-                        <span className="text-slate-400">Active</span>
+                      <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                        <span className="text-slate-600">Active</span>
                         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 rounded" />
                       </label>
                       <div className="flex gap-3">
                         <button
                           type="submit"
                           disabled={staffMutation.isPending}
-                          className="rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-60"
-                          style={{ background: '#1B4332', color: '#3ADB82' }}
+                          className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                         >
                           {staffMutation.isPending ? 'Saving…' : editingUserId ? 'Save changes' : 'Add staff'}
                         </button>
@@ -478,8 +462,7 @@ export default function SettingsPage() {
                           <button
                             type="button"
                             onClick={resetStaffForm}
-                            className="rounded-xl px-5 py-2.5 text-sm text-slate-400"
-                            style={{ background: '#0D1610' }}
+                            className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                           >
                             New staff
                           </button>
@@ -489,18 +472,18 @@ export default function SettingsPage() {
                   )}
 
                   {users.length === 0 && (
-                    <div className="rounded-xl px-4 py-8 text-center text-sm text-slate-500" style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
+                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
                       No staff users yet.
                     </div>
                   )}
 
                   {users.map((u) => (
-                    <div key={u.id} className="rounded-xl p-4" style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div key={u.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-200">{u.firstName} {u.lastName}</p>
+                          <p className="text-sm font-medium text-slate-900">{u.firstName} {u.lastName}</p>
                           <p className="mt-0.5 text-xs text-slate-500">{u.role.name} · {u.email} · {u.isActive ? 'Active' : 'Inactive'}</p>
-                          <p className="mt-1 text-xs text-slate-600">
+                          <p className="mt-1 text-xs text-slate-400">
                             Last sign in {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
                           </p>
                         </div>
@@ -508,24 +491,21 @@ export default function SettingsPage() {
                           <button
                             type="button"
                             onClick={() => loadUser(u.id)}
-                            className="rounded-lg px-3 py-1.5 text-xs font-medium transition"
-                            style={{ background: '#0D1610', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.06)' }}
+                            className="rounded-lg bg-white border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => { setResetUserId(u.id); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
-                            className="rounded-lg px-3 py-1.5 text-xs font-medium transition"
-                            style={{ background: '#0D1610', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.06)' }}
+                            className="rounded-lg bg-white border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                           >
                             Reset pwd
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeletingUserId(u.id)}
-                            className="rounded-lg px-3 py-1.5 text-xs font-medium transition"
-                            style={{ background: '#2a1010', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}
+                            className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-100"
                           >
                             Delete
                           </button>
@@ -534,22 +514,20 @@ export default function SettingsPage() {
 
                       {resetUserId === u.id && (
                         <form className="mt-4 grid gap-2" onSubmit={handleResetPassword}>
-                          {passwordError && <p className="text-xs text-rose-400">{passwordError}</p>}
+                          {passwordError && <p className="text-xs text-rose-600">{passwordError}</p>}
                           <input
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
                             type="password"
                             placeholder="Current password (for verification)"
-                            className="rounded-xl px-4 py-2.5 text-sm outline-none"
-                            style={inputStyle}
+                            className={inputCls}
                           />
                           <input
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             type="password"
                             placeholder="New password"
-                            className="rounded-xl px-4 py-2.5 text-sm outline-none"
-                            style={inputStyle}
+                            className={inputCls}
                             required
                           />
                           <input
@@ -557,24 +535,21 @@ export default function SettingsPage() {
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             type="password"
                             placeholder="Confirm new password"
-                            className="rounded-xl px-4 py-2.5 text-sm outline-none"
-                            style={inputStyle}
+                            className={inputCls}
                             required
                           />
                           <div className="flex gap-2">
                             <button
                               type="submit"
                               disabled={resetPasswordMutation.isPending}
-                              className="rounded-xl px-4 py-2 text-xs font-medium disabled:opacity-60"
-                              style={{ background: '#1B4332', color: '#3ADB82' }}
+                              className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                             >
                               {resetPasswordMutation.isPending ? 'Saving…' : 'Save password'}
                             </button>
                             <button
                               type="button"
                               onClick={() => { setResetUserId(''); setPasswordError(''); }}
-                              className="rounded-xl px-4 py-2 text-xs text-slate-400"
-                              style={{ background: '#0D1610' }}
+                              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                             >
                               Cancel
                             </button>
@@ -594,27 +569,25 @@ export default function SettingsPage() {
       {deletingUserId && (() => {
         const target = users.find((u) => u.id === deletingUserId);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-            <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <h3 className="text-base font-semibold text-slate-100">Delete staff member?</h3>
-              <p className="mt-2 text-sm text-slate-400">
-                <span className="text-slate-200">{target?.firstName} {target?.lastName}</span> will be deactivated and can no longer log in.
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
+              <h3 className="text-base font-semibold text-slate-900">Delete staff member?</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                <span className="text-slate-900">{target?.firstName} {target?.lastName}</span> will be deactivated and can no longer log in.
               </p>
               <div className="mt-5 flex gap-3">
                 <button
                   type="button"
                   onClick={() => deleteStaffMutation.mutate(deletingUserId)}
                   disabled={deleteStaffMutation.isPending}
-                  className="rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-60"
-                  style={{ background: '#7f1d1d', color: '#fca5a5' }}
+                  className="rounded-full bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
                 >
                   {deleteStaffMutation.isPending ? 'Deleting…' : 'Delete'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setDeletingUserId('')}
-                  className="rounded-xl px-5 py-2.5 text-sm text-slate-400"
-                  style={{ background: '#141A15' }}
+                  className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -629,8 +602,8 @@ export default function SettingsPage() {
 
 function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+    <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
       <div className="mt-4">{children}</div>
     </div>

@@ -83,6 +83,9 @@ function printExpenses(expenses: { title: string; category: string; amount: numb
   }
 }
 
+const inputCls = 'rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400';
+const inputFullCls = `w-full ${inputCls}`;
+
 export default function ExpensesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -174,37 +177,36 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#E2E8E4' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-20 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-6xl space-y-6">
 
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: '#3ADB82' }}>Expenses</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Expenses</h1>
-            <p className="mt-1 text-sm" style={{ color: '#6B7F73' }}>Record and review business spending.</p>
+          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Expenses</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Expenses</h1>
+            <p className="mt-1 text-sm text-slate-500">Record and review business spending.</p>
           </section>
 
           {pageError && (
-            <div className="rounded-2xl border border-rose-800/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-300">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
 
           {/* Filter bar */}
-          <div className="rounded-2xl p-4" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <div className="rounded-[28px] border border-white/70 bg-white/90 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-wrap items-center gap-3">
               {(['today', 'week', 'month', 'custom'] as QuickRange[]).map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => setRange(r)}
-                  className="rounded-xl px-4 py-2 text-xs font-semibold transition"
-                  style={
+                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
                     quickRange === r
-                      ? { background: '#1B4332', color: '#3ADB82' }
-                      : { background: '#141A15', color: '#6B7F73' }
-                  }
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
                   {r === 'today' ? 'Today' : r === 'week' ? 'This Week' : r === 'month' ? 'This Month' : 'Custom Range'}
                 </button>
@@ -216,29 +218,26 @@ export default function ExpensesPage() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="rounded-xl px-4 py-2 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                   />
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="rounded-xl px-4 py-2 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                   />
                 </>
               )}
 
               <div className="ml-auto flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-xs" style={{ color: '#6B7F73' }}>{periodLabel}</p>
-                  <p className="font-mono-nums font-black" style={{ color: '#3ADB82' }}>{ugx(total)}</p>
+                  <p className="text-xs text-slate-500">{periodLabel}</p>
+                  <p className="font-bold text-emerald-700">{ugx(total)}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => printExpenses(expenses, total, periodLabel)}
-                  className="rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:brightness-110"
-                  style={{ background: '#141A15', color: '#A0ABA4' }}
+                  className="rounded-full border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   Export PDF
                 </button>
@@ -249,11 +248,11 @@ export default function ExpensesPage() {
           <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
 
             {/* Expense form */}
-            <div className="rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-white">{expenseId ? 'Edit expense' : 'Add expense'}</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{expenseId ? 'Edit expense' : 'Add expense'}</h2>
                 {expenseId && (
-                  <button type="button" onClick={resetForm} className="text-xs" style={{ color: '#6B7F73' }}>
+                  <button type="button" onClick={resetForm} className="text-xs font-semibold text-slate-400 transition hover:text-slate-600">
                     Clear
                   </button>
                 )}
@@ -264,8 +263,7 @@ export default function ExpensesPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Expense title"
                   disabled={!canManageExpenses}
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                  className={inputFullCls}
                   required
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -273,8 +271,7 @@ export default function ExpensesPage() {
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     disabled={!canManageExpenses}
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                   >
                     {categories.map((c) => (
                       <option key={c} value={c}>{c}</option>
@@ -287,8 +284,7 @@ export default function ExpensesPage() {
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="Amount (UGX)"
                     disabled={!canManageExpenses}
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                     required
                   />
                 </div>
@@ -297,8 +293,7 @@ export default function ExpensesPage() {
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as (typeof paymentMethodOptions)[number]['value'])}
                     disabled={!canManageExpenses}
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                   >
                     {paymentMethodOptions.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -309,8 +304,7 @@ export default function ExpensesPage() {
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
                     disabled={!canManageExpenses}
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                     required
                   />
                 </div>
@@ -320,14 +314,12 @@ export default function ExpensesPage() {
                   rows={3}
                   placeholder="Description (optional)"
                   disabled={!canManageExpenses}
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                  className={`${inputFullCls} resize-none`}
                 />
                 <button
                   type="submit"
                   disabled={!canManageExpenses || expenseMutation.isPending}
-                  className="w-full rounded-xl py-3 text-sm font-bold transition disabled:opacity-60 hover:brightness-110"
-                  style={{ background: '#1B4332', color: '#3ADB82' }}
+                  className="w-full rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                 >
                   {expenseMutation.isPending ? 'Saving…' : expenseId ? 'Save expense' : 'Add expense'}
                 </button>
@@ -335,20 +327,18 @@ export default function ExpensesPage() {
             </div>
 
             {/* Expense list */}
-            <div className="rounded-2xl" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between px-6 py-5">
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-semibold text-slate-900">
                   {periodLabel}
-                  <span className="ml-2 text-sm font-normal" style={{ color: '#6B7F73' }}>
-                    ({expenses.length} entries)
-                  </span>
+                  <span className="ml-2 text-sm font-normal text-slate-400">({expenses.length} entries)</span>
                 </h2>
-                <p className="font-mono-nums font-black" style={{ color: '#3ADB82' }}>{ugx(total)}</p>
+                <p className="font-bold text-emerald-700">{ugx(total)}</p>
               </div>
 
-              <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.03)' }}>
+              <div className="divide-y divide-slate-50">
                 {expenses.length === 0 && !expensesQuery.isLoading && (
-                  <p className="px-6 py-8 text-center text-sm" style={{ color: '#6B7F73' }}>
+                  <p className="px-6 py-8 text-center text-sm text-slate-400">
                     No expenses for this period
                   </p>
                 )}
@@ -356,23 +346,22 @@ export default function ExpensesPage() {
                   <div key={expense.id} className="px-6 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-white">{expense.title}</p>
-                        <p className="mt-0.5 text-xs" style={{ color: '#6B7F73' }}>
+                        <p className="font-semibold text-slate-900">{expense.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
                           {expense.category} · {new Date(expense.expenseDate).toLocaleDateString('en-UG')}
                           {expense.recordedByName ? ` · ${expense.recordedByName}` : ''}
                         </p>
                         {expense.description && (
-                          <p className="mt-1 text-xs" style={{ color: '#A0ABA4' }}>{expense.description}</p>
+                          <p className="mt-1 text-xs text-slate-400">{expense.description}</p>
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
-                        <p className="font-mono-nums font-bold text-white">{ugx(expense.amount)}</p>
+                        <p className="font-bold text-slate-900">{ugx(expense.amount)}</p>
                         {canManageExpenses && (
                           <button
                             type="button"
                             onClick={() => loadExpense(expense)}
-                            className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                            style={{ background: '#1A2E25', color: '#3ADB82' }}
+                            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
                           >
                             Edit
                           </button>
@@ -382,8 +371,7 @@ export default function ExpensesPage() {
                             type="button"
                             onClick={() => deleteMutation.mutate(expense.id)}
                             disabled={deleteMutation.isPending}
-                            className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
-                            style={{ background: 'rgba(239,68,68,0.12)', color: '#F87171' }}
+                            className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
                           >
                             Delete
                           </button>

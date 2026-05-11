@@ -16,13 +16,13 @@ const STATUS_TABS = [
 
 type StatusKey = typeof STATUS_TABS[number]['key'];
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending: { bg: 'rgba(245,158,11,0.12)', text: '#F59E0B' },
-  assigned: { bg: 'rgba(96,165,250,0.12)', text: '#60A5FA' },
-  picked_up: { bg: 'rgba(167,139,250,0.12)', text: '#A78BFA' },
-  delivered: { bg: 'rgba(58,219,130,0.12)', text: '#3ADB82' },
-  failed: { bg: 'rgba(239,68,68,0.12)', text: '#F87171' },
-  cancelled: { bg: 'rgba(107,127,115,0.12)', text: '#6B7F73' },
+const STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-700',
+  assigned: 'bg-blue-100 text-blue-700',
+  picked_up: 'bg-violet-100 text-violet-700',
+  delivered: 'bg-emerald-100 text-emerald-700',
+  failed: 'bg-rose-100 text-rose-700',
+  cancelled: 'bg-slate-100 text-slate-500',
 };
 
 const ugx = (n: number) =>
@@ -64,19 +64,19 @@ export default function OrdersPage() {
   const deliveries = deliveriesQuery.data?.deliveries ?? [];
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#E2E8E4' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-20 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-4xl space-y-6">
 
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: '#3ADB82' }}>Orders</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Orders</h1>
-            <p className="mt-1 text-sm" style={{ color: '#6B7F73' }}>Track and manage all customer orders.</p>
+          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Orders</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Orders</h1>
+            <p className="mt-1 text-sm text-slate-500">Track and manage all customer orders.</p>
           </section>
 
           {pageError && (
-            <div className="rounded-2xl border border-rose-800/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-300">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
@@ -88,12 +88,11 @@ export default function OrdersPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className="rounded-xl px-4 py-2 text-xs font-semibold transition"
-                style={
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
                   activeTab === tab.key
-                    ? { background: '#1B4332', color: '#3ADB82' }
-                    : { background: '#141A15', color: '#6B7F73' }
-                }
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
               >
                 {tab.label}
               </button>
@@ -103,10 +102,10 @@ export default function OrdersPage() {
           {/* Orders list */}
           <div className="space-y-3">
             {deliveriesQuery.isLoading && (
-              <p className="py-8 text-center text-sm" style={{ color: '#6B7F73' }}>Loading orders…</p>
+              <p className="py-8 text-center text-sm text-slate-400">Loading orders…</p>
             )}
             {!deliveriesQuery.isLoading && deliveries.length === 0 && (
-              <p className="py-8 text-center text-sm" style={{ color: '#6B7F73' }}>No orders found</p>
+              <p className="py-8 text-center text-sm text-slate-400">No orders found</p>
             )}
             {deliveries.map((order) => (
               <OrderCard
@@ -138,41 +137,27 @@ function OrderCard({
   onAdvance: (id: string, status: string) => void;
   advancing: boolean;
 }) {
-  const colors = STATUS_COLORS[order.status] ?? { bg: 'rgba(107,127,115,0.12)', text: '#6B7F73' };
+  const colorCls = STATUS_COLORS[order.status] ?? 'bg-slate-100 text-slate-500';
   const nextStatus = NEXT_STATUS[order.status];
 
   const statusLabel = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full px-5 py-4 text-left"
-      >
+    <div className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+      <button type="button" onClick={onToggle} className="w-full px-5 py-4 text-left">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
-              <p className="truncate font-semibold text-white">{order.customerName}</p>
-              <span
-                className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                style={{ background: colors.bg, color: colors.text }}
-              >
+              <p className="truncate font-semibold text-slate-900">{order.customerName}</p>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${colorCls}`}>
                 {statusLabel(order.status)}
               </span>
             </div>
-            <p className="mt-1 truncate text-xs" style={{ color: '#6B7F73' }}>
-              {order.deliveryAddress}
-            </p>
+            <p className="mt-1 truncate text-xs text-slate-500">{order.deliveryAddress}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <p className="font-mono-nums text-sm font-bold" style={{ color: '#3ADB82' }}>
-              {ugx(order.deliveryFee)}
-            </p>
-            <p className="text-xs" style={{ color: '#6B7F73' }}>
+            <p className="text-sm font-bold text-emerald-700">{ugx(order.deliveryFee)}</p>
+            <p className="text-xs text-slate-400">
               {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('en-UG') : '—'}
             </p>
           </div>
@@ -180,38 +165,32 @@ function OrderCard({
       </button>
 
       {expanded && (
-        <div
-          className="border-t px-5 py-4 space-y-3"
-          style={{ borderColor: 'rgba(255,255,255,0.04)' }}
-        >
+        <div className="border-t border-slate-100 px-5 py-4 space-y-3">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-xs" style={{ color: '#6B7F73' }}>Customer phone</p>
-              <p className="font-medium text-white">{order.customerPhone ?? '—'}</p>
+              <p className="text-xs text-slate-400">Customer phone</p>
+              <p className="font-medium text-slate-900">{order.customerPhone ?? '—'}</p>
             </div>
             {order.receiptReference && (
               <div>
-                <p className="text-xs" style={{ color: '#6B7F73' }}>Receipt</p>
-                <p className="font-mono text-xs text-white">{order.receiptReference}</p>
+                <p className="text-xs text-slate-400">Receipt</p>
+                <p className="font-mono text-xs text-slate-900">{order.receiptReference}</p>
               </div>
             )}
             <div>
-              <p className="text-xs" style={{ color: '#6B7F73' }}>Delivery fee</p>
-              <p className="font-mono-nums font-semibold text-white">{ugx(order.deliveryFee)}</p>
+              <p className="text-xs text-slate-400">Delivery fee</p>
+              <p className="font-semibold text-slate-900">{ugx(order.deliveryFee)}</p>
             </div>
             <div>
-              <p className="text-xs" style={{ color: '#6B7F73' }}>Status</p>
-              <p className="font-semibold capitalize text-white">{statusLabel(order.status)}</p>
+              <p className="text-xs text-slate-400">Status</p>
+              <p className="font-semibold capitalize text-slate-900">{statusLabel(order.status)}</p>
             </div>
           </div>
 
           {order.notes && (
-            <div
-              className="rounded-xl px-4 py-3 text-sm"
-              style={{ background: '#141A15' }}
-            >
-              <p className="text-xs font-semibold" style={{ color: '#6B7F73' }}>Notes</p>
-              <p className="mt-1 text-white">{order.notes}</p>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+              <p className="text-xs font-semibold text-slate-400">Notes</p>
+              <p className="mt-1 text-slate-700">{order.notes}</p>
             </div>
           )}
 
@@ -220,8 +199,7 @@ function OrderCard({
               type="button"
               onClick={() => onAdvance(order.id, nextStatus)}
               disabled={advancing}
-              className="w-full rounded-xl py-2.5 text-sm font-bold transition disabled:opacity-60 hover:brightness-110"
-              style={{ background: '#1B4332', color: '#3ADB82' }}
+              className="w-full rounded-full bg-slate-900 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               {advancing ? 'Updating…' : `Mark as ${statusLabel(nextStatus)}`}
             </button>
@@ -233,8 +211,7 @@ function OrderCard({
                 type="button"
                 onClick={() => onAdvance(order.id, 'cancelled')}
                 disabled={advancing}
-                className="flex-1 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-60"
-                style={{ background: 'rgba(239,68,68,0.12)', color: '#F87171' }}
+                className="flex-1 rounded-full bg-rose-50 py-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
               >
                 Cancel order
               </button>
@@ -242,8 +219,7 @@ function OrderCard({
                 type="button"
                 onClick={() => onAdvance(order.id, 'failed')}
                 disabled={advancing}
-                className="flex-1 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-60"
-                style={{ background: 'rgba(245,158,11,0.12)', color: '#F59E0B' }}
+                className="flex-1 rounded-full bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
               >
                 Mark failed
               </button>

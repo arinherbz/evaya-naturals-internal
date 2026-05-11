@@ -17,6 +17,8 @@ const MESSAGE_TEMPLATES = [
   'Hi {name}, thank you for shopping with us! Check out our latest offers.',
 ];
 
+const inputCls = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400';
+
 export default function CustomersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -144,19 +146,19 @@ export default function CustomersPage() {
   const allSelected = activeCustomers.length > 0 && selectedRecipients.length === activeCustomers.length;
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#E2E8E4' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-20 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-6xl space-y-6">
 
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: '#3ADB82' }}>Customers</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Customers</h1>
-            <p className="mt-1 text-sm" style={{ color: '#6B7F73' }}>Manage customer contacts and send messages.</p>
+          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Customers</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Customers</h1>
+            <p className="mt-1 text-sm text-slate-500">Manage customer contacts and send messages.</p>
           </section>
 
           {pageError && (
-            <div className="rounded-2xl border border-rose-800/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-300">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
@@ -167,17 +169,16 @@ export default function CustomersPage() {
             <div className="space-y-5">
 
               {/* Customer form */}
-              <div className="rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white">
+                  <h2 className="text-lg font-semibold text-slate-900">
                     {editingCustomer ? `Edit: ${editingCustomer.name}` : 'New customer'}
                   </h2>
                   {editingCustomer && (
                     <button
                       type="button"
                       onClick={() => { setEditingCustomer(null); resetForm(); }}
-                      className="text-xs font-semibold transition hover:underline"
-                      style={{ color: '#6B7F73' }}
+                      className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
                     >
                       Cancel
                     </button>
@@ -188,8 +189,7 @@ export default function CustomersPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Customer name"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                     required
                     disabled={!canManageCustomers}
                   />
@@ -197,8 +197,7 @@ export default function CustomersPage() {
                     value={whatsappNumber}
                     onChange={(e) => setWhatsappNumber(e.target.value)}
                     placeholder="WhatsApp number (e.g. 256700000000)"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                     required
                     disabled={!canManageCustomers}
                   />
@@ -207,15 +206,13 @@ export default function CustomersPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email (optional)"
                     type="email"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                    className={inputCls}
                     disabled={!canManageCustomers}
                   />
                   <button
                     type="submit"
                     disabled={!canManageCustomers || customerMutation.isPending}
-                    className="rounded-xl px-6 py-3 text-sm font-bold transition disabled:opacity-60 hover:brightness-110"
-                    style={{ background: '#1B4332', color: '#3ADB82' }}
+                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
                     {customerMutation.isPending ? 'Saving…' : editingCustomer ? 'Save changes' : 'Add customer'}
                   </button>
@@ -223,29 +220,23 @@ export default function CustomersPage() {
               </div>
 
               {/* Customer list */}
-              <div className="rounded-2xl" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <div className="flex flex-wrap items-center gap-3 px-5 py-4">
-                  <h2 className="flex-1 text-lg font-bold text-white">
+                  <h2 className="flex-1 text-lg font-semibold text-slate-900">
                     Customer list
-                    <span className="ml-2 text-sm font-normal" style={{ color: '#6B7F73' }}>
-                      ({activeCustomers.length})
-                    </span>
+                    <span className="ml-2 text-sm font-normal text-slate-400">({activeCustomers.length})</span>
                   </h2>
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search name or WhatsApp…"
-                    className="rounded-xl px-4 py-2.5 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4', width: '220px' }}
+                    className="w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-emerald-400"
                   />
                 </div>
 
                 {canBroadcast && activeCustomers.length > 0 && (
-                  <div
-                    className="flex items-center gap-3 border-t px-5 py-3"
-                    style={{ borderColor: 'rgba(255,255,255,0.04)' }}
-                  >
-                    <label className="flex cursor-pointer items-center gap-2 text-xs" style={{ color: '#A0ABA4' }}>
+                  <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-500">
                       <input
                         type="checkbox"
                         checked={allSelected}
@@ -255,16 +246,16 @@ export default function CustomersPage() {
                       Select all
                     </label>
                     {selectedRecipients.length > 0 && (
-                      <span className="text-xs" style={{ color: '#3ADB82' }}>
+                      <span className="text-xs font-semibold text-emerald-700">
                         {selectedRecipients.length} selected
                       </span>
                     )}
                   </div>
                 )}
 
-                <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.03)' }}>
+                <div className="divide-y divide-slate-50">
                   {customers.length === 0 && !customersQuery.isLoading && (
-                    <p className="px-5 py-6 text-center text-sm" style={{ color: '#6B7F73' }}>No customers found</p>
+                    <p className="px-5 py-6 text-center text-sm text-slate-400">No customers found</p>
                   )}
                   {customers.map((customer) => (
                     <CustomerRow
@@ -286,19 +277,16 @@ export default function CustomersPage() {
 
             {/* Right: broadcast */}
             <div className="space-y-5">
-              <div className="rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white">Send WhatsApp</h2>
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ background: '#1B4332', color: '#3ADB82' }}
-                  >
+                  <h2 className="text-lg font-semibold text-slate-900">Send WhatsApp</h2>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     {selectedRecipients.length} selected
                   </span>
                 </div>
 
                 {!canBroadcast && (
-                  <p className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: '#141A15', color: '#6B7F73' }}>
+                  <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
                     Only Admin and Branch Manager can send messages.
                   </p>
                 )}
@@ -306,14 +294,13 @@ export default function CustomersPage() {
                 {canBroadcast && (
                   <div className="mt-4 space-y-3">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold" style={{ color: '#6B7F73' }}>Quick templates</p>
+                      <p className="text-xs font-semibold text-slate-400">Quick templates</p>
                       {MESSAGE_TEMPLATES.map((t, i) => (
                         <button
                           key={i}
                           type="button"
                           onClick={() => setBroadcastMessage(t)}
-                          className="w-full rounded-xl px-3 py-2 text-left text-xs transition hover:brightness-110"
-                          style={{ background: '#141A15', color: '#A0ABA4' }}
+                          className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-left text-xs text-slate-600 transition hover:bg-slate-100"
                         >
                           {t.slice(0, 60)}…
                         </button>
@@ -325,22 +312,20 @@ export default function CustomersPage() {
                       onChange={(e) => { setBroadcastMessage(e.target.value); setBroadcastLinks([]); setBroadcastStatus(''); }}
                       rows={5}
                       placeholder="Type your message…"
-                      className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                      style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8E4' }}
+                      className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                     />
 
                     <button
                       type="button"
                       onClick={() => { setPageError(''); broadcastMutation.mutate(); }}
                       disabled={broadcastMutation.isPending || selectedRecipients.length === 0 || !broadcastMessage.trim()}
-                      className="w-full rounded-xl py-3 text-sm font-bold transition disabled:opacity-60 hover:brightness-110"
-                      style={{ background: '#1B4332', color: '#3ADB82' }}
+                      className="w-full rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                     >
                       {broadcastMutation.isPending ? 'Preparing…' : 'Generate WhatsApp links'}
                     </button>
 
                     {broadcastStatus && (
-                      <p className="rounded-xl px-4 py-3 text-xs" style={{ background: 'rgba(58,219,130,0.08)', color: '#3ADB82' }}>
+                      <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700">
                         {broadcastStatus}
                       </p>
                     )}
@@ -353,16 +338,13 @@ export default function CustomersPage() {
                             href={link.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center justify-between rounded-xl px-4 py-3 transition hover:brightness-110"
-                            style={{ background: '#141A15', border: '1px solid rgba(58,219,130,0.12)' }}
+                            className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 transition hover:bg-emerald-50"
                           >
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-white">{link.customerName}</p>
-                              <p className="text-xs" style={{ color: '#6B7F73' }}>{link.phone}</p>
+                              <p className="truncate text-sm font-semibold text-slate-900">{link.customerName}</p>
+                              <p className="text-xs text-slate-500">{link.phone}</p>
                             </div>
-                            <span className="shrink-0 text-xs font-bold" style={{ color: '#3ADB82' }}>
-                              Open ↗
-                            </span>
+                            <span className="shrink-0 text-xs font-bold text-emerald-700">Open ↗</span>
                           </a>
                         ))}
                       </div>
@@ -377,30 +359,25 @@ export default function CustomersPage() {
 
       {/* Delete confirmation */}
       {deletingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-          <div
-            className="w-full max-w-sm rounded-2xl p-6"
-            style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <h2 className="text-lg font-bold text-white">Delete customer?</h2>
-            <p className="mt-2 text-sm" style={{ color: '#A0ABA4' }}>
-              <strong className="text-white">{deletingCustomer.name}</strong> will be removed from all lists. This cannot be undone.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">Delete customer?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              <strong className="text-slate-900">{deletingCustomer.name}</strong> will be removed from all lists. This cannot be undone.
             </p>
             <div className="mt-6 flex gap-3">
               <button
                 type="button"
                 onClick={() => deleteMutation.mutate(deletingCustomer.id)}
                 disabled={deleteMutation.isPending}
-                className="flex-1 rounded-xl py-3 text-sm font-bold disabled:opacity-60"
-                style={{ background: 'rgba(239,68,68,0.2)', color: '#F87171' }}
+                className="flex-1 rounded-full bg-rose-600 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
               >
                 {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
               </button>
               <button
                 type="button"
                 onClick={() => setDeletingCustomer(null)}
-                className="flex-1 rounded-xl py-3 text-sm font-semibold"
-                style={{ background: '#1A2420', color: '#A0ABA4' }}
+                className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -435,11 +412,7 @@ function CustomerRow({
 }) {
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full px-5 py-4 text-left"
-      >
+      <button type="button" onClick={onToggle} className="w-full px-5 py-4 text-left">
         <div className="flex items-center gap-3">
           {canBroadcast && customer.isActive && (
             <label
@@ -456,17 +429,16 @@ function CustomerRow({
             </label>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-white">{customer.name}</p>
-            <p className="truncate text-xs" style={{ color: '#6B7F73' }}>
+            <p className="truncate font-semibold text-slate-900">{customer.name}</p>
+            <p className="truncate text-xs text-slate-500">
               {customer.whatsappNumber ?? customer.phone}
             </p>
           </div>
           <svg
-            className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            style={{ color: '#6B7F73' }}
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
@@ -474,19 +446,16 @@ function CustomerRow({
       </button>
 
       {expanded && (
-        <div
-          className="border-t px-5 py-4 space-y-3"
-          style={{ borderColor: 'rgba(255,255,255,0.04)', background: '#0A100C' }}
-        >
+        <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 space-y-3">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-xs" style={{ color: '#6B7F73' }}>WhatsApp</p>
-              <p className="font-medium text-white">{customer.whatsappNumber ?? customer.phone ?? '—'}</p>
+              <p className="text-xs text-slate-400">WhatsApp</p>
+              <p className="font-medium text-slate-900">{customer.whatsappNumber ?? customer.phone ?? '—'}</p>
             </div>
             {customer.email && (
               <div>
-                <p className="text-xs" style={{ color: '#6B7F73' }}>Email</p>
-                <p className="font-medium text-white">{customer.email}</p>
+                <p className="text-xs text-slate-400">Email</p>
+                <p className="font-medium text-slate-900">{customer.email}</p>
               </div>
             )}
           </div>
@@ -495,16 +464,14 @@ function CustomerRow({
               <button
                 type="button"
                 onClick={onEdit}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                style={{ background: '#1A2E25', color: '#3ADB82' }}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
               >
                 Edit
               </button>
               <button
                 type="button"
                 onClick={onDelete}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                style={{ background: 'rgba(239,68,68,0.12)', color: '#F87171' }}
+                className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
               >
                 Delete
               </button>

@@ -31,12 +31,12 @@ const statusLabels: Record<DeliveryStatus, string> = {
 };
 
 const statusColors: Record<DeliveryStatus, string> = {
-  pending: 'bg-amber-900/30 text-amber-400',
-  assigned: 'bg-blue-900/30 text-blue-400',
-  picked_up: 'bg-purple-900/30 text-purple-400',
-  delivered: 'bg-emerald-900/30 text-[#3ADB82]',
-  failed: 'bg-rose-900/30 text-rose-400',
-  cancelled: 'bg-slate-800 text-slate-400',
+  pending: 'bg-amber-100 text-amber-700',
+  assigned: 'bg-blue-100 text-blue-700',
+  picked_up: 'bg-violet-100 text-violet-700',
+  delivered: 'bg-emerald-100 text-emerald-700',
+  failed: 'bg-rose-100 text-rose-700',
+  cancelled: 'bg-slate-100 text-slate-500',
 };
 
 const currencyFormatter = new Intl.NumberFormat('en-UG', {
@@ -54,6 +54,8 @@ const STATUS_TABS = [
   { label: 'Failed', value: 'failed' },
   { label: 'Cancelled', value: 'cancelled' },
 ];
+
+const inputCls = 'rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400';
 
 export default function DeliveriesPage() {
   const { user } = useAuth();
@@ -134,22 +136,25 @@ export default function DeliveriesPage() {
   const customers = supportQuery.data?.customers ?? [];
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#e2e8f0' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-24 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-4xl space-y-6">
 
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#3ADB82]/70">Deliveries</p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-100">Deliveries</h1>
+            <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)] flex-1 mr-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Deliveries</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-900">Deliveries</h1>
             </div>
             {isManager && (
               <button
                 type="button"
                 onClick={() => setShowForm((v) => !v)}
-                className="rounded-xl px-4 py-2 text-sm font-medium transition"
-                style={{ background: '#1B4332', color: '#3ADB82' }}
+                className={`mt-1 rounded-full px-5 py-3 text-sm font-medium transition ${
+                  showForm
+                    ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
               >
                 {showForm ? 'Cancel' : '+ New delivery'}
               </button>
@@ -157,20 +162,19 @@ export default function DeliveriesPage() {
           </div>
 
           {pageError && (
-            <div className="rounded-xl border border-rose-800/40 bg-rose-900/20 px-4 py-3 text-sm text-rose-400">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
 
           {isManager && showForm && (
-            <div className="rounded-2xl p-6" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <h2 className="text-base font-semibold text-slate-100">New Delivery</h2>
+            <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+              <h2 className="text-base font-semibold text-slate-900">New Delivery</h2>
               <form className="mt-4 grid gap-3" onSubmit={handleSubmit}>
                 <select
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
-                  className="rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={inputCls}
                   required
                 >
                   <option value="">Select customer</option>
@@ -183,8 +187,7 @@ export default function DeliveriesPage() {
                   value={receiptReference}
                   onChange={(e) => setReceiptReference(e.target.value)}
                   placeholder="Receipt reference (optional)"
-                  className="rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={inputCls}
                 />
 
                 <textarea
@@ -192,8 +195,7 @@ export default function DeliveriesPage() {
                   onChange={(e) => setDeliveryAddress(e.target.value)}
                   placeholder="Delivery address"
                   rows={2}
-                  className="rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={`${inputCls} resize-none`}
                   required
                 />
 
@@ -204,15 +206,13 @@ export default function DeliveriesPage() {
                     value={deliveryFee}
                     onChange={(e) => setDeliveryFee(e.target.value)}
                     placeholder="Extra charge"
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                    className={inputCls}
                   />
                   <input
                     type="date"
                     value={deliveryDate}
                     onChange={(e) => setDeliveryDate(e.target.value)}
-                    className="rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                    className={inputCls}
                     required
                   />
                 </div>
@@ -222,15 +222,13 @@ export default function DeliveriesPage() {
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
                   placeholder="Notes (optional)"
-                  className="rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={`${inputCls} resize-none`}
                 />
 
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
-                  className="rounded-xl py-3 text-sm font-medium transition disabled:opacity-60"
-                  style={{ background: '#1B4332', color: '#3ADB82' }}
+                  className="rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                 >
                   {createMutation.isPending ? 'Saving…' : 'Create delivery'}
                 </button>
@@ -244,12 +242,11 @@ export default function DeliveriesPage() {
                 key={tab.value}
                 type="button"
                 onClick={() => setStatusFilter(tab.value)}
-                className="rounded-xl px-4 py-2 text-sm font-medium transition"
-                style={{
-                  background: statusFilter === tab.value ? '#1B4332' : '#0D1610',
-                  color: statusFilter === tab.value ? '#3ADB82' : '#94a3b8',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  statusFilter === tab.value
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
               >
                 {tab.label}
               </button>
@@ -258,12 +255,12 @@ export default function DeliveriesPage() {
 
           <div className="space-y-3">
             {deliveriesQuery.isLoading && (
-              <div className="rounded-2xl px-4 py-8 text-center text-sm text-slate-500" style={{ background: '#0D1610' }}>
+              <div className="rounded-[28px] border border-white/70 bg-white/90 px-4 py-8 text-center text-sm text-slate-400">
                 Loading deliveries…
               </div>
             )}
             {!deliveriesQuery.isLoading && deliveries.length === 0 && (
-              <div className="rounded-2xl px-4 py-8 text-center text-sm text-slate-500" style={{ background: '#0D1610', border: '1px dashed rgba(255,255,255,0.08)' }}>
+              <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/60 px-4 py-8 text-center text-sm text-slate-400">
                 No deliveries for this filter.
               </div>
             )}
@@ -271,22 +268,22 @@ export default function DeliveriesPage() {
               const status = delivery.status as DeliveryStatus;
               const isEditingNotes = editingNotesId === delivery.id;
               return (
-                <div key={delivery.id} className="rounded-2xl p-5" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div key={delivery.id} className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-slate-100">{delivery.customerName}</p>
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[status] ?? 'bg-slate-800 text-slate-400'}`}>
+                        <p className="font-semibold text-slate-900">{delivery.customerName}</p>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[status] ?? 'bg-slate-100 text-slate-500'}`}>
                           {statusLabels[status] ?? delivery.status}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-slate-400">{delivery.customerPhone}</p>
-                      <p className="mt-2 text-sm text-slate-300">{delivery.deliveryAddress}</p>
+                      <p className="mt-1 text-sm text-slate-500">{delivery.customerPhone}</p>
+                      <p className="mt-2 text-sm text-slate-700">{delivery.deliveryAddress}</p>
                       {delivery.receiptReference && (
-                        <p className="mt-1 text-xs text-slate-500">Receipt: {delivery.receiptReference}</p>
+                        <p className="mt-1 text-xs text-slate-400">Receipt: {delivery.receiptReference}</p>
                       )}
                       {delivery.deliveryDate && (
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-slate-400">
                           {new Date(delivery.deliveryDate).toLocaleDateString()}
                         </p>
                       )}
@@ -297,24 +294,21 @@ export default function DeliveriesPage() {
                             value={editingNotesValue}
                             onChange={(e) => setEditingNotesValue(e.target.value)}
                             rows={2}
-                            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none"
-                            style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.10)', color: '#e2e8f0' }}
+                            className="flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
                           />
                           <div className="flex flex-col gap-2">
                             <button
                               type="button"
                               onClick={() => updateMutation.mutate({ id: delivery.id, payload: { notes: editingNotesValue || null } })}
                               disabled={updateMutation.isPending}
-                              className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-                              style={{ background: '#1B4332', color: '#3ADB82' }}
+                              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                             >
                               Save
                             </button>
                             <button
                               type="button"
                               onClick={() => { setEditingNotesId(''); setEditingNotesValue(''); }}
-                              className="rounded-lg px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
-                              style={{ background: '#141A15' }}
+                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-200"
                             >
                               Cancel
                             </button>
@@ -322,14 +316,14 @@ export default function DeliveriesPage() {
                         </div>
                       ) : (
                         <div className="mt-2 flex items-start gap-2">
-                          <p className="text-sm text-slate-500 italic">{delivery.notes || 'No notes'}</p>
+                          <p className="text-sm italic text-slate-400">{delivery.notes || 'No notes'}</p>
                           <button
                             type="button"
                             onClick={() => {
                               setEditingNotesId(delivery.id);
                               setEditingNotesValue(delivery.notes ?? '');
                             }}
-                            className="shrink-0 text-xs text-slate-500 underline hover:text-slate-300"
+                            className="shrink-0 text-xs text-slate-400 underline transition hover:text-slate-600"
                           >
                             edit
                           </button>
@@ -338,12 +332,11 @@ export default function DeliveriesPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-                      <p className="text-lg font-semibold text-[#3ADB82]">{currencyFormatter.format(delivery.deliveryFee)}</p>
+                      <p className="text-lg font-semibold text-emerald-700">{currencyFormatter.format(delivery.deliveryFee)}</p>
                       <select
                         value={delivery.status}
                         onChange={(e) => updateMutation.mutate({ id: delivery.id, payload: { status: e.target.value } })}
-                        className="rounded-xl px-3 py-2 text-sm outline-none"
-                        style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-400"
                       >
                         {deliveryStatusOptions.map((s) => (
                           <option key={s} value={s}>{statusLabels[s]}</option>

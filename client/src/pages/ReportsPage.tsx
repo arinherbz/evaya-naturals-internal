@@ -141,34 +141,35 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
     win.print();
   }
 
+  const inputCls = 'rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400';
+
   return (
-    <div className="flex min-h-screen" style={{ background: '#0A0F0D', color: '#e2e8f0' }}>
+    <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
       <main className="flex-1 px-4 pb-10 pt-24 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-5xl space-y-6">
 
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#3ADB82]/70">Reports</p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-100">Reports</h1>
+            <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)] flex-1 mr-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Reports</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-900">Reports</h1>
             </div>
             <button
               type="button"
               onClick={() => setShowPdfModal(true)}
-              className="rounded-xl px-4 py-2 text-sm font-medium transition"
-              style={{ background: '#1B4332', color: '#3ADB82' }}
+              className="mt-1 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
             >
               Preview & Print
             </button>
           </div>
 
           {pageError && (
-            <div className="rounded-xl border border-rose-800/40 bg-rose-900/20 px-4 py-3 text-sm text-rose-400">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {pageError}
             </div>
           )}
 
-          <div className="rounded-2xl p-5" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
             <div className="flex flex-wrap gap-2 mb-4">
               {(['today', 'week', 'month', 'custom'] as QuickRange[]).map((r) => {
                 const labels: Record<QuickRange, string> = { today: 'Today', week: 'This Week', month: 'This Month', custom: 'Custom Range' };
@@ -177,12 +178,11 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
                     key={r}
                     type="button"
                     onClick={() => setRange(r)}
-                    className="rounded-xl px-4 py-2 text-sm font-medium transition"
-                    style={{
-                      background: quickRange === r ? '#1B4332' : '#141A15',
-                      color: quickRange === r ? '#3ADB82' : '#94a3b8',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      quickRange === r
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
                   >
                     {labels[r]}
                   </button>
@@ -195,19 +195,17 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={inputCls}
                 />
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                  className={inputCls}
                 />
               </div>
             )}
-            <p className="mt-3 text-xs text-slate-500">{report?.periodLabel ?? 'Loading range…'}</p>
+            <p className="mt-3 text-xs text-slate-400">{report?.periodLabel ?? 'Loading range…'}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -217,9 +215,9 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
               { label: 'Net', value: currencyFormatter.format(report?.netAmount ?? 0) },
               { label: 'Receipts', value: String(report?.salesCount ?? 0) },
             ].map((metric) => (
-              <div key={metric.label} className="rounded-2xl p-5" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{metric.label}</p>
-                <p className="mt-2 text-2xl font-semibold text-[#3ADB82]">{metric.value}</p>
+              <div key={metric.label} className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700/70">{metric.label}</p>
+                <p className="mt-2 text-2xl font-bold text-slate-900">{metric.value}</p>
               </div>
             ))}
           </div>
@@ -272,19 +270,19 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
                 <EmptyState text="No shifts in selected period." />
               )}
               {(report?.shiftSummary.shifts ?? []).map((shift) => (
-                <div key={shift.id} className="rounded-xl p-4" style={{ background: '#141A15', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div key={shift.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-200">{shift.cashierName}</p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="text-sm font-medium text-slate-900">{shift.cashierName}</p>
+                      <p className="mt-1 text-xs text-slate-400">
                         {shift.status.toUpperCase()} · {new Date(shift.openedAt).toLocaleString()}
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Sales {currencyFormatter.format(shift.salesTotal)} · Expected {currencyFormatter.format(shift.expectedCash ?? shift.openingCash)} · Counted {currencyFormatter.format(shift.countedCash ?? 0)}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${shift.variance === 0 ? 'bg-emerald-900/30 text-[#3ADB82]' : 'bg-amber-900/30 text-amber-400'}`}>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${shift.variance === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                         {currencyFormatter.format(shift.variance ?? 0)}
                       </span>
                       {isApprover && shift.status === 'closed' && (
@@ -292,8 +290,7 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
                           type="button"
                           onClick={() => approveMutation.mutate(shift.id)}
                           disabled={approveMutation.isPending}
-                          className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-                          style={{ background: '#1B4332', color: '#3ADB82' }}
+                          className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
                         >
                           Approve
                         </button>
@@ -308,23 +305,23 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
       </main>
 
       {showPdfModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
-          <div className="w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-2xl rounded-[28px] border border-white/70 bg-white p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <BrandMark />
               <button
                 type="button"
                 onClick={() => setShowPdfModal(false)}
-                className="text-slate-500 hover:text-slate-300 text-xl leading-none"
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
               >
-                ×
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
-            <h2 className="text-xl font-semibold text-slate-100">
+            <h2 className="text-xl font-semibold text-slate-900">
               {report?.businessName ?? 'Evaya Naturals'} · {report?.title ?? 'Report'}
             </h2>
-            <p className="mt-1 text-sm text-slate-400">{report?.periodLabel ?? '—'} · Generated {previewGeneratedAt}</p>
+            <p className="mt-1 text-sm text-slate-500">{report?.periodLabel ?? '—'} · Generated {previewGeneratedAt}</p>
 
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
@@ -333,32 +330,32 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
                 { label: 'Net', value: currencyFormatter.format(report?.netAmount ?? 0) },
                 { label: 'Receipts', value: String(report?.salesCount ?? 0) },
               ].map((m) => (
-                <div key={m.label} className="rounded-xl p-3" style={{ background: '#141A15' }}>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">{m.label}</p>
-                  <p className="mt-1 text-base font-semibold text-[#3ADB82]">{m.value}</p>
+                <div key={m.label} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{m.label}</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{m.value}</p>
                 </div>
               ))}
             </div>
 
             <div className="mt-6 space-y-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Best Sellers</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Best Sellers</p>
                 {(report?.bestSellingProducts ?? []).slice(0, 5).map((item) => (
                   <DataRow key={item.productName} label={`${item.productName} · ${item.quantity} sold`} value={currencyFormatter.format(item.revenue)} />
                 ))}
-                {(report?.bestSellingProducts ?? []).length === 0 && <p className="text-sm text-slate-500">None</p>}
+                {(report?.bestSellingProducts ?? []).length === 0 && <p className="text-sm text-slate-400">None</p>}
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Expenses</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Expenses</p>
                 {(report?.expenses ?? []).slice(0, 5).map((e) => (
                   <DataRow key={e.id} label={`${e.title} · ${e.category}`} value={currencyFormatter.format(e.amount)} />
                 ))}
-                {(report?.expenses ?? []).length === 0 && <p className="text-sm text-slate-500">None</p>}
+                {(report?.expenses ?? []).length === 0 && <p className="text-sm text-slate-400">None</p>}
               </div>
             </div>
 
             {report?.reportFooterMessage && (
-              <p className="mt-6 text-sm text-slate-500 border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+              <p className="mt-6 text-sm text-slate-400 border-t border-slate-100 pt-4">
                 {report.reportFooterMessage}
               </p>
             )}
@@ -367,16 +364,14 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
               <button
                 type="button"
                 onClick={printReport}
-                className="rounded-xl px-5 py-3 text-sm font-medium transition"
-                style={{ background: '#1B4332', color: '#3ADB82' }}
+                className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 Print / Save PDF
               </button>
               <button
                 type="button"
                 onClick={() => setShowPdfModal(false)}
-                className="rounded-xl px-5 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition"
-                style={{ background: '#141A15' }}
+                className="rounded-full border border-slate-200 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Close
               </button>
@@ -390,8 +385,8 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
 
 function ReportPanel({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl p-5" style={{ background: '#0D1610', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+    <div className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       <p className="mt-0.5 text-xs text-slate-500">{description}</p>
       <div className="mt-4 space-y-2">{children}</div>
     </div>
@@ -400,16 +395,16 @@ function ReportPanel({ title, description, children }: { title: string; descript
 
 function DataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-xl px-3 py-2.5" style={{ background: '#141A15' }}>
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className="text-sm font-medium text-slate-200">{value}</span>
+    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-900">{value}</span>
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-xl px-4 py-6 text-center text-sm text-slate-500" style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
+    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
       {text}
     </div>
   );
