@@ -8,7 +8,7 @@ import * as schema from '../db/schema/index.js';
 const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
 
-const unitTypes = ['piece', 'kg', 'g', 'ml', 'l', 'box', 'jar', 'pack'] as const;
+const unitTypes = ['kg', 'g', 'ml', 'l'] as const;
 const categoryCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(500).optional().nullable(),
@@ -25,7 +25,7 @@ const productSchema = z.object({
   categoryId: z.string().trim().min(1),
   unitType: z.enum(unitTypes),
   sellingPrice: z.number().nonnegative(),
-  costPrice: z.number().nonnegative().optional().nullable(),
+  costPrice: z.number().nonnegative(),
   description: z.string().trim().max(2000).optional().nullable(),
   usageInstructions: z.string().trim().max(2000).optional().nullable(),
   ingredients: z.string().trim().max(2000).optional().nullable(),
@@ -429,7 +429,8 @@ catalogRoutes.get('/products', async (c) => {
     filters.push(or(
       like(schema.products.name, `%${search}%`),
       like(schema.products.sku, `%${search}%`),
-      like(schema.products.barcode, `%${search}%`)
+      like(schema.products.barcode, `%${search}%`),
+      like(schema.products.description, `%${search}%`)
     )!);
   }
 
@@ -647,7 +648,8 @@ catalogRoutes.get('/inventory', async (c) => {
     filters.push(or(
       like(schema.products.name, `%${search}%`),
       like(schema.products.sku, `%${search}%`),
-      like(schema.products.barcode, `%${search}%`)
+      like(schema.products.barcode, `%${search}%`),
+      like(schema.products.description, `%${search}%`)
     )!);
   }
 
