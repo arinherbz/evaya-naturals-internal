@@ -638,6 +638,13 @@ catalogRoutes.patch('/products/:id', async (c) => {
     .where(eq(schema.products.id, productId))
     .returning();
 
+  // Keep inventory threshold in sync with the product threshold
+  if (payload.lowStockThreshold !== undefined) {
+    await db.update(schema.inventory)
+      .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
+      .where(eq(schema.inventory.productId, productId));
+  }
+
   await ensureVisibility(productId, nextVisibility);
   await logAudit(user, 'update', 'product', productId, existing[0] as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>);
   return c.json({ product: updated });
@@ -1037,6 +1044,11 @@ catalogRoutes.patch('/inventory/:id/threshold', async (c) => {
     .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
     .where(eq(schema.inventory.id, inventoryId))
     .returning();
+
+  // Keep product threshold in sync with the inventory threshold
+  await db.update(schema.products)
+    .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
+    .where(eq(schema.products.id, existing[0].productId));
 
   await logAudit(user, 'update_threshold', 'inventory', inventoryId, existing[0] as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>);
   return c.json({ inventory: updated });
