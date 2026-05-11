@@ -43,6 +43,9 @@ export default function InventoryPage() {
   const [editThreshold, setEditThreshold] = useState('');
   const [editError, setEditError] = useState('');
 
+  // Deactivate modal
+  const [deactivatingRow, setDeactivatingRow] = useState<InventoryRow | null>(null);
+
   const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(
     user?.role.name ?? '',
   );
@@ -185,6 +188,20 @@ export default function InventoryPage() {
     setEditError('');
   };
 
+  // ── Deactivate Product ──
+  const deactivateMutation = useMutation({
+    mutationFn: (productId: string) => api.products.remove(productId),
+    onSuccess: async () => {
+      setDeactivatingRow(null);
+      setPageError('');
+      await invalidate();
+    },
+    onError: (e) => {
+      setPageError(getErrorMessage(e));
+      setDeactivatingRow(null);
+    },
+  });
+
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
@@ -251,13 +268,22 @@ export default function InventoryPage() {
                     <p className="text-2xl font-bold text-emerald-700">{row.quantity}</p>
                   </div>
                   {canManageInventory && (
-                    <button
-                      type="button"
-                      onClick={() => openEdit(row)}
-                      className="mt-3 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                    >
-                      Edit
-                    </button>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(row)}
+                        className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeactivatingRow(row)}
+                        className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+                      >
+                        Deactivate
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -316,13 +342,22 @@ export default function InventoryPage() {
                       </td>
                       {canManageInventory && (
                         <td className="whitespace-nowrap px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(row)}
-                            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(row)}
+                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeactivatingRow(row)}
+                              className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+                            >
+                              Deactivate
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -516,6 +551,36 @@ export default function InventoryPage() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deactivate Confirmation Modal ── */}
+      {deactivatingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">Deactivate product?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              <strong className="text-slate-900">{deactivatingRow.productName}</strong> will be removed
+              from Inventory, Products, and POS. Sales history is kept in the database.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => deactivateMutation.mutate(deactivatingRow.productId)}
+                disabled={deactivateMutation.isPending}
+                className="flex-1 rounded-full bg-rose-600 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+              >
+                {deactivateMutation.isPending ? 'Deactivating…' : 'Deactivate'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeactivatingRow(null)}
+                className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

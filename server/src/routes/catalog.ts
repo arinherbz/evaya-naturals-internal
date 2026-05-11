@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq, inArray, like, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, like, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
@@ -640,7 +640,11 @@ catalogRoutes.get('/inventory', async (c) => {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
 
-  const filters = [];
+  const allowedUnits = ['kg', 'g', 'ml', 'l'];
+  const filters = [
+    eq(schema.products.isActive, true),
+    inArray(schema.products.unitType, allowedUnits),
+  ];
   if (branchId) {
     filters.push(eq(schema.inventory.branchId, branchId));
   }
@@ -653,48 +657,28 @@ catalogRoutes.get('/inventory', async (c) => {
     )!);
   }
 
-  const inventoryRows = filters.length > 0
-    ? await db.select({
-        id: schema.inventory.id,
-        productId: schema.inventory.productId,
-        branchId: schema.inventory.branchId,
-        quantity: schema.inventory.quantity,
-        lowStockThreshold: schema.inventory.lowStockThreshold,
-        updatedAt: schema.inventory.updatedAt,
-        productName: schema.products.name,
-        sku: schema.products.sku,
-        barcode: schema.products.barcode,
-        unitType: schema.products.unitType,
-        productLowStockThreshold: schema.products.lowStockThreshold,
-        productIsActive: schema.products.isActive,
-        categoryName: schema.categories.name,
-        branchName: schema.branches.name,
-      })
-      .from(schema.inventory)
-      .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
-      .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
-      .innerJoin(schema.branches, eq(schema.inventory.branchId, schema.branches.id))
-      .where(and(...filters))
-    : await db.select({
-        id: schema.inventory.id,
-        productId: schema.inventory.productId,
-        branchId: schema.inventory.branchId,
-        quantity: schema.inventory.quantity,
-        lowStockThreshold: schema.inventory.lowStockThreshold,
-        updatedAt: schema.inventory.updatedAt,
-        productName: schema.products.name,
-        sku: schema.products.sku,
-        barcode: schema.products.barcode,
-        unitType: schema.products.unitType,
-        productLowStockThreshold: schema.products.lowStockThreshold,
-        productIsActive: schema.products.isActive,
-        categoryName: schema.categories.name,
-        branchName: schema.branches.name,
-      })
-      .from(schema.inventory)
-      .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
-      .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
-      .innerJoin(schema.branches, eq(schema.inventory.branchId, schema.branches.id));
+  const inventoryRows = await db.select({
+      id: schema.inventory.id,
+      productId: schema.inventory.productId,
+      branchId: schema.inventory.branchId,
+      quantity: schema.inventory.quantity,
+      lowStockThreshold: schema.inventory.lowStockThreshold,
+      updatedAt: schema.inventory.updatedAt,
+      productName: schema.products.name,
+      sku: schema.products.sku,
+      barcode: schema.products.barcode,
+      unitType: schema.products.unitType,
+      productLowStockThreshold: schema.products.lowStockThreshold,
+      productIsActive: schema.products.isActive,
+      categoryName: schema.categories.name,
+      branchName: schema.branches.name,
+    })
+    .from(schema.inventory)
+    .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
+    .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
+    .innerJoin(schema.branches, eq(schema.inventory.branchId, schema.branches.id))
+    .where(and(...filters))
+    .orderBy(asc(schema.products.name));
 
   const batchFilters = [];
   if (branchId) {
