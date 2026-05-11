@@ -4,12 +4,9 @@ import Sidebar from '../components/Sidebar';
 import BrandMark from '../components/BrandMark';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { formatUGX } from '../lib/currency';
 
-const currencyFormatter = new Intl.NumberFormat('en-UG', {
-  style: 'currency',
-  currency: 'UGX',
-  maximumFractionDigits: 0,
-});
+const currencyFormatter = { format: formatUGX };
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;

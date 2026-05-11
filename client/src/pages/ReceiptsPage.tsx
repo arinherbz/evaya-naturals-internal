@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { api } from '../services/api';
+import { formatUGX as ugx } from '../lib/currency';
 import type { Receipt } from '../types';
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
 
 const paymentLabel = (m: string) =>
   ({ cash: 'Cash', mtn_mobile_money: 'MTN MoMo', airtel_money: 'Airtel Money', bank_card: 'Card', bank_transfer: 'Bank Transfer' }[m] ?? m);

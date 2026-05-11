@@ -529,11 +529,8 @@ posRoutes.get('/products', async (c) => {
 
   const branchId = await resolveBranchId(user);
   const search = c.req.query('search')?.trim();
-  // Allowed unit types for POS (pilot: only standard units)
-  const allowedUnitTypes = ['piece', 'kg', 'g', 'ml', 'l'];
   const productFilters = [
     eq(schema.products.isActive, true),
-    inArray(schema.products.unitType, allowedUnitTypes),
   ];
   if (search) {
     productFilters.push(or(
@@ -576,18 +573,22 @@ posRoutes.get('/products', async (c) => {
 
   const now = new Date();
   const data = products.map((product) => {
+    const inventory = inventoryRows.find((row) => row.productId === product.id);
+    const inventoryQty = inventory?.quantity ?? 0;
     const sellableBatches = availableBatches.filter((batch) => (
       batch.productId === product.id
       && batch.quantityRemaining > 0
       && new Date(batch.expiryDate) >= now
     ));
-    const inventory = inventoryRows.find((row) => row.productId === product.id);
-    const availableQuantity = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+    const batchAvailable = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+    // If batches exist use batch availability; otherwise fall back to raw inventory qty
+    const hasBatches = availableBatches.some((b) => b.productId === product.id);
+    const availableQuantity = hasBatches ? batchAvailable : inventoryQty;
     return {
       ...product,
       branchId,
       availableQuantity,
-      inventoryQuantity: inventory?.quantity ?? 0,
+      inventoryQuantity: inventoryQty,
       lowStock: availableQuantity > 0 && availableQuantity <= product.lowStockThreshold,
       isOutOfStock: availableQuantity === 0,
       nextExpiryDate: sellableBatches[0]?.expiryDate ?? null,

@@ -3,10 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { enqueueSale } from '../lib/offlineQueue';
+import { formatUGX as ugx } from '../lib/currency';
 import type { PosProduct } from '../types';
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
 
 const PAYMENT_OPTIONS = [
   { value: 'mtn_mobile_money' as const, label: 'MTN Mobile Money', shortLabel: 'MTN', bg: '#FFD100', color: '#1B1B1B' },
@@ -584,7 +582,7 @@ function CartPanel({ cart, subtotal, total, discount, cashOut, cashChange, notes
                     <span className="w-7 text-center text-sm font-bold">{line.qty}</span>
                     <button type="button" onClick={() => onSetQty(line.product.id, line.qty + 1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95">+</button>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: '#1B4332' }}>{new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(line.product.sellingPrice * line.qty)}</span>
+                  <span className="text-sm font-bold" style={{ color: '#1B4332' }}>{ugx(line.product.sellingPrice * line.qty)}</span>
                 </div>
               </li>
             ))}
@@ -595,7 +593,7 @@ function CartPanel({ cart, subtotal, total, discount, cashOut, cashChange, notes
       <div className="shrink-0 space-y-2.5 border-t border-slate-100 p-4">
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Subtotal</span>
-          <span className="font-semibold text-slate-900">{new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(subtotal)}</span>
+          <span className="font-semibold text-slate-900">{ugx(subtotal)}</span>
         </div>
         <input
           type="number"
@@ -613,7 +611,7 @@ function CartPanel({ cart, subtotal, total, discount, cashOut, cashChange, notes
         />
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-900">Total</span>
-          <span className="text-xl font-black" style={{ color: '#1B4332' }}>{new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(total)}</span>
+          <span className="text-xl font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
         </div>
         <input
           type="number"
@@ -626,7 +624,7 @@ function CartPanel({ cart, subtotal, total, discount, cashOut, cashChange, notes
         {cashChange !== null && cashChange >= 0 && (
           <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2">
             <span className="text-sm font-semibold text-emerald-800">Change</span>
-            <span className="text-sm font-bold text-emerald-700">{new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(cashChange)}</span>
+            <span className="text-sm font-bold text-emerald-700">{ugx(cashChange)}</span>
           </div>
         )}
         {err && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>}
@@ -637,7 +635,7 @@ function CartPanel({ cart, subtotal, total, discount, cashOut, cashChange, notes
           className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: canCheckout ? '#1B4332' : '#94A3B8' }}
         >
-          {!currentShift ? 'Open a shift first' : cart.length === 0 ? 'Cart is empty' : `Charge · ${new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(total)}`}
+          {!currentShift ? 'Open a shift first' : cart.length === 0 ? 'Cart is empty' : `Charge · ${ugx(total)}`}
         </button>
       </div>
     </div>

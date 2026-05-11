@@ -4,10 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { formatUGX as ugx } from '../lib/currency';
 import type { Receipt } from '../types';
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
 
 function getError(e: unknown): string {
   if (e instanceof ApiError) return e.message;
@@ -436,8 +434,7 @@ export default function DashboardPage() {
 }
 
 function ReceiptPreview({ receipt, printMode = false }: { receipt: Receipt; printMode?: boolean }) {
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
+  const fmt = ugx;
 
   if (printMode) {
     return null;

@@ -3,9 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-
-const ugx = (n: number) =>
-  new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', maximumFractionDigits: 0 }).format(n);
+import { formatUGX as ugx } from '../lib/currency';
 
 const paymentMethodOptions = [
   { value: 'cash', label: 'Cash' },
