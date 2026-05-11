@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useDeferredValue } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { enqueueSale } from '../lib/offlineQueue';
 import type { PosProduct } from '../types';
 
 const ugx = (n: number) =>
@@ -108,7 +109,29 @@ export default function POSPage() {
       setErr('');
       await invalidate();
     },
-    onError: (e) => setErr(getError(e)),
+    onError: async (e) => {
+      if (!navigator.onLine) {
+        const salePayload = {
+          customerId: null,
+          quickCustomer: null,
+          discount: Number(discount || 0),
+          paymentMethod,
+          paymentReference: paymentRef || null,
+          notes: notes || null,
+          items: cart.map((l) => ({ productId: l.product.id, quantity: l.qty })),
+        };
+        await enqueueSale(salePayload);
+        setCart([]);
+        setShowPayment(false);
+        setDiscount('0');
+        setCashOut('');
+        setPaymentRef('');
+        setNotes('');
+        setErr('Sale saved offline — will sync when connected');
+      } else {
+        setErr(getError(e));
+      }
+    },
   });
 
   const products = productsQuery.data?.products ?? [];

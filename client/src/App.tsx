@@ -16,6 +16,7 @@ import OrdersPage from './pages/OrdersPage';
 import ReceiptsPage from './pages/ReceiptsPage';
 import { AuthProvider } from './hooks/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
+import OfflineBanner from './components/OfflineBanner';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -134,6 +135,7 @@ function App() {
           </Routes>
         </BrowserRouter>
         <Toaster />
+        <OfflineBanner />
       </AuthProvider>
     </QueryClientProvider>
   );
