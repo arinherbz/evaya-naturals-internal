@@ -7,15 +7,17 @@ interface ProtectedRouteProps {
   allowRoles?: string[];
 }
 
+const STAFF_ROLES = ['Cashier', 'Delivery Rider'];
+
 export default function ProtectedRoute({ children, permission, allowRoles }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-[#f5f5f7]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-evaya-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-sm text-slate-500">Loading…</p>
         </div>
       </div>
     );
@@ -25,40 +27,22 @@ export default function ProtectedRoute({ children, permission, allowRoles }: Pro
     return <Navigate to="/login" replace />;
   }
 
-  if (permission && user) {
-    // Admin has all permissions
-    if (user.role.name === 'Admin') {
-      return <>{children}</>;
-    }
+  const roleName = user?.role.name ?? '';
 
-    if (allowRoles?.includes(user.role.name)) {
-      return <>{children}</>;
-    }
-
-    const hasPermission = user.role.permissions.includes('*') || 
-                          user.role.permissions.includes(permission);
-    
-    if (!hasPermission) {
-      return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <div className="text-center">
-            <p className="text-red-600 text-lg font-medium">Access Denied</p>
-            <p className="mt-2 text-gray-600">You don't have permission to access this page.</p>
-          </div>
-        </div>
-      );
-    }
+  // Admin bypasses all checks
+  if (roleName === 'Admin') {
+    return <>{children}</>;
   }
 
-  if (!permission && allowRoles && user && !allowRoles.includes(user.role.name) && user.role.name !== 'Admin') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600 text-lg font-medium">Access Denied</p>
-          <p className="mt-2 text-gray-600">You don't have permission to access this page.</p>
-        </div>
-      </div>
-    );
+  const hasRoleAccess = !allowRoles || allowRoles.length === 0 || allowRoles.includes(roleName);
+  const hasPermission = !permission || (user?.role.permissions.includes('*') ?? false) || (user?.role.permissions.includes(permission) ?? false);
+
+  if (!hasRoleAccess || !hasPermission) {
+    // Staff roles redirect to POS instead of "Access Denied"
+    if (STAFF_ROLES.includes(roleName)) {
+      return <Navigate to="/pos" replace />;
+    }
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

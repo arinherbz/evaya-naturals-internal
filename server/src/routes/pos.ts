@@ -1341,6 +1341,74 @@ posRoutes.patch('/deliveries/:id', requirePermission('update_delivery_status'), 
   return c.json({ delivery });
 });
 
+posRoutes.get('/receipts', async (c) => {
+  const user = c.get('user');
+  if (!canViewPos(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const search = c.req.query('search')?.trim() || null;
+  const startDate = c.req.query('startDate') || null;
+  const endDate = c.req.query('endDate') || null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filters: any[] = [eq(schema.sales.branchId, branchId)];
+  if (search) {
+    filters.push(
+      or(
+        like(schema.sales.receiptNumber, `%${search}%`),
+        like(schema.customers.name, `%${search}%`),
+      )!,
+    );
+  }
+  if (startDate) {
+    filters.push(gte(sql<string>`left(${schema.sales.createdAt}, 10)`, toDateKey(parseDateStart(startDate))));
+  }
+  if (endDate) {
+    filters.push(lt(sql<string>`left(${schema.sales.createdAt}, 10)`, toDateKey(parseDateEnd(endDate))));
+  }
+
+  const rows = await db.select({
+    id: schema.sales.id,
+    receiptNumber: schema.sales.receiptNumber,
+    branchId: schema.sales.branchId,
+    cashierId: schema.sales.cashierId,
+    customerId: schema.sales.customerId,
+    subtotal: schema.sales.subtotal,
+    discount: schema.sales.discount,
+    total: schema.sales.total,
+    paymentMethod: schema.sales.paymentMethod,
+    paymentReference: schema.sales.paymentReference,
+    notes: schema.sales.notes,
+    createdAt: schema.sales.createdAt,
+    cashierFirstName: schema.users.firstName,
+    cashierLastName: schema.users.lastName,
+    customerName: schema.customers.name,
+    customerPhone: schema.customers.phone,
+  })
+    .from(schema.sales)
+    .innerJoin(schema.users, eq(schema.sales.cashierId, schema.users.id))
+    .leftJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+    .where(and(...filters))
+    .orderBy(desc(schema.sales.createdAt))
+    .limit(200);
+
+  const settings = await getAppSettings();
+  const receipts = rows.map((r) => ({
+    ...r,
+    businessName: settings.businessName,
+    branchName: primaryBranchName,
+    cashierName: `${r.cashierFirstName} ${r.cashierLastName}`.trim(),
+    customerName: r.customerName ?? null,
+    customerPhone: r.customerPhone ?? null,
+    receiptFooterMessage: settings.receiptFooterMessage,
+    items: [] as unknown[],
+  }));
+
+  return c.json({ receipts });
+});
+
 posRoutes.get('/receipts/:id', async (c) => {
   const user = c.get('user');
   if (!canViewPos(user)) {

@@ -33,17 +33,33 @@ export default function DashboardPage() {
     queryKey: ['pos-today-summary'],
     queryFn: () => api.pos.today(),
     enabled: canViewSales,
+    refetchInterval: 60_000,
   });
 
   const shiftQuery = useQuery({
     queryKey: ['pos-current-shift'],
     queryFn: () => api.pos.currentShift(),
     enabled: canCheckout,
+    refetchInterval: 60_000,
   });
 
   const productsQuery = useQuery({
     queryKey: ['pos-products-dashboard'],
     queryFn: () => api.pos.products({ search: '' }),
+    refetchInterval: 60_000,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const expensesQuery = useQuery({
+    queryKey: ['expenses-today-dashboard'],
+    queryFn: () => api.pos.expenses({ startDate: today, endDate: today }),
+    refetchInterval: 60_000,
+  });
+
+  const deliveriesQuery = useQuery({
+    queryKey: ['deliveries-dashboard'],
+    queryFn: () => api.pos.deliveries(),
+    refetchInterval: 60_000,
   });
 
   const receiptQuery = useQuery({
@@ -72,14 +88,20 @@ export default function DashboardPage() {
   });
 
   const currentShift = shiftQuery.data?.shift ?? null;
-  const today = todayQuery.data;
   const products = productsQuery.data?.products ?? [];
   const lowStockProducts = products.filter((p) => p.lowStock && !p.isOutOfStock).slice(0, 6);
   const outOfStockCount = products.filter((p) => p.isOutOfStock).length;
 
-  const totalSales = today?.totalSales ?? 0;
-  const salesCount = today?.salesCount ?? 0;
-  const paymentTotals = today?.paymentTotals;
+  const todayData = todayQuery.data;
+  const totalSales = todayData?.totalSales ?? 0;
+  const salesCount = todayData?.salesCount ?? 0;
+  const paymentTotals = todayData?.paymentTotals;
+
+  const expensesTotal = (expensesQuery.data?.expenses ?? []).reduce((sum, e) => sum + e.amount, 0);
+  const profit = totalSales - expensesTotal;
+  const cashBalance = (paymentTotals?.cash ?? 0) + (currentShift?.openingCash ?? 0);
+  const openOrders = (deliveriesQuery.data?.deliveries ?? []).filter((d) => ['pending', 'assigned'].includes(d.status)).length;
+  const lowStockCount = products.filter((p) => p.lowStock || p.isOutOfStock).length;
 
   const handleOpenShift = async (e: FormEvent) => {
     e.preventDefault();
@@ -123,31 +145,49 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* KPI row */}
+          {/* KPI row — 7 cards */}
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KPICard
-              label="Sales today"
+              label="Revenue today"
               value={ugx(totalSales)}
               sub={`${salesCount} receipts`}
               onClick={() => navigate('/reports')}
             />
             <KPICard
-              label="Receipts"
+              label="Expenses today"
+              value={ugx(expensesTotal)}
+              sub="recorded expenses"
+              onClick={() => navigate('/expenses')}
+            />
+            <KPICard
+              label="Gross profit"
+              value={ugx(profit)}
+              sub="revenue − expenses"
+              onClick={() => navigate('/reports')}
+            />
+            <KPICard
+              label="Cash balance"
+              value={ugx(cashBalance)}
+              sub="cash in drawer"
+              onClick={() => navigate('/reports')}
+            />
+            <KPICard
+              label="Open orders"
+              value={String(openOrders)}
+              sub="pending + confirmed"
+              onClick={() => navigate('/orders')}
+            />
+            <KPICard
+              label="Receipts today"
               value={String(salesCount)}
               sub="tap to view all"
               onClick={() => setShowReceipts(true)}
             />
             <KPICard
-              label="Cash collected"
-              value={ugx(paymentTotals?.cash ?? 0)}
-              sub="cash payments"
-              onClick={() => navigate('/reports')}
-            />
-            <KPICard
-              label="Shift"
-              value={currentShift ? 'Open' : 'Closed'}
-              sub={currentShift ? 'Ready for checkout' : 'Open before selling'}
-              onClick={() => navigate('/pos')}
+              label="Low stock"
+              value={String(lowStockCount)}
+              sub="items need attention"
+              onClick={() => navigate('/inventory')}
             />
           </section>
 
@@ -342,9 +382,9 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {todayQuery.isLoading && <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
-              {!todayQuery.isLoading && (today?.sales ?? []).length === 0 && <p className="py-8 text-center text-sm text-slate-400">No sales today</p>}
+              {!todayQuery.isLoading && (todayData?.sales ?? []).length === 0 && <p className="py-8 text-center text-sm text-slate-400">No sales today</p>}
               <div className="space-y-2">
-                {(today?.sales ?? []).map((sale) => (
+                {(todayData?.sales ?? []).map((sale) => (
                   <button key={sale.id} type="button" onClick={() => setSelectedReceiptId(sale.id)}
                     className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100">
                     <div className="flex items-center justify-between">

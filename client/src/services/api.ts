@@ -335,6 +335,14 @@ export const api = {
       const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return request<PosTodaySummary>(`/pos/sales/today${suffix}`);
     },
+    receipts: (params?: { search?: string; startDate?: string; endDate?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.startDate) searchParams.set('startDate', params.startDate);
+      if (params?.endDate) searchParams.set('endDate', params.endDate);
+      const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return request<{ receipts: Receipt[] }>(`/pos/receipts${suffix}`);
+    },
     receipt: (id: string) => request<{ receipt: Receipt }>(`/pos/receipts/${id}`),
     currentShift: () => request<{ shift: ShiftSnapshot | null }>('/pos/shift/current'),
     openShift: (openingCash: number) =>

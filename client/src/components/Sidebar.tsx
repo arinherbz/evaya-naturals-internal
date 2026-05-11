@@ -1,47 +1,50 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import BrandMark from './BrandMark';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/', icon: 'home', permission: 'view_dashboard', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant'] },
-  { label: 'POS', href: '/pos', icon: 'shopping-cart', permission: 'process_sales', allowRoles: ['Branch Manager'] },
-  { label: 'Products', href: '/products', icon: 'package', permission: null, allowRoles: ['Branch Manager'] },
-  { label: 'Inventory', href: '/inventory', icon: 'database', permission: 'manage_inventory', allowRoles: ['Cashier'] },
-  { label: 'Customers', href: '/customers', icon: 'users', permission: null, allowRoles: ['Branch Manager', 'Cashier'] },
-  { label: 'Expenses', href: '/expenses', icon: 'wallet', permission: 'view_reports', allowRoles: ['Branch Manager'] },
-  { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', permission: null, allowRoles: ['Branch Manager', 'Delivery Rider'] },
-  { label: 'Orders', href: '/orders', icon: 'clipboard', permission: null, allowRoles: ['Branch Manager', 'Admin'] },
-  { label: 'Reports', href: '/reports', icon: 'bar-chart', permission: 'view_reports' },
-  { label: 'Settings', href: '/settings', icon: 'settings', permission: null, allowRoles: ['Admin'] },
+  { label: 'Dashboard', href: '/', icon: 'home', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant'] },
+  { label: 'POS', href: '/pos', icon: 'shopping-cart', allowRoles: ['Branch Manager', 'Cashier'] },
+  { label: 'Receipts', href: '/receipts', icon: 'receipt', allowRoles: ['Branch Manager', 'Cashier'] },
+  { label: 'Orders', href: '/orders', icon: 'clipboard', allowRoles: ['Branch Manager'] },
+  { label: 'Products', href: '/products', icon: 'package', allowRoles: ['Branch Manager'] },
+  { label: 'Inventory', href: '/inventory', icon: 'database', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer'] },
+  { label: 'Customers', href: '/customers', icon: 'users', allowRoles: ['Branch Manager', 'Cashier'] },
+  { label: 'Expenses', href: '/expenses', icon: 'wallet', allowRoles: ['Branch Manager', 'Accountant'] },
+  { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', allowRoles: ['Branch Manager'] },
+  { label: 'Reports', href: '/reports', icon: 'bar-chart', allowRoles: ['Branch Manager', 'Accountant'] },
+  { label: 'Settings', href: '/settings', icon: 'settings', allowRoles: ['Admin'] },
 ];
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const canShowItem = (permission: string | null, allowRoles?: string[]) => {
+  const canShowItem = (allowRoles?: string[]) => {
     if (!user) return false;
     if (user.role.name === 'Admin') return true;
-    if (allowRoles?.includes(user.role.name)) return true;
-    if (!permission) return !allowRoles || allowRoles.length === 0;
-    return user.role.permissions.includes(permission);
+    if (!allowRoles || allowRoles.length === 0) return true;
+    return allowRoles.includes(user.role.name);
   };
 
-  const visibleItems = NAV_ITEMS.filter((item) => canShowItem(item.permission, item.allowRoles));
+  const visibleItems = NAV_ITEMS.filter((item) => canShowItem(item.allowRoles));
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
       isActive
-        ? 'bg-[#1B4332] text-[#3ADB82]'
-        : 'text-slate-400 hover:bg-white/6 hover:text-slate-200'
+        ? 'bg-emerald-50 text-emerald-700'
+        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
     }`;
 
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
     <>
-      <div className="border-b border-white/6 p-5">
-        <BrandMark compact />
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+      <div className="border-b border-slate-100 p-5">
+        <button type="button" onClick={() => { navigate('/pos'); onNav?.(); }}>
+          <BrandMark compact />
+        </button>
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
           Evaya Naturals
         </p>
       </div>
@@ -64,22 +67,22 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      <div className="border-t border-white/6 p-3">
+      <div className="border-t border-slate-100 p-3">
         <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1B4332] text-xs font-bold text-[#3ADB82]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
             {user?.firstName?.[0] ?? '?'}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-200">
+            <p className="truncate text-sm font-medium text-slate-800">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="truncate text-xs text-slate-500">{user?.role.name}</p>
+            <p className="truncate text-xs text-slate-400">{user?.role.name}</p>
           </div>
           <button
             type="button"
             onClick={logout}
             title="Logout"
-            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/8 hover:text-slate-300"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -93,15 +96,14 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile topbar */}
-      <div
-        className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-4 py-3.5 shadow-[0_1px_0_rgba(255,255,255,0.04)] lg:hidden"
-        style={{ background: '#0D1610' }}
-      >
-        <BrandMark compact />
+      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5 shadow-sm lg:hidden">
+        <button type="button" onClick={() => navigate('/pos')}>
+          <BrandMark compact />
+        </button>
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white/8"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100"
           aria-label="Open navigation"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,18 +118,15 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             aria-label="Close navigation"
           />
-          <aside
-            className="relative flex h-full w-[min(17rem,86vw)] flex-col"
-            style={{ background: '#0D1610' }}
-          >
+          <aside className="relative flex h-full w-[min(17rem,86vw)] flex-col border-r border-slate-100 bg-white">
             <div className="absolute right-0 top-3 translate-x-full">
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="m-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white"
+                className="m-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-md text-slate-600"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -140,10 +139,7 @@ export default function Sidebar() {
       )}
 
       {/* Desktop sidebar */}
-      <aside
-        className="hidden min-h-screen w-60 shrink-0 flex-col lg:flex"
-        style={{ background: '#0D1610' }}
-      >
+      <aside className="hidden min-h-screen w-60 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
         <SidebarContent />
       </aside>
     </>
@@ -160,6 +156,11 @@ function SidebarIcon({ name }: { name: string }) {
     'shopping-cart': (
       <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+    receipt: (
+      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
       </svg>
     ),
     package: (
