@@ -551,6 +551,25 @@ catalogRoutes.post('/products', async (c) => {
 
   const [created] = await db.insert(schema.products).values(productData).returning();
   await ensureVisibility(created.id, visibilityBranchIds);
+
+  // Create an inventory row for every branch so the product appears in Inventory and POS immediately
+  for (const bid of visibilityBranchIds) {
+    const existing = await db
+      .select({ id: schema.inventory.id })
+      .from(schema.inventory)
+      .where(and(eq(schema.inventory.productId, created.id), eq(schema.inventory.branchId, bid)))
+      .limit(1);
+    if (existing.length === 0) {
+      await db.insert(schema.inventory).values({
+        productId: created.id,
+        branchId: bid,
+        quantity: 0,
+        lowStockThreshold: payload.lowStockThreshold,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   await logAudit(user, 'create', 'product', created.id, undefined, created as unknown as Record<string, unknown>);
   return c.json({ product: created }, 201);
 });

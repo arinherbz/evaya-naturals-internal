@@ -132,11 +132,7 @@ export default function POSPage() {
   });
 
   const rawProducts = productsQuery.data?.products ?? [];
-  // In-stock products first (alphabetical within each group), out-of-stock last
-  const products = [...rawProducts].sort((a, b) => {
-    if (a.isOutOfStock !== b.isOutOfStock) return a.isOutOfStock ? 1 : -1;
-    return a.name.localeCompare(b.name);
-  });
+  const products = [...rawProducts].sort((a, b) => a.name.localeCompare(b.name));
 
   const currentShift = shiftQuery.data?.shift ?? null;
   const enabledMethods = PAYMENT_OPTIONS.filter(
@@ -286,7 +282,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      const available = products.filter((p) => !p.isOutOfStock);
+                      const available = products.filter((p) => p.availableQuantity > 0);
                       if (available.length === 1) addToCart(available[0]);
                     }
                   }}
@@ -315,10 +311,10 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                     disabled={disabled}
                     onClick={() => addToCart(product)}
                     className={`w-full flex items-center gap-4 px-4 py-3.5 text-left transition select-none ${
-                      product.isOutOfStock
-                        ? 'opacity-40 cursor-not-allowed bg-white'
-                        : inCart > 0
+                      inCart > 0
                         ? 'bg-emerald-50/60 hover:bg-emerald-50'
+                        : disabled
+                        ? 'opacity-40 cursor-not-allowed bg-white'
                         : 'hover:bg-slate-50 active:bg-slate-100'
                     }`}
                   >
@@ -330,20 +326,18 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                       </span>
                     ) : (
                       <span className={`h-2 w-2 shrink-0 rounded-full ${
-                        product.isOutOfStock ? 'bg-rose-400' : qty <= 5 ? 'bg-amber-400' : 'bg-emerald-400'
+                        qty <= 0 ? 'bg-slate-300' : qty <= 5 ? 'bg-amber-400' : 'bg-emerald-400'
                       }`} />
                     )}
 
                     {/* Name + stock info */}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
-                      {product.isOutOfStock ? (
-                        <p className="text-xs text-rose-500">Out of stock</p>
-                      ) : qty <= 5 ? (
+                      {qty > 0 && qty <= 5 ? (
                         <p className="text-xs text-amber-600">Only {qty} left</p>
-                      ) : (
+                      ) : qty > 5 ? (
                         <p className="text-xs text-slate-400">{qty} in stock</p>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Price */}
