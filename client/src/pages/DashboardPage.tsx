@@ -87,8 +87,7 @@ export default function DashboardPage() {
 
   const currentShift = shiftQuery.data?.shift ?? null;
   const products = productsQuery.data?.products ?? [];
-  const lowStockProducts = products.filter((p) => p.lowStock && !p.isOutOfStock).slice(0, 6);
-  const outOfStockCount = products.filter((p) => p.isOutOfStock).length;
+  const alertProducts = products.filter((p) => p.lowStock || p.isOutOfStock);
 
   const todayData = todayQuery.data;
   const totalSales = todayData?.totalSales ?? 0;
@@ -143,54 +142,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* KPI row — 7 cards */}
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KPICard
-              label="Revenue today"
-              value={ugx(totalSales)}
-              sub={`${salesCount} receipts`}
-              onClick={() => navigate('/reports')}
-            />
-            <KPICard
-              label="Expenses today"
-              value={ugx(expensesTotal)}
-              sub="recorded expenses"
-              onClick={() => navigate('/expenses')}
-            />
-            <KPICard
-              label="Gross profit"
-              value={ugx(profit)}
-              sub="revenue − expenses"
-              onClick={() => navigate('/reports')}
-            />
-            <KPICard
-              label="Cash balance"
-              value={ugx(cashBalance)}
-              sub="cash in drawer"
-              onClick={() => navigate('/reports')}
-            />
-            <KPICard
-              label="Deliveries"
-              value={String(openOrders)}
-              sub="pending + confirmed"
-              onClick={() => navigate('/deliveries')}
-            />
-            <KPICard
-              label="Receipts today"
-              value={String(salesCount)}
-              sub="tap to view all"
-              onClick={() => setShowReceipts(true)}
-            />
-            <KPICard
-              label="Low stock"
-              value={String(lowStockCount)}
-              sub="items need attention"
-              onClick={() => navigate('/inventory')}
-            />
-          </section>
-
-          {/* Middle row */}
-          <section className="grid gap-6 xl:grid-cols-[1fr_340px]">
+          {/* Top row — Shift Management + Quick View */}
+          <section className="grid gap-6 md:grid-cols-2">
 
             {/* Shift management */}
             <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -320,31 +273,67 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Low stock alerts */}
-          {(lowStockProducts.length > 0 || outOfStockCount > 0) && (
+          {/* KPI row */}
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KPICard
+              label="Revenue today"
+              value={ugx(totalSales)}
+              sub={`${salesCount} receipts`}
+              onClick={() => navigate('/reports')}
+            />
+            <KPICard
+              label="Expenses today"
+              value={ugx(expensesTotal)}
+              sub="recorded expenses"
+              onClick={() => navigate('/expenses')}
+            />
+            <KPICard
+              label="Gross profit"
+              value={ugx(profit)}
+              sub="revenue − expenses"
+              onClick={() => navigate('/reports')}
+            />
+            <KPICard
+              label="Cash balance"
+              value={ugx(cashBalance)}
+              sub="cash in drawer"
+              onClick={() => navigate('/reports')}
+            />
+            <KPICard
+              label="Deliveries"
+              value={String(openOrders)}
+              sub="pending + confirmed"
+              onClick={() => navigate('/deliveries')}
+            />
+            <KPICard
+              label="Receipts today"
+              value={String(salesCount)}
+              sub="tap to view all"
+              onClick={() => setShowReceipts(true)}
+            />
+            <KPICard
+              label="Low stock"
+              value={String(lowStockCount)}
+              sub="items need attention"
+              onClick={() => navigate('/inventory')}
+            />
+          </section>
+
+          {/* Stock alerts */}
+          {alertProducts.length > 0 && (
             <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-900">Stock alerts</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">Products that need attention</p>
+                  <p className="mt-0.5 text-sm text-slate-500">{alertProducts.length} item{alertProducts.length !== 1 ? 's' : ''} need attention</p>
                 </div>
-                {outOfStockCount > 0 && (
-                  <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
-                    {outOfStockCount} out of stock
-                  </span>
-                )}
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {lowStockProducts.map((p) => (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {alertProducts.map((p) => (
                   <div key={p.id} className="flex items-center justify-between rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
-                      <p className="text-xs text-slate-500">{p.categoryName}</p>
-                    </div>
-                    <span className="ml-3 shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                      {p.availableQuantity} left
-                    </span>
+                    <p className="truncate text-sm font-semibold text-slate-900">{p.name}</p>
+                    <span className="ml-3 shrink-0 text-sm text-slate-500">Remaining: {p.availableQuantity}</span>
                   </div>
                 ))}
               </div>

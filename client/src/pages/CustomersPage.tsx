@@ -23,6 +23,7 @@ export default function CustomersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [name, setName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -70,6 +71,7 @@ export default function CustomersPage() {
     },
     onSuccess: async () => {
       setEditingCustomer(null);
+      setShowCustomerModal(false);
       resetForm();
       setPageError('');
       await refreshCustomers();
@@ -117,6 +119,14 @@ export default function CustomersPage() {
     setWhatsappNumber(customer.whatsappNumber ?? customer.phone ?? '');
     setEmail(customer.email ?? '');
     setExpandedId(customer.id);
+    setShowCustomerModal(true);
+  };
+
+  const closeCustomerModal = () => {
+    setShowCustomerModal(false);
+    setEditingCustomer(null);
+    resetForm();
+    setPageError('');
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -152,9 +162,22 @@ export default function CustomersPage() {
         <div className="mx-auto max-w-6xl space-y-6">
 
           <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Customers</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Customers</h1>
-            <p className="mt-1 text-sm text-slate-500">Manage customer contacts and send messages.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Customers</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Customers</h1>
+                <p className="mt-1 text-sm text-slate-500">Manage customer contacts and send messages.</p>
+              </div>
+              {canManageCustomers && (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerModal(true)}
+                  className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  + Add Customer
+                </button>
+              )}
+            </div>
           </section>
 
           {pageError && (
@@ -165,59 +188,8 @@ export default function CustomersPage() {
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
 
-            {/* Left: customer form + list */}
+            {/* Left: customer list */}
             <div className="space-y-5">
-
-              {/* Customer form */}
-              <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    {editingCustomer ? `Edit: ${editingCustomer.name}` : 'New customer'}
-                  </h2>
-                  {editingCustomer && (
-                    <button
-                      type="button"
-                      onClick={() => { setEditingCustomer(null); resetForm(); }}
-                      className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-                <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Customer name"
-                    className={inputCls}
-                    required
-                    disabled={!canManageCustomers}
-                  />
-                  <input
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="WhatsApp number (e.g. 256700000000)"
-                    className={inputCls}
-                    required
-                    disabled={!canManageCustomers}
-                  />
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email (optional)"
-                    type="email"
-                    className={inputCls}
-                    disabled={!canManageCustomers}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!canManageCustomers || customerMutation.isPending}
-                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {customerMutation.isPending ? 'Saving…' : editingCustomer ? 'Save changes' : 'Add customer'}
-                  </button>
-                </form>
-              </div>
 
               {/* Customer list */}
               <div className="rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -356,6 +328,71 @@ export default function CustomersPage() {
           </div>
         </div>
       </main>
+
+      {/* Add / Edit customer modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/50 sm:items-center">
+          <div className="w-full max-w-md rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {editingCustomer ? `Edit: ${editingCustomer.name}` : 'New customer'}
+              </h2>
+              <button
+                type="button"
+                onClick={closeCustomerModal}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Customer name"
+                className={inputCls}
+                required
+                autoFocus
+              />
+              <input
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                placeholder="WhatsApp number (e.g. 256700000000)"
+                className={inputCls}
+                required
+              />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email (optional)"
+                type="email"
+                className={inputCls}
+              />
+              {pageError && (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{pageError}</p>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={customerMutation.isPending}
+                  className="flex-1 rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {customerMutation.isPending ? 'Saving…' : editingCustomer ? 'Save changes' : 'Add customer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeCustomerModal}
+                  className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {deletingCustomer && (
