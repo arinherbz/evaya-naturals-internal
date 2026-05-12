@@ -335,11 +335,12 @@ export const api = {
       const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return request<PosTodaySummary>(`/pos/sales/today${suffix}`);
     },
-    receipts: (params?: { search?: string; startDate?: string; endDate?: string }) => {
+    receipts: (params?: { search?: string; startDate?: string; endDate?: string; shiftId?: string }) => {
       const searchParams = new URLSearchParams();
       if (params?.search) searchParams.set('search', params.search);
       if (params?.startDate) searchParams.set('startDate', params.startDate);
       if (params?.endDate) searchParams.set('endDate', params.endDate);
+      if (params?.shiftId) searchParams.set('shiftId', params.shiftId);
       const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return request<{ receipts: Receipt[] }>(`/pos/receipts${suffix}`);
     },

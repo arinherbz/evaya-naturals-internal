@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [pageError, setPageError] = useState('');
   const [showReceipts, setShowReceipts] = useState(false);
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
+  const [receiptFilter, setReceiptFilter] = useState<'shift' | 'today' | 'week' | 'month'>('shift');
 
   const canViewSales = ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user?.role.name ?? '');
   const canCheckout = ['Admin', 'Cashier'].includes(user?.role.name ?? '');
@@ -66,26 +67,67 @@ export default function DashboardPage() {
     enabled: !!selectedReceiptId,
   });
 
+  // Receipts list — filtered by current shift, today, week, or month
+  const activeShiftId = shiftQuery.data?.shift?.id ?? null;
+  const receiptsListQuery = useQuery({
+    queryKey: ['pos-receipts', receiptFilter, activeShiftId],
+    queryFn: () => {
+      const now = new Date();
+      if (receiptFilter === 'shift' && activeShiftId) {
+        return api.pos.receipts({ shiftId: activeShiftId });
+      }
+      if (receiptFilter === 'today') {
+        const d = now.toISOString().slice(0, 10);
+        return api.pos.receipts({ startDate: d, endDate: d });
+      }
+      if (receiptFilter === 'week') {
+        const start = new Date(now);
+        start.setDate(now.getDate() - 6);
+        return api.pos.receipts({ startDate: start.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) });
+      }
+      // month
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return api.pos.receipts({ startDate: start.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) });
+    },
+    enabled: showReceipts,
+    refetchInterval: showReceipts ? 30_000 : false,
+  });
+
   const refreshOps = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-receipts'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-products-dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
     ]);
 
   const openShiftMutation = useMutation({
     mutationFn: () => api.pos.openShift(Number(openingCash)),
-    onSuccess: async () => { setOpeningCash('0'); setPageError(''); await refreshOps(); },
+    onSuccess: async () => {
+      setOpeningCash('0');
+      setPageError('');
+      setReceiptFilter('shift');
+      await refreshOps();
+    },
     onError: (e) => setPageError(getError(e)),
   });
 
   const closeShiftMutation = useMutation({
     mutationFn: () => api.pos.closeShift({ countedCash: Number(countedCash), notes: closeNotes || null }),
-    onSuccess: async () => { setCountedCash(''); setCloseNotes(''); setPageError(''); await refreshOps(); },
+    onSuccess: async () => {
+      setCountedCash('');
+      setCloseNotes('');
+      setPageError('');
+      setReceiptFilter('today');
+      await refreshOps();
+    },
     onError: (e) => setPageError(getError(e)),
   });
 
   const currentShift = shiftQuery.data?.shift ?? null;
+  const currentShiftId = currentShift?.id ?? null;
   const products = productsQuery.data?.products ?? [];
   const alertProducts = products.filter((p) => p.lowStock || p.isOutOfStock);
 
@@ -354,33 +396,81 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Receipts list modal */}
+      {/* Receipts list modal — shift-aware filtering */}
       {showReceipts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="relative flex h-[80vh] w-full max-w-lg flex-col rounded-[28px] border border-white/70 bg-white shadow-2xl">
+          <div className="relative flex h-[85vh] w-full max-w-lg flex-col rounded-[28px] border border-white/70 bg-white shadow-2xl">
+
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Today's receipts</h2>
-                <p className="text-xs text-slate-500">{salesCount} sales</p>
+                <h2 className="text-lg font-semibold text-slate-900">Receipts</h2>
+                <p className="text-xs text-slate-500">
+                  {receiptsListQuery.data?.receipts.length ?? 0} receipt{(receiptsListQuery.data?.receipts.length ?? 0) !== 1 ? 's' : ''}
+                </p>
               </div>
-              <button type="button" onClick={() => { setShowReceipts(false); setSelectedReceiptId(null); }} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button
+                type="button"
+                onClick={() => { setShowReceipts(false); setSelectedReceiptId(null); }}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
+
+            {/* Filter tabs */}
+            <div className="flex shrink-0 gap-1 border-b border-slate-100 px-4 py-2">
+              {([
+                { key: 'shift', label: 'Current shift', disabled: !currentShiftId },
+                { key: 'today', label: 'Today', disabled: false },
+                { key: 'week',  label: 'This week', disabled: false },
+                { key: 'month', label: 'This month', disabled: false },
+              ] as const).map(({ key, label, disabled }) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setReceiptFilter(key)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    receiptFilter === key
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Receipt list */}
             <div className="flex-1 overflow-y-auto p-4">
-              {todayQuery.isLoading && <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
-              {!todayQuery.isLoading && (todayData?.sales ?? []).length === 0 && <p className="py-8 text-center text-sm text-slate-400">No sales today</p>}
+              {receiptsListQuery.isLoading && (
+                <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+              )}
+              {!receiptsListQuery.isLoading && (receiptsListQuery.data?.receipts ?? []).length === 0 && (
+                <p className="py-8 text-center text-sm text-slate-400">
+                  {receiptFilter === 'shift' ? 'No receipts in this shift yet' : 'No receipts found'}
+                </p>
+              )}
               <div className="space-y-2">
-                {(todayData?.sales ?? []).map((sale) => (
-                  <button key={sale.id} type="button" onClick={() => setSelectedReceiptId(sale.id)}
-                    className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100">
+                {(receiptsListQuery.data?.receipts ?? []).map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setSelectedReceiptId(r.id)}
+                    className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-semibold text-emerald-700">{sale.receiptNumber}</span>
-                      <span className="text-sm font-bold text-slate-900">{ugx(sale.total)}</span>
+                      <span className="font-mono text-xs font-semibold text-emerald-700">{r.receiptNumber}</span>
+                      <span className="text-sm font-bold text-slate-900">{ugx(r.total)}</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between">
-                      <span className="text-xs capitalize text-slate-500">{sale.paymentMethod.replace(/_/g, ' ')}</span>
-                      <span className="text-xs text-slate-400">{new Date(sale.createdAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-xs capitalize text-slate-500">{r.paymentMethod.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400">
+                        {new Date(r.createdAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
                   </button>
                 ))}

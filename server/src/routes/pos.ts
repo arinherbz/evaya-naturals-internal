@@ -1352,9 +1352,10 @@ posRoutes.get('/receipts', async (c) => {
   const search = c.req.query('search')?.trim() || null;
   const startDate = c.req.query('startDate') || null;
   const endDate = c.req.query('endDate') || null;
+  const shiftId = c.req.query('shiftId') || null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filters: any[] = [eq(schema.sales.branchId, branchId)];
+  const filters: any[] = [eq(schema.sales.branchId, branchId), eq(schema.sales.status, 'completed')];
   if (search) {
     filters.push(
       or(
@@ -1362,6 +1363,9 @@ posRoutes.get('/receipts', async (c) => {
         like(schema.customers.name, `%${search}%`),
       )!,
     );
+  }
+  if (shiftId) {
+    filters.push(eq(schema.sales.shiftId, shiftId));
   }
   if (startDate) {
     filters.push(gte(sql<string>`left(${schema.sales.createdAt}, 10)`, toDateKey(parseDateStart(startDate))));

@@ -94,6 +94,7 @@ export default function ProductsPage() {
       queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-products-dashboard'] }),
     ]);
 
   const saveMutation = useMutation({

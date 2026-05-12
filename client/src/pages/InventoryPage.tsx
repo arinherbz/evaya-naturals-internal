@@ -83,6 +83,7 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['catalog-products'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-products-dashboard'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
     ]);
 
