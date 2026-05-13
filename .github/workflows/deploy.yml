@@ -29,6 +29,11 @@ jobs:
             npm ci
             npm run build
 
+            echo "Stamping service worker with build timestamp..."
+            BUILD_TS=$(date +%s)
+            sed -i "s/evaya-v[0-9]*/evaya-v${BUILD_TS}/g" dist/sw.js
+            echo "Service worker cache: evaya-v${BUILD_TS}"
+
             echo "Fixing nginx cache headers..."
             cat > /etc/nginx/sites-available/evaya << 'NGINX_EOF'
             server {
@@ -38,6 +43,13 @@ jobs:
 
                 # Never cache index.html so new deploys are visible immediately
                 location = /index.html {
+                    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
+                    add_header Pragma "no-cache" always;
+                    expires 0;
+                }
+
+                # Never cache sw.js so the browser always picks up a new service worker
+                location = /sw.js {
                     add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
                     add_header Pragma "no-cache" always;
                     expires 0;
@@ -81,7 +93,7 @@ jobs:
 
             ln -sf /etc/nginx/sites-available/evaya /etc/nginx/sites-enabled/evaya
             nginx -t && systemctl reload nginx
-            echo "Nginx reloaded with cache headers"
+            echo "Nginx reloaded"
 
             echo "Restarting API..."
             pm2 restart evaya-api

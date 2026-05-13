@@ -1,4 +1,4 @@
-const CACHE = 'evaya-v1';
+const CACHE = 'evaya-v2';
 const APP_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (e) => {
@@ -19,10 +19,10 @@ self.addEventListener('fetch', (e) => {
   const { request } = e;
   const url = new URL(request.url);
 
-  // Don't intercept API calls (handled by app layer)
+  // Don't intercept API calls
   if (url.pathname.startsWith('/api/')) return;
 
-  // For navigation requests, serve index.html from cache when offline
+  // Navigation: network-first, fall back to cached index.html when offline
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request).catch(() =>
@@ -32,19 +32,25 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Cache-first for assets
-  e.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok && url.origin === self.location.origin) {
-          const clone = response.clone();
-          caches.open(CACHE).then((c) => c.put(request, clone));
-        }
-        return response;
-      });
-    }),
-  );
+  // Hashed assets (/assets/...): cache-first (safe — filenames change each build)
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE).then((c) => c.put(request, clone));
+          }
+          return response;
+        });
+      }),
+    );
+    return;
+  }
+
+  // Everything else (sw.js, favicon, etc.): network-first, no caching
+  e.respondWith(fetch(request));
 });
 
 // Receive replay-queue message from app
