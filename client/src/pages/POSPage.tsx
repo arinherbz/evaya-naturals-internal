@@ -228,11 +228,11 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
     <div className="flex h-screen overflow-hidden bg-[#f5f5f7]">
       <Sidebar />
 
-      {/* Main content — offset top by mobile topbar on small screens */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[60px] lg:pt-0">
+      {/* Main content — offset top by mobile topbar on small screens (topbar hides at md+) */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[60px] md:pt-0">
 
-        {/* ── Top bar: shift status / open shift ── */}
-        {!currentShift ? (
+        {/* ── Top bar: no-shift warning only — shift stats moved into search row (FIX 1) ── */}
+        {!currentShift && (
           <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
             <span className="text-sm font-semibold text-amber-800">
               No active shift — open one to start selling.
@@ -244,33 +244,20 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                 value={openingCash}
                 onChange={(e) => setOpeningCash(e.target.value)}
                 placeholder="Opening cash (UGX)"
+                style={{ fontSize: '16px' }}
                 className="w-44 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400"
               />
               <button
                 type="button"
                 onClick={() => { setErr(''); openShiftMutation.mutate(); }}
                 disabled={openShiftMutation.isPending}
+                style={{ background: '#1B4332', touchAction: 'manipulation' }}
                 className="rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-60"
-                style={{ background: '#1B4332' }}
               >
                 {openShiftMutation.isPending ? 'Opening…' : 'Open Shift'}
               </button>
             </div>
             {err && <span className="text-xs text-rose-600">{err}</span>}
-          </div>
-        ) : (
-          <div className="flex shrink-0 items-center gap-3 border-b border-emerald-100 bg-white px-4 py-2.5 shadow-sm">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              Shift open since {new Date(currentShift.openedAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            <span className="mx-2 h-4 w-px bg-slate-200" />
-            <span className="text-xs text-slate-600">
-              <span className="font-bold text-slate-900">{currentShift.saleCount ?? 0}</span> {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
-            </span>
-            <span className="text-xs text-slate-600">
-              <span className="font-bold" style={{ color: '#1B4332' }}>{ugx(currentShift.salesTotal ?? 0)}</span> this shift
-            </span>
           </div>
         )}
 
@@ -280,37 +267,71 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           {/* ── LEFT: product search + grid ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* Search bar */}
+            {/* FIX 1: Search bar + shift pill badges */}
             <div className="shrink-0 border-b border-black/5 bg-white px-4 py-3">
-              <div className="relative w-full max-w-sm">
-                <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  ref={searchRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const available = products.filter((p) => p.availableQuantity > 0);
-                      if (available.length === 1) addToCart(available[0]);
-                    }
-                  }}
-                  placeholder="Search products…"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-[#F7F4EE] pl-9 pr-4 text-sm outline-none transition focus:border-[#1B4332]/50"
-                />
+              {/* Mobile-only: shift pills above search */}
+              {currentShift && (
+                <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 md:hidden">
+                  <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                    {new Date(currentShift.openedAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
+                  </span>
+                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: '#E8F5EF', color: '#1B4332' }}>
+                    {ugx(currentShift.salesTotal ?? 0)}
+                  </span>
+                </div>
+              )}
+              {/* Search row: input + desktop pills */}
+              <div className="flex items-center gap-3">
+                <div className="relative min-w-0 flex-1 max-w-sm">
+                  <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    ref={searchRef}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const available = products.filter((p) => p.availableQuantity > 0);
+                        if (available.length === 1) addToCart(available[0]);
+                      }
+                    }}
+                    placeholder="Search products…"
+                    style={{ fontSize: '16px' }}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-[#F7F4EE] pl-9 pr-4 text-sm outline-none transition focus:border-[#1B4332]/50"
+                  />
+                </div>
+                {/* Desktop-only: shift pills inline */}
+                {currentShift && (
+                  <div className="hidden items-center gap-2 md:flex">
+                    <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                      {new Date(currentShift.openedAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
+                    </span>
+                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: '#E8F5EF', color: '#1B4332' }}>
+                      {ugx(currentShift.salesTotal ?? 0)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Product grid — 1 col mobile, 2 col md, 3 col xl */}
-            <div className="flex-1 overflow-y-auto bg-[#f5f5f7] p-3">
+            {/* FIX 3: Product grid — 1→2→2→3→4 col responsive */}
+            <div className={`flex-1 overflow-y-auto bg-[#f5f5f7] p-3 ${cartCount > 0 ? 'pb-20 lg:pb-3' : ''}`}>
               {productsQuery.isLoading && (
                 <p className="py-16 text-center text-sm text-slate-400">Loading catalog…</p>
               )}
               {!productsQuery.isLoading && products.length === 0 && (
                 <p className="py-16 text-center text-sm text-slate-400">No products found</p>
               )}
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {products.map((product) => {
                   const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
                   const qty = product.availableQuantity;
@@ -378,22 +399,34 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
         </div>
       </div>
 
-      {/* ── Mobile FAB: cart ── */}
-      <button
-        type="button"
-        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition active:scale-95 lg:hidden"
-        style={{ background: '#1B4332' }}
-        onClick={() => setCartOpen(true)}
-      >
-        <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-        {cartCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-            {cartCount}
+      {/* FIX 4: Mobile cart — persistent bottom bar when items in cart, FAB when empty */}
+      {cartCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          style={{ background: '#1B4332', touchAction: 'manipulation' }}
+          className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between px-5 py-4 shadow-2xl lg:hidden"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">
+              {cartCount}
+            </span>
+            {cartCount} {cartCount === 1 ? 'item' : 'items'}
           </span>
-        )}
-      </button>
+          <span className="text-sm font-bold text-white">{ugx(cartTotal)}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition active:scale-95 lg:hidden"
+          style={{ background: '#1B4332', touchAction: 'manipulation' }}
+          onClick={() => setCartOpen(true)}
+        >
+          <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </button>
+      )}
 
       {/* ── Mobile: cart bottom sheet ── */}
       {cartOpen && (
@@ -491,6 +524,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
                   placeholder="Transaction reference"
+                  style={{ fontSize: '16px' }}
                   className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
                 />
               )}
@@ -502,6 +536,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   value={cashOut}
                   onChange={(e) => setCashOut(e.target.value)}
                   placeholder="Customer pays (UGX)"
+                  style={{ fontSize: '16px' }}
                   className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
                 />
               )}
@@ -737,6 +772,7 @@ function CartPanel({
           value={discount}
           onChange={(e) => onDiscount(e.target.value)}
           placeholder="Discount (UGX)"
+          style={{ fontSize: '16px' }}
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
         />
 
@@ -749,6 +785,7 @@ function CartPanel({
           value={notes}
           onChange={(e) => onNotes(e.target.value)}
           placeholder="Notes (optional)"
+          style={{ fontSize: '16px' }}
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
         />
 

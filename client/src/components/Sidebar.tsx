@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/api';
+import { formatUGX as ugx } from '../lib/currency';
 import BrandMark from './BrandMark';
 
 const NAV_ITEMS = [
@@ -22,6 +25,13 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const shiftQuery = useQuery({
+    queryKey: ['pos-current-shift'],
+    queryFn: () => api.pos.currentShift(),
+    refetchInterval: 60_000,
+  });
+  const currentShift = shiftQuery.data?.shift ?? null;
+
   const logoHref = user?.role.name === 'Cashier' ? '/pos' : '/';
 
   const canShowItem = (allowRoles?: string[]) => {
@@ -39,6 +49,31 @@ export default function Sidebar() {
         ? 'bg-emerald-50 text-emerald-700'
         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
     }`;
+
+  const iconNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center justify-center rounded-xl p-2.5 transition ${
+      isActive
+        ? 'bg-emerald-50 text-emerald-700'
+        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+    }`;
+
+  const ShiftCard = () =>
+    currentShift ? (
+      <div className="mx-2 mb-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+        <div className="mb-1 flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+            Shift Active
+          </span>
+        </div>
+        <p className="text-xs text-slate-500">
+          {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
+        </p>
+        <p className="text-sm font-bold" style={{ color: '#1B4332' }}>
+          {ugx(currentShift.salesTotal ?? 0)}
+        </p>
+      </div>
+    ) : null;
 
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
     <>
@@ -69,6 +104,9 @@ export default function Sidebar() {
         </ul>
       </nav>
 
+      {/* FIX 2: Mini shift summary card */}
+      <ShiftCard />
+
       <div className="border-t border-slate-100 p-3">
         <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
@@ -97,8 +135,8 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile topbar — icon only, fixed height 60px */}
-      <div className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b border-slate-100 bg-white px-4 shadow-sm lg:hidden">
+      {/* Mobile topbar — visible only on < md */}
+      <div className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b border-slate-100 bg-white px-4 shadow-sm md:hidden">
         <button type="button" onClick={() => navigate(logoHref)}>
           <div
             className="flex h-8 w-8 items-center justify-center rounded-xl"
@@ -119,9 +157,9 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — slides in on < md */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -145,7 +183,61 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Desktop sidebar */}
+      {/* FIX 5: Icon-only sidebar — md to < lg */}
+      <aside className="hidden min-h-screen w-14 shrink-0 flex-col border-r border-slate-100 bg-white md:flex lg:hidden">
+        <div className="flex h-[60px] items-center justify-center border-b border-slate-100">
+          <button type="button" onClick={() => navigate(logoHref)}>
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-xl"
+              style={{ background: '#1B4332' }}
+            >
+              <span className="text-sm font-bold leading-none text-white">E</span>
+            </div>
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto py-3">
+          <ul className="flex flex-col items-center gap-0.5">
+            {visibleItems.map((item) => (
+              <li key={item.href} className="w-full px-1">
+                <NavLink
+                  to={item.href}
+                  className={iconNavLinkClass}
+                  end={item.href === '/'}
+                  title={item.label}
+                >
+                  <SidebarIcon name={item.icon} />
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* Compact shift indicator for icon sidebar */}
+        {currentShift && (
+          <div className="flex justify-center pb-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" title="Shift active" />
+          </div>
+        )}
+
+        <div className="border-t border-slate-100 py-3 flex flex-col items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+            {user?.firstName?.[0] ?? '?'}
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Logout"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+
+      {/* Desktop sidebar — lg+ */}
       <aside className="hidden min-h-screen w-60 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
         <SidebarContent />
       </aside>
