@@ -29,6 +29,13 @@ jobs:
             npm ci
             npm run build
 
+            echo "=== Nginx site configs ==="
+            ls /etc/nginx/sites-enabled/ 2>/dev/null || echo "No sites-enabled"
+            SITE_CONF=$(ls /etc/nginx/sites-enabled/ 2>/dev/null | head -1)
+            if [ -n "$SITE_CONF" ]; then
+              cat /etc/nginx/sites-enabled/$SITE_CONF
+            fi
+
             echo "Restarting API..."
             pm2 restart evaya-api
 
