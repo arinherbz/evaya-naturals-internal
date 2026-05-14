@@ -13,7 +13,12 @@ self.addEventListener('activate', (e) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window' }))
-      .then((clients) => clients.forEach((c) => c.postMessage({ type: 'SW_UPDATED' }))),
+      .then((clients) =>
+        clients.forEach((c) => {
+          // Force navigate to same URL — works even with old app code in the tab
+          c.navigate(c.url).catch(() => c.postMessage({ type: 'SW_UPDATED' }));
+        }),
+      ),
   );
 });
 
