@@ -533,11 +533,7 @@ posRoutes.get('/products', async (c) => {
     eq(schema.products.isActive, true),
   ];
   if (search) {
-    productFilters.push(or(
-      like(schema.products.name, `%${search}%`),
-      like(schema.products.sku, `%${search}%`),
-      like(schema.products.barcode, `%${search}%`)
-    )!);
+    productFilters.push(like(schema.products.name, `%${search}%`));
   }
 
   const products = await db.select({
@@ -1491,7 +1487,17 @@ posRoutes.post('/sales', async (c) => {
   }
 
   const branchId = await resolveBranchId(user);
-  const payload = salePayloadSchema.parse(await c.req.json());
+  const parsedPayload = salePayloadSchema.safeParse(await c.req.json());
+  if (!parsedPayload.success) {
+    const itemError = parsedPayload.error.issues.find((issue) => issue.path[0] === 'items');
+    if (itemError) {
+      return c.json({ error: 'Add at least one item before completing sale' }, 400);
+    }
+
+    return c.json({ error: 'Sale details are invalid' }, 400);
+  }
+
+  const payload = parsedPayload.data;
   const settings = await getAppSettings();
   if (!settings.paymentMethods[payload.paymentMethod as keyof typeof settings.paymentMethods]) {
     return c.json({ error: 'That payment method is disabled in settings' }, 409);

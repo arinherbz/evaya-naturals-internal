@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 describe('simplified navigation', () => {
   it('shows expenses in the app and removes suppliers from active navigation', () => {
-    const sidebarSource = readFileSync(resolve(process.cwd(), 'client/src/components/Sidebar.tsx'), 'utf8');
-    const appSource = readFileSync(resolve(process.cwd(), 'client/src/App.tsx'), 'utf8');
+    const sidebarSource = readFileSync(resolve(process.cwd(), 'src/components/Sidebar.tsx'), 'utf8');
+    const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 
     expect(sidebarSource).toContain("label: 'Expenses'");
     expect(sidebarSource).not.toContain("label: 'Suppliers'");
@@ -14,7 +14,7 @@ describe('simplified navigation', () => {
   });
 
   it('keeps role-limited items behind explicit allowRoles checks', () => {
-    const sidebarSource = readFileSync(resolve(process.cwd(), 'client/src/components/Sidebar.tsx'), 'utf8');
+    const sidebarSource = readFileSync(resolve(process.cwd(), 'src/components/Sidebar.tsx'), 'utf8');
 
     expect(sidebarSource).toContain("allowRoles");
     expect(sidebarSource).toContain("label: 'Settings'");

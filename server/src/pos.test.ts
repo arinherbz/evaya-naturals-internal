@@ -64,8 +64,9 @@ async function createProduct(adminToken: string, branchId: string, categoryId: s
       sku: `${name.slice(0, 3).toUpperCase()}-001`,
       barcode: `${Date.now()}${Math.floor(Math.random() * 1000)}`,
       categoryId,
-      unitType: 'piece',
+      unitType: 'kg',
       sellingPrice: 12000,
+      costPrice: 6000,
       lowStockThreshold: 3,
       visibilityBranchIds: [branchId],
     }),
@@ -201,6 +202,21 @@ describe('pos slice', () => {
     expect(payload.products[0].availableQuantity).toBe(10);
   });
 
+  it('keeps out-of-stock products visible in POS results with an out-of-stock state', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const product = await createProduct(adminToken, branchId, category.id, 'Cinnamon Blend');
+
+    const response = await app.request('/api/pos/products?search=Cinnamon', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(response.status).toBe(200);
+    const payload = await json(response);
+    expect(payload.products).toHaveLength(1);
+    expect(payload.products[0].id).toBe(product.id);
+    expect(payload.products[0].availableQuantity).toBe(0);
+    expect(payload.products[0].isOutOfStock).toBe(true);
+  });
+
   it('completes a successful cashier sale, deducts FIFO stock, and records movements', async () => {
     const category = await createCategory(adminToken, 'POS Category');
     const product = await createProduct(adminToken, branchId, category.id, 'Ginger Tonic');
@@ -288,6 +304,27 @@ describe('pos slice', () => {
     expect(receiptResponse.status).toBe(200);
     const receiptPayload = await json(receiptResponse);
     expect(receiptPayload.receipt.items).toHaveLength(2);
+  });
+
+  it('rejects checkout with an empty cart before creating a sale', async () => {
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
+
+    const response = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        paymentMethod: 'cash',
+        items: [],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await json(response)).error).toBe('Add at least one item before completing sale');
   });
 
   it('blocks selling expired stock only', async () => {
