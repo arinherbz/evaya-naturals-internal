@@ -303,7 +303,7 @@ export default function ProductsPage() {
                     {UNITS.map((u) => <option key={u} value={u}>{u.toUpperCase()}</option>)}
                   </select>
                 </Field>
-                <Field label="Low stock alert">
+                <Field label="Low stock level">
                   <input type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm((c) => ({ ...c, lowStockThreshold: e.target.value }))} placeholder="10" className={iCls} required />
                 </Field>
               </div>

@@ -252,7 +252,7 @@ export default function InventoryPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {['Product', 'Unit', 'Quantity', 'Low Stock Alert', ...(canManageInventory ? ['Actions'] : [])].map((h) => (
+                    {['Product', 'Unit', 'Quantity', 'Low stock level', ...(canManageInventory ? ['Actions'] : [])].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-medium text-slate-400 whitespace-nowrap">
                         {h}
                       </th>
@@ -436,7 +436,7 @@ export default function InventoryPage() {
                   <input type="number" min="0" value={editQty} onChange={(e) => setEditQty(e.target.value)} className={iCls} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Low Stock Alert</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Low stock level</label>
                   <input type="number" min="0" value={editThreshold} onChange={(e) => setEditThreshold(e.target.value)} className={iCls} />
                 </div>
               </div>

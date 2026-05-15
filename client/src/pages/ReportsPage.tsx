@@ -106,8 +106,8 @@ ${(report?.bestSellingProducts ?? []).map((item) => `<tr><td>${item.productName}
 ${(report?.expenses ?? []).map((e) => `<tr><td>${e.title}</td><td>${e.category}</td><td>${ugx.format(e.amount)}</td></tr>`).join('')}
 </tbody></table>
 <h3>Low Stock</h3>
-<table><thead><tr><th>Product</th><th>Quantity</th><th>Threshold</th></tr></thead><tbody>
-${(report?.lowStockSummary.items ?? []).map((item) => `<tr><td>${item.productName}</td><td>${item.quantity}</td><td>${item.threshold}</td></tr>`).join('')}
+<table><thead><tr><th>Product</th><th>Quantity</th></tr></thead><tbody>
+${(report?.lowStockSummary.items ?? []).map((item) => `<tr><td>${item.productName}</td><td>${item.quantity}</td></tr>`).join('')}
 </tbody></table>
 ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:16px">${report.reportFooterMessage}</p>` : ''}
 </body></html>`);
@@ -240,7 +240,7 @@ ${report?.reportFooterMessage ? `<p style="margin-top:32px;font-size:12px;color:
               {(report?.lowStockSummary.items ?? []).length === 0
                 ? <EmptyState icon={Package} text="No low stock products." />
                 : (report?.lowStockSummary.items ?? []).map((item) => (
-                    <DataRow key={item.productName} label={`${item.productName} · threshold ${item.threshold}`} value={`${item.quantity} left`} />
+                    <DataRow key={item.productName} label={`${item.productName}`} value={`${item.quantity} left`} />
                   ))}
             </ReportPanel>
 

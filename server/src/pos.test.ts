@@ -839,4 +839,82 @@ describe('pos slice', () => {
     });
     expect(cashierBroadcastRes.status).toBe(403);
   });
+
+  it('excludes inactive products from low-stock reports', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const activeProduct = await createProduct(adminToken, branchId, category.id, 'Active Low Stock Product');
+    const inactiveProduct = await createProduct(adminToken, branchId, category.id, 'Inactive Low Stock Product');
+
+    await receiveBatch(adminToken, {
+      productId: activeProduct.id,
+      branchId,
+      batchNumber: 'BATCH-001',
+      expiryDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      quantityReceived: 2,
+      costPrice: 6000,
+      sellingPrice: 12000,
+    });
+
+    await receiveBatch(adminToken, {
+      productId: inactiveProduct.id,
+      branchId,
+      batchNumber: 'BATCH-002',
+      expiryDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      quantityReceived: 2,
+      costPrice: 6000,
+      sellingPrice: 12000,
+    });
+
+    const deactivateRes = await app.request(`/api/catalog/products/${inactiveProduct.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ isActive: false }),
+    });
+    expect(deactivateRes.status).toBe(200);
+
+    const reportRes = await app.request('/api/pos/reports/summary', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(reportRes.status).toBe(200);
+    const report = await json(reportRes);
+
+    const lowStockProductNames = report.lowStockSummary.items.map((item: any) => item.productName);
+    expect(lowStockProductNames).toContain('Active Low Stock Product');
+    expect(lowStockProductNames).not.toContain('Inactive Low Stock Product');
+    expect(report.lowStockSummary.count).toBe(report.lowStockSummary.items.length);
+  });
+
+  it('excludes products without active branch visibility from low-stock reports', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const hiddenProduct = await createProduct(adminToken, branchId, category.id, 'Hidden Low Stock Product');
+
+    await receiveBatch(adminToken, {
+      productId: hiddenProduct.id,
+      branchId,
+      batchNumber: 'BATCH-HIDDEN',
+      expiryDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      quantityReceived: 2,
+      costPrice: 6000,
+      sellingPrice: 12000,
+    });
+
+    await db.delete(schema.productVisibility)
+      .where(and(
+        eq(schema.productVisibility.productId, hiddenProduct.id),
+        eq(schema.productVisibility.branchId, branchId),
+      ));
+
+    const reportRes = await app.request('/api/pos/reports/summary', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(reportRes.status).toBe(200);
+    const report = await json(reportRes);
+
+    const lowStockProductNames = report.lowStockSummary.items.map((item: any) => item.productName);
+    expect(lowStockProductNames).not.toContain('Hidden Low Stock Product');
+    expect(report.lowStockSummary.count).toBe(report.lowStockSummary.items.length);
+  });
 });

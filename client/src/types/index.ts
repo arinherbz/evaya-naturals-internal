@@ -344,9 +344,9 @@ export interface ReportSummary {
   lowStockSummary: {
     count: number;
     items: Array<{
+      productId?: string;
       productName: string;
       quantity: number;
-      threshold: number;
     }>;
   };
   shiftSummary: {

@@ -659,6 +659,10 @@ catalogRoutes.get('/inventory', async (c) => {
     })
     .from(schema.inventory)
     .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
+    .innerJoin(schema.productVisibility, and(
+      eq(schema.productVisibility.productId, schema.products.id),
+      eq(schema.productVisibility.branchId, schema.inventory.branchId),
+    ))
     .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
     .innerJoin(schema.branches, eq(schema.inventory.branchId, schema.branches.id))
     .where(and(...filters))

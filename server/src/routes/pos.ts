@@ -224,6 +224,35 @@ function createReceiptNumber() {
   return `EVN-${datePart}-${timePart}-${suffix}`;
 }
 
+async function listLowStockProducts(branchId: string) {
+  const allowedUnits = ['kg', 'g', 'ml', 'l'];
+
+  const rows = await db.select({
+    productId: schema.products.id,
+    productName: schema.products.name,
+    quantity: schema.inventory.quantity,
+  })
+    .from(schema.inventory)
+    .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
+    .innerJoin(schema.productVisibility, and(
+      eq(schema.productVisibility.productId, schema.products.id),
+      eq(schema.productVisibility.branchId, schema.inventory.branchId),
+    ))
+    .where(and(
+      eq(schema.inventory.branchId, branchId),
+      eq(schema.products.isActive, true),
+      inArray(schema.products.unitType, allowedUnits),
+      sql`${schema.inventory.quantity} <= ${schema.inventory.lowStockThreshold}`,
+    ))
+    .orderBy(asc(schema.inventory.quantity), asc(schema.products.name));
+
+  return rows.map((row) => ({
+    productId: row.productId,
+    productName: row.productName,
+    quantity: row.quantity,
+  }));
+}
+
 function resolveReportRange(period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
   if (period === 'daily') {
     return {
@@ -469,16 +498,7 @@ async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' |
     productMap.set(row.productName, existing);
   });
 
-  const inventoryRows = await db.select({
-    productName: schema.products.name,
-    quantity: schema.inventory.quantity,
-    threshold: schema.inventory.lowStockThreshold,
-  })
-    .from(schema.inventory)
-    .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
-    .where(eq(schema.inventory.branchId, branchId))
-    .orderBy(asc(schema.inventory.quantity));
-  const inventory = inventoryRows.filter((row) => row.quantity <= row.threshold);
+  const lowStockItems = await listLowStockProducts(branchId);
 
   const shifts = await db.select({ id: schema.shifts.id })
     .from(schema.shifts)
@@ -507,8 +527,8 @@ async function buildReportSummary(branchId: string, period: 'daily' | 'weekly' |
     reportFooterMessage: settings.reportFooterMessage,
     bestSellingProducts: Array.from(productMap.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 5),
     lowStockSummary: {
-      count: inventory.length,
-      items: inventory.slice(0, 5),
+      count: lowStockItems.length,
+      items: lowStockItems,
     },
     shiftSummary: {
       count: shiftSummaries.length,

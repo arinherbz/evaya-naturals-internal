@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
   const currentShift = shiftQuery.data?.shift ?? null;
   const products = productsQuery.data?.products ?? [];
-  const alertProducts = products.filter((p) => p.lowStock || p.isOutOfStock);
+  const stockWatchProducts = products.filter((p) => p.lowStock || p.isOutOfStock);
 
   const todayData = todayQuery.data;
   const totalSales = todayData?.totalSales ?? 0;
@@ -381,7 +381,7 @@ export default function DashboardPage() {
               onClick={() => setShowReceipts(true)}
             />
             <KPICard
-              label="Low Stock Items"
+              label="Stock to Review"
               value={String(lowStockCount)}
               sub="need attention"
               icon={AlertTriangle}
@@ -391,13 +391,13 @@ export default function DashboardPage() {
           </section>
 
           {/* ── Stock alerts ── */}
-          {alertProducts.length > 0 && (
+          {stockWatchProducts.length > 0 && (
             <section className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Stock Alerts</h2>
+                  <h2 className="text-sm font-semibold text-slate-900">Stock to Review</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {alertProducts.length} {alertProducts.length === 1 ? 'item' : 'items'} need attention
+                    {stockWatchProducts.length} {stockWatchProducts.length === 1 ? 'item' : 'items'} need attention
                   </p>
                 </div>
                 <button
@@ -410,7 +410,7 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="divide-y divide-slate-50">
-                {alertProducts.map((p) => (
+                {stockWatchProducts.map((p) => (
                   <div key={p.id} className="flex items-center justify-between px-5 py-3">
                     <p className="text-sm font-medium text-slate-800 truncate mr-4">{p.name}</p>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${

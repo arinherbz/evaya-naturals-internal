@@ -22,9 +22,9 @@ type ProductSummary = {
 };
 
 type StockSummary = {
+  productId?: string;
   productName: string;
   quantity: number;
-  threshold: number;
 };
 
 type ReportPdfData = {
@@ -129,7 +129,7 @@ export function generateReportPdf(data: ReportPdfData) {
   if (lowStockItems.length === 0) {
     pushLine('No low stock items right now.');
   } else {
-    lowStockItems.forEach((item) => pushLine(`${item.productName}: ${item.quantity} left · threshold ${item.threshold}`));
+    lowStockItems.forEach((item) => pushLine(`${item.productName}: ${item.quantity} left`));
   }
   y -= 6;
   pushLine('Shift cash-up summary', true);
