@@ -102,4 +102,6 @@ jobs:
       - name: Verify public endpoints after deploy
         run: |
           set -euo pipefail
-          bash scripts/smoke-check.sh https://evayainternal.com
+          curl -fsS https://evayainternal.com/api/health > /dev/null
+          curl -fsS https://evayainternal.com/login > /dev/null
+          curl -fsS https://evayainternal.com/pos > /dev/null
