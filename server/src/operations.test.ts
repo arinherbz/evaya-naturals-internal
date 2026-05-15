@@ -386,12 +386,74 @@ describe('operations slices', () => {
     await receiveBatch(adminToken, {
       productId: product.id,
       branchId,
-      batchNumber: `CONS-${Date.now()}`,
+      batchNumber: `CONS-A-${Date.now()}`,
       expiryDate: new Date(Date.now() + 86400000 * 30).toISOString(),
       quantityReceived: 5,
       costPrice: 5000,
       sellingPrice: 12000,
     });
+
+    const inventoryAfterFirstReceiveRes = await app.request(`/api/catalog/inventory?branchId=${branchId}&search=Consistency Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(inventoryAfterFirstReceiveRes.status).toBe(200);
+    expect((await json(inventoryAfterFirstReceiveRes)).inventory[0].quantity).toBe(5);
+
+    const posAfterFirstReceiveRes = await app.request('/api/pos/products?search=Consistency Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(posAfterFirstReceiveRes.status).toBe(200);
+    expect((await json(posAfterFirstReceiveRes)).products[0].availableQuantity).toBe(5);
+
+    await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: `CONS-B-${Date.now()}`,
+      expiryDate: new Date(Date.now() + 86400000 * 45).toISOString(),
+      quantityReceived: 3,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    const inventoryAfterSecondReceiveRes = await app.request(`/api/catalog/inventory?branchId=${branchId}&search=Consistency Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(inventoryAfterSecondReceiveRes.status).toBe(200);
+    expect((await json(inventoryAfterSecondReceiveRes)).inventory[0].quantity).toBe(8);
+
+    const posAfterSecondReceiveRes = await app.request('/api/pos/products?search=Consistency Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(posAfterSecondReceiveRes.status).toBe(200);
+    expect((await json(posAfterSecondReceiveRes)).products[0].availableQuantity).toBe(8);
+
+    const adjustmentRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId,
+        movementType: 'adjustment',
+        quantityDelta: -2,
+        reason: 'Manual stock count correction',
+      }),
+    });
+    expect(adjustmentRes.status).toBe(201);
+
+    const inventoryAfterAdjustmentRes = await app.request(`/api/catalog/inventory?branchId=${branchId}&search=Consistency Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(inventoryAfterAdjustmentRes.status).toBe(200);
+    expect((await json(inventoryAfterAdjustmentRes)).inventory[0].quantity).toBe(6);
+
+    const posAfterAdjustmentRes = await app.request('/api/pos/products?search=Consistency Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(posAfterAdjustmentRes.status).toBe(200);
+    expect((await json(posAfterAdjustmentRes)).products[0].availableQuantity).toBe(6);
 
     const saleRes = await app.request('/api/pos/sales', {
       method: 'POST',
@@ -401,7 +463,7 @@ describe('operations slices', () => {
       },
       body: JSON.stringify({
         paymentMethod: 'cash',
-        items: [{ productId: product.id, quantity: 2 }],
+        items: [{ productId: product.id, quantity: 5 }],
       }),
     });
     expect(saleRes.status).toBe(201);
@@ -411,14 +473,14 @@ describe('operations slices', () => {
     });
     expect(inventoryRes.status).toBe(200);
     const inventoryPayload = await json(inventoryRes);
-    expect(inventoryPayload.inventory[0].quantity).toBe(3);
+    expect(inventoryPayload.inventory[0].quantity).toBe(1);
 
     const posProductsRes = await app.request('/api/pos/products?search=Consistency Product', {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     expect(posProductsRes.status).toBe(200);
     const posProductsPayload = await json(posProductsRes);
-    expect(posProductsPayload.products[0].availableQuantity).toBe(3);
+    expect(posProductsPayload.products[0].availableQuantity).toBe(1);
 
     const reportRes = await app.request('/api/pos/reports/summary?period=daily', {
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -426,6 +488,6 @@ describe('operations slices', () => {
     expect(reportRes.status).toBe(200);
     const reportPayload = await json(reportRes);
     const lowStockItem = reportPayload.lowStockSummary.items.find((item: { productName: string }) => item.productName === product.name);
-    expect(lowStockItem.quantity).toBe(3);
+    expect(lowStockItem.quantity).toBe(1);
   });
 });

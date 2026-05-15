@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
-import { applyInventoryDelta, ensureInventoryRowsForBranches, ensureProductVisibility, isUniqueViolation } from '../lib/inventory.js';
+import { applyInventoryDelta, ensureInventoryRowsForBranches, ensureProductVisibility, isUniqueViolation, syncBatchQuantitiesForAdjustment } from '../lib/inventory.js';
 
 const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -654,7 +654,6 @@ catalogRoutes.get('/inventory', async (c) => {
       unitType: schema.products.unitType,
       productLowStockThreshold: schema.products.lowStockThreshold,
       productIsActive: schema.products.isActive,
-      categoryName: schema.categories.name,
       branchName: schema.branches.name,
     })
     .from(schema.inventory)
@@ -663,7 +662,6 @@ catalogRoutes.get('/inventory', async (c) => {
       eq(schema.productVisibility.productId, schema.products.id),
       eq(schema.productVisibility.branchId, schema.inventory.branchId),
     ))
-    .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
     .innerJoin(schema.branches, eq(schema.inventory.branchId, schema.branches.id))
     .where(and(...filters))
     .orderBy(asc(schema.products.name));
@@ -949,6 +947,7 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
   try {
     const movement = await db.transaction(async (tx) => {
       const nowIso = new Date().toISOString();
+      let movementBatchId = payload.batchId ?? null;
 
       if (payload.batchId) {
         const updatedBatch = await tx.update(schema.batches)
@@ -965,6 +964,19 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
         if (updatedBatch.length === 0) {
           throw new Error('Insufficient batch quantity for this adjustment');
         }
+      } else {
+        const batchSync = await syncBatchQuantitiesForAdjustment(
+          tx,
+          payload.productId,
+          branchId,
+          payload.quantityDelta,
+          nowIso,
+          {
+            costPrice: product[0].costPrice ?? 0,
+            sellingPrice: product[0].sellingPrice ?? null,
+          },
+        );
+        movementBatchId = batchSync.syntheticBatchId;
       }
 
       await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityDelta, product[0].lowStockThreshold, nowIso);
@@ -972,7 +984,7 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
       const [createdMovement] = await tx.insert(schema.inventoryMovements).values({
         productId: payload.productId,
         branchId,
-        batchId: payload.batchId ?? null,
+        batchId: movementBatchId,
         movementType: payload.movementType,
         quantity: payload.quantityDelta,
         referenceType: 'adjustment',

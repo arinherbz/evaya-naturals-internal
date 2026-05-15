@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
 
 export function isUniqueViolation(error: unknown, constraintName?: string) {
@@ -142,4 +142,83 @@ export async function applyInventoryDelta(
     });
 
   return inserted[0].quantity;
+}
+
+export async function syncBatchQuantitiesForAdjustment(
+  executor: any,
+  productId: string,
+  branchId: string,
+  quantityDelta: number,
+  updatedAt = new Date().toISOString(),
+  fallbackPrices?: {
+    costPrice?: number | null;
+    sellingPrice?: number | null;
+  },
+) {
+  if (quantityDelta === 0) {
+    return { syntheticBatchId: null as string | null };
+  }
+
+  const batches = await executor.select()
+    .from(schema.batches)
+    .where(and(
+      eq(schema.batches.productId, productId),
+      eq(schema.batches.branchId, branchId),
+    ))
+    .orderBy(asc(schema.batches.expiryDate), asc(schema.batches.receivedDate));
+
+  if (batches.length === 0) {
+    return { syntheticBatchId: null as string | null };
+  }
+
+  if (quantityDelta > 0) {
+    const [createdBatch] = await executor.insert(schema.batches).values({
+      batchNumber: `ADJ-${Date.now()}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+      productId,
+      branchId,
+      supplierId: null,
+      expiryDate: '9999-12-31T00:00:00.000Z',
+      quantityReceived: quantityDelta,
+      quantityRemaining: quantityDelta,
+      costPrice: fallbackPrices?.costPrice ?? 0,
+      sellingPrice: fallbackPrices?.sellingPrice ?? null,
+      receivedDate: updatedAt,
+      isExpired: false,
+      updatedAt,
+    }).returning({ id: schema.batches.id });
+
+    return { syntheticBatchId: createdBatch.id };
+  }
+
+  let remaining = Math.abs(quantityDelta);
+  const totalRemaining = batches.reduce((sum: number, batch: typeof batches[number]) => sum + batch.quantityRemaining, 0);
+  if (totalRemaining < remaining) {
+    throw new Error('Insufficient batch quantity for this adjustment');
+  }
+
+  for (const batch of batches) {
+    if (remaining === 0) break;
+    if (batch.quantityRemaining <= 0) continue;
+
+    const toRemove = Math.min(batch.quantityRemaining, remaining);
+    const updatedBatch = await executor.update(schema.batches)
+      .set({
+        quantityRemaining: sql`${schema.batches.quantityRemaining} - ${toRemove}`,
+        isExpired: sql`CASE WHEN ${schema.batches.expiryDate} < ${updatedAt} THEN true ELSE false END`,
+        updatedAt,
+      })
+      .where(and(
+        eq(schema.batches.id, batch.id),
+        sql`${schema.batches.quantityRemaining} - ${toRemove} >= 0`,
+      ))
+      .returning({ id: schema.batches.id });
+
+    if (updatedBatch.length === 0) {
+      throw new Error('Batch quantity changed while applying this adjustment');
+    }
+
+    remaining -= toRemove;
+  }
+
+  return { syntheticBatchId: null as string | null };
 }

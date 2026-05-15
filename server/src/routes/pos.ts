@@ -562,15 +562,12 @@ posRoutes.get('/products', async (c) => {
     name: schema.products.name,
     sku: schema.products.sku,
     barcode: schema.products.barcode,
-    categoryId: schema.products.categoryId,
-    categoryName: schema.categories.name,
     unitType: schema.products.unitType,
     sellingPrice: schema.products.sellingPrice,
     lowStockThreshold: schema.products.lowStockThreshold,
     description: schema.products.description,
   })
     .from(schema.products)
-    .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
     .innerJoin(schema.productVisibility, eq(schema.products.id, schema.productVisibility.productId))
     .where(and(...productFilters, eq(schema.productVisibility.branchId, branchId)));
 

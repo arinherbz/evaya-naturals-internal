@@ -93,7 +93,6 @@ export interface ProductBranchVisibility {
 }
 
 export interface ProductListItem extends Product {
-  categoryName: string;
   visibleBranches: ProductBranchVisibility[];
 }
 
@@ -177,7 +176,6 @@ export interface InventoryRow {
   unitType: string;
   productLowStockThreshold: number;
   productIsActive: boolean;
-  categoryName: string;
   branchName: string;
   lowStock: boolean;
   expiringSoonCount: number;
@@ -208,8 +206,6 @@ export interface PosProduct {
   name: string;
   sku?: string | null;
   barcode?: string | null;
-  categoryId: string;
-  categoryName: string;
   unitType: string;
   sellingPrice: number;
   lowStockThreshold: number;

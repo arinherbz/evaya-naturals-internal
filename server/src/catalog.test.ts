@@ -612,6 +612,108 @@ describe('catalog slice', () => {
     expect(damagedMovements).toHaveLength(0);
   });
 
+  it('keeps generic stock adjustments in sync with POS batch availability', async () => {
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Adjustment Sync Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Adjustment Sync Product',
+        categoryId: category.id,
+        unitType: 'kg',
+        sellingPrice: 10000,
+        costPrice: 5000,
+        lowStockThreshold: 3,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'SYNC-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+        quantityReceived: 5,
+        costPrice: 5000,
+      }),
+    });
+
+    const increaseRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        movementType: 'adjustment',
+        quantityDelta: 2,
+        reason: 'Manual stock count correction',
+      }),
+    });
+    expect(increaseRes.status).toBe(201);
+
+    const afterIncreaseInventory = await app.request(`/api/catalog/inventory?branchId=${branchA}&search=Adjustment Sync Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(afterIncreaseInventory.status).toBe(200);
+    expect((await json(afterIncreaseInventory)).inventory[0].quantity).toBe(7);
+
+    const afterIncreasePos = await app.request('/api/pos/products?search=Adjustment Sync Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(afterIncreasePos.status).toBe(200);
+    expect((await json(afterIncreasePos)).products[0].availableQuantity).toBe(7);
+
+    const decreaseRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        movementType: 'adjustment',
+        quantityDelta: -4,
+        reason: 'Manual stock count correction',
+      }),
+    });
+    expect(decreaseRes.status).toBe(201);
+
+    const afterDecreaseInventory = await app.request(`/api/catalog/inventory?branchId=${branchA}&search=Adjustment Sync Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(afterDecreaseInventory.status).toBe(200);
+    expect((await json(afterDecreaseInventory)).inventory[0].quantity).toBe(3);
+
+    const afterDecreasePos = await app.request('/api/pos/products?search=Adjustment Sync Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(afterDecreasePos.status).toBe(200);
+    expect((await json(afterDecreasePos)).products[0].availableQuantity).toBe(3);
+  });
+
   it('enforces branch scoping and permissions', async () => {
     const manager = await createUser('Branch Manager', 'manager.slice@evaya.ug', branchA);
     const cashier = await createUser('Cashier', 'cashier.slice@evaya.ug', branchA);

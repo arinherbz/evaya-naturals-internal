@@ -82,6 +82,7 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-inventory'] }),
       queryClient.invalidateQueries({ queryKey: ['catalog-products'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-receipts'] }),

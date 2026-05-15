@@ -76,6 +76,7 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-products-dashboard'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-today-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
     ]);
 
   // ── Add Stock ──
@@ -285,7 +286,6 @@ export default function InventoryPage() {
                       <tr key={row.id} className="transition hover:bg-slate-50/60">
                         <td className="max-w-[200px] px-5 py-3.5">
                           <p className="truncate font-medium text-slate-900">{row.productName}</p>
-                          <p className="mt-0.5 text-xs text-slate-400">{row.categoryName}</p>
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5">
                           <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
