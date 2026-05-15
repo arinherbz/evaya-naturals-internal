@@ -43,20 +43,7 @@ async function createUser(roleName: string, email: string, branchId: string) {
   return user;
 }
 
-async function createCategory(adminToken: string, name: string) {
-  const response = await app.request('/api/catalog/categories', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${adminToken}`,
-    },
-    body: JSON.stringify({ name }),
-  });
-  expect(response.status).toBe(201);
-  return (await json(response)).category;
-}
-
-async function createProduct(adminToken: string, branchId: string, categoryId: string, name: string) {
+async function createProduct(adminToken: string, branchId: string, name: string) {
   const response = await app.request('/api/catalog/products', {
     method: 'POST',
     headers: {
@@ -67,7 +54,6 @@ async function createProduct(adminToken: string, branchId: string, categoryId: s
       name,
       sku: `${name.slice(0, 3).toUpperCase()}-001`,
       barcode: `${Date.now()}${Math.floor(Math.random() * 1000)}`,
-      categoryId,
       unitType: 'kg',
       sellingPrice: 12000,
       costPrice: 6000,
@@ -144,7 +130,6 @@ describe('operations slices', () => {
     await db.delete(schema.productVisibility);
     await db.delete(schema.products);
     await db.delete(schema.customers);
-    await db.delete(schema.categories).where(eq(schema.categories.name, 'Ops Category'));
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.ops@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.ops@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.ops@evaya.ug'));
@@ -152,8 +137,7 @@ describe('operations slices', () => {
   });
 
   async function seedSale(token: string, createdAtOverride?: string) {
-    const category = await createCategory(adminToken, 'Ops Category');
-    const product = await createProduct(adminToken, branchId, category.id, `Ops Product ${Date.now()}`);
+    const product = await createProduct(adminToken, branchId, `Ops Product ${Date.now()}`);
     await receiveBatch(adminToken, {
       productId: product.id,
       branchId,
@@ -381,8 +365,7 @@ describe('operations slices', () => {
     const cashierToken = await login('cashier.ops@evaya.ug', 'secret123');
     await openShift(cashierToken);
 
-    const category = await createCategory(adminToken, 'Consistency Category');
-    const product = await createProduct(adminToken, branchId, category.id, `Consistency Product ${Date.now()}`);
+    const product = await createProduct(adminToken, branchId, `Consistency Product ${Date.now()}`);
     await receiveBatch(adminToken, {
       productId: product.id,
       branchId,

@@ -113,16 +113,6 @@ describe('catalog slice', () => {
     expect(supplierListRes.status).toBe(200);
     expect((await json(supplierListRes)).suppliers.some((item: Record<string, unknown>) => item.id === supplier.id)).toBe(true);
 
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Slice Test Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -131,7 +121,6 @@ describe('catalog slice', () => {
       },
       body: JSON.stringify({
         name: 'Supplier Linked Product',
-        categoryId: category.id,
         unitType: 'kg',
         sellingPrice: 22000,
         costPrice: 14000,
@@ -203,82 +192,29 @@ describe('catalog slice', () => {
     expect(removeOrphanRes.status).toBe(200);
   });
 
-  it('supports category CRUD and prevents deleting used categories', async () => {
-    const createRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Slice Test Category', description: 'Created in test' }),
-    });
-    expect(createRes.status).toBe(201);
-    const createdCategory = (await json(createRes)).category;
-
-    const updateRes = await app.request(`/api/catalog/categories/${createdCategory.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Updated Slice Category', isActive: false }),
-    });
-    expect(updateRes.status).toBe(200);
-    expect((await json(updateRes)).category.isActive).toBe(false);
-
-    const deleteRes = await app.request(`/api/catalog/categories/${createdCategory.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
-    expect(deleteRes.status).toBe(200);
-
-    const usedCategoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Used Slice Category' }),
-    });
-    const usedCategory = (await json(usedCategoryRes)).category;
-
-    const productRes = await app.request('/api/catalog/products', {
+  it('creates products without requiring category data', async () => {
+    const createRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        name: 'Used category product',
-        sku: 'USEDCAT-1',
-        categoryId: usedCategory.id,
+        name: 'Category-free product',
+        sku: 'CATFREE-1',
         unitType: 'kg',
         sellingPrice: 12000,
         costPrice: 6000,
-        lowStockThreshold: 4,
+        lowStockThreshold: 2,
         visibilityBranchIds: [branchA],
       }),
     });
-    expect(productRes.status).toBe(201);
-
-    const usedDeleteRes = await app.request(`/api/catalog/categories/${usedCategory.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
-    expect(usedDeleteRes.status).toBe(409);
+    expect(createRes.status).toBe(201);
+    const product = (await json(createRes)).product;
+    expect(product.name).toBe('Category-free product');
   });
 
   it('supports product CRUD, search, and branch visibility', async () => {
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Slice Test Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const createProduct = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -289,7 +225,6 @@ describe('catalog slice', () => {
         name: 'Moringa Powder',
         sku: 'MORINGA-001',
         barcode: '1234567890',
-        categoryId: category.id,
         unitType: 'g',
         sellingPrice: 25000,
         costPrice: 15000,
@@ -331,16 +266,6 @@ describe('catalog slice', () => {
   });
 
   it('creates movement records for stock received and adjustments, with expiry warnings', async () => {
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Warnings Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -350,7 +275,6 @@ describe('catalog slice', () => {
       body: JSON.stringify({
         name: 'Neem Capsules',
         sku: 'NEEM-01',
-        categoryId: category.id,
         unitType: 'g',
         sellingPrice: 32000,
         costPrice: 18000,
@@ -441,16 +365,6 @@ describe('catalog slice', () => {
   });
 
   it('prevents duplicate inventory, visibility, and batch records', async () => {
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Integrity Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -459,7 +373,6 @@ describe('catalog slice', () => {
       },
       body: JSON.stringify({
         name: 'Integrity Product',
-        categoryId: category.id,
         unitType: 'kg',
         sellingPrice: 10000,
         costPrice: 5000,
@@ -530,16 +443,6 @@ describe('catalog slice', () => {
   });
 
   it('rolls back stock adjustments when inventory update fails after batch validation', async () => {
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Rollback Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -548,7 +451,6 @@ describe('catalog slice', () => {
       },
       body: JSON.stringify({
         name: 'Rollback Product',
-        categoryId: category.id,
         unitType: 'kg',
         sellingPrice: 10000,
         costPrice: 5000,
@@ -613,16 +515,6 @@ describe('catalog slice', () => {
   });
 
   it('keeps generic stock adjustments in sync with POS batch availability', async () => {
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Adjustment Sync Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -631,7 +523,6 @@ describe('catalog slice', () => {
       },
       body: JSON.stringify({
         name: 'Adjustment Sync Product',
-        categoryId: category.id,
         unitType: 'kg',
         sellingPrice: 10000,
         costPrice: 5000,
@@ -721,26 +612,6 @@ describe('catalog slice', () => {
     const managerToken = await login(manager.email, 'secret123');
     const cashierToken = await login(cashier.email, 'secret123');
 
-    const categoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify({ name: 'Slice Test Category' }),
-    });
-    const category = (await json(categoryRes)).category;
-
-    const managerCategoryRes = await app.request('/api/catalog/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${managerToken}`,
-      },
-      body: JSON.stringify({ name: 'Manager Should Fail' }),
-    });
-    expect(managerCategoryRes.status).toBe(403);
-
     const managerProductRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -749,7 +620,6 @@ describe('catalog slice', () => {
       },
       body: JSON.stringify({
         name: 'Manager Branch Product',
-        categoryId: category.id,
         unitType: 'kg',
         sellingPrice: 10000,
         costPrice: 5000,

@@ -173,29 +173,6 @@ async function ensureAdmin(primaryBranchId: string) {
   }
 }
 
-async function ensureCategories() {
-  const defaultCategories = [
-    'Spices',
-    'Herbs',
-    'Herbal Teas',
-    'Cold-Pressed Oils',
-    'Herbal Powders',
-    'Natural Skincare',
-    'Supplements',
-    'Wellness Bundles',
-    'Beauty Products',
-    'Body Care',
-    'Hair Care',
-  ];
-
-  for (const categoryName of defaultCategories) {
-    const existing = await db.select().from(schema.categories).where(eq(schema.categories.name, categoryName));
-    if (existing.length === 0) {
-      await db.insert(schema.categories).values({ name: categoryName });
-    }
-  }
-}
-
 async function ensureBundles() {
   const [wellnessBundle] = await db.select().from(schema.bundles).where(eq(schema.bundles.name, 'Immunity Boost Bundle'));
   if (wellnessBundle) {
@@ -246,15 +223,13 @@ async function ensureSettings() {
 
 async function ensureSampleData(primaryBranchId: string) {
   const [adminUser] = await db.select().from(schema.users).where(eq(schema.users.email, 'admin@evaya.ug'));
-  const [defaultCategory] = await db.select().from(schema.categories).where(eq(schema.categories.name, 'Herbal Teas'));
 
-  if (adminUser && defaultCategory) {
+  if (adminUser) {
     const existingProduct = await db.select().from(schema.products).where(eq(schema.products.name, 'Sample Lemongrass Tea'));
     if (existingProduct.length === 0) {
       const [product] = await db.insert(schema.products).values({
         name: 'Sample Lemongrass Tea',
-        categoryId: defaultCategory.id,
-        unitType: 'box',
+        unitType: 'g',
         sellingPrice: 18000,
         costPrice: 12000,
         lowStockThreshold: 5,
@@ -304,7 +279,6 @@ async function ensureCoreData() {
   }
 
   await ensureAdmin(primaryBranch.id);
-  await ensureCategories();
   await ensureBundles();
   await ensureSettings();
 

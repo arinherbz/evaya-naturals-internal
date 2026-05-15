@@ -40,19 +40,11 @@ async function createUser(roleName: string, email: string, branchId: string) {
 }
 
 async function createCategory(adminToken: string, name: string) {
-  const response = await app.request('/api/catalog/categories', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${adminToken}`,
-    },
-    body: JSON.stringify({ name }),
-  });
-  expect(response.status).toBe(201);
-  return (await json(response)).category;
+  void adminToken;
+  return { id: `legacy-category-${name.toLowerCase().replace(/\s+/g, '-')}` };
 }
 
-async function createProduct(adminToken: string, branchId: string, categoryId: string, name: string) {
+async function createProduct(adminToken: string, branchId: string, _categoryId: string, name: string) {
   const response = await app.request('/api/catalog/products', {
     method: 'POST',
     headers: {
@@ -63,7 +55,6 @@ async function createProduct(adminToken: string, branchId: string, categoryId: s
       name,
       sku: `${name.slice(0, 3).toUpperCase()}-001`,
       barcode: `${Date.now()}${Math.floor(Math.random() * 1000)}`,
-      categoryId,
       unitType: 'kg',
       sellingPrice: 12000,
       costPrice: 6000,

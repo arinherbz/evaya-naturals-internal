@@ -10,20 +10,10 @@ const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
 
 const unitTypes = ['kg', 'g', 'ml', 'l'] as const;
-const categoryCreateSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  description: z.string().trim().max(500).optional().nullable(),
-});
-
-const categoryUpdateSchema = categoryCreateSchema.extend({
-  isActive: z.boolean().optional(),
-});
-
 const productSchema = z.object({
   name: z.string().trim().min(2).max(160),
   sku: z.string().trim().max(80).optional().nullable(),
   barcode: z.string().trim().max(80).optional().nullable(),
-  categoryId: z.string().trim().min(1),
   unitType: z.enum(unitTypes),
   sellingPrice: z.number().nonnegative(),
   costPrice: z.number().nonnegative(),
@@ -72,10 +62,6 @@ const supplierSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-function canManageCategories(user: AuthUser) {
-  return user.role.name === 'Admin';
-}
-
 function canManageProducts(user: AuthUser) {
   return user.role.name === 'Admin' || user.role.name === 'Branch Manager';
 }
@@ -95,6 +81,30 @@ function canManageSuppliers(user: AuthUser) {
 function sanitizeOptionalText(value?: string | null) {
   const sanitized = value?.trim();
   return sanitized ? sanitized : null;
+}
+
+function formatProductResponse(
+  product: Pick<schema.Product, 'id' | 'name' | 'sku' | 'barcode' | 'unitType' | 'sellingPrice' | 'costPrice' | 'description' | 'usageInstructions' | 'ingredients' | 'allergyWarning' | 'lowStockThreshold' | 'isActive' | 'createdAt' | 'updatedAt'>,
+  visibleBranches: Array<{ branchId: string; branchName: string }>,
+) {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    barcode: product.barcode,
+    unitType: product.unitType,
+    sellingPrice: product.sellingPrice,
+    costPrice: product.costPrice,
+    description: product.description,
+    usageInstructions: product.usageInstructions,
+    ingredients: product.ingredients,
+    allergyWarning: product.allergyWarning,
+    lowStockThreshold: product.lowStockThreshold,
+    isActive: product.isActive,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
+    visibleBranches,
+  };
 }
 
 async function getPrimaryBranchId() {
@@ -138,13 +148,6 @@ async function writeAuditLog(executor: any, user: AuthUser, action: string, enti
 
 async function logAudit(user: AuthUser, action: string, entityType: string, entityId: string | null, oldValue?: Record<string, unknown>, newValue?: Record<string, unknown>) {
   await writeAuditLog(db, user, action, entityType, entityId, oldValue, newValue);
-}
-
-async function assertCategoryExists(categoryId: string) {
-  const category = await db.select().from(schema.categories).where(eq(schema.categories.id, categoryId));
-  if (category.length === 0) {
-    throw new Error('Category not found');
-  }
 }
 
 async function assertBranchesExist(branchIds: string[]) {
@@ -263,106 +266,6 @@ catalogRoutes.delete('/suppliers/:id', async (c) => {
   return c.json({ message: 'Supplier deleted' });
 });
 
-catalogRoutes.get('/categories', async (c) => {
-  const includeInactive = c.req.query('includeInactive') === 'true';
-  const categories = includeInactive
-    ? await db.select().from(schema.categories)
-    : await db.select().from(schema.categories).where(eq(schema.categories.isActive, true));
-
-  return c.json({ categories });
-});
-
-catalogRoutes.post('/categories', async (c) => {
-  const user = c.get('user');
-  if (!canManageCategories(user)) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  const payload = categoryCreateSchema.parse(await c.req.json());
-  const existing = await db.select().from(schema.categories).where(eq(schema.categories.name, payload.name));
-  if (existing.length > 0) {
-    return c.json({ error: 'Category name already exists' }, 409);
-  }
-
-  const category = {
-    name: payload.name,
-    description: sanitizeOptionalText(payload.description),
-    isActive: true,
-    updatedAt: new Date().toISOString(),
-  };
-
-  const [created] = await db.insert(schema.categories).values(category).returning();
-  await logAudit(user, 'create', 'category', created.id, undefined, created as unknown as Record<string, unknown>);
-  return c.json({ category: created }, 201);
-});
-
-catalogRoutes.patch('/categories/:id', async (c) => {
-  const user = c.get('user');
-  if (!canManageCategories(user)) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  const categoryId = c.req.param('id');
-  const payload = categoryUpdateSchema.parse(await c.req.json());
-  const existing = await db.select().from(schema.categories).where(eq(schema.categories.id, categoryId));
-
-  if (existing.length === 0) {
-    return c.json({ error: 'Category not found' }, 404);
-  }
-
-  const duplicate = payload.name
-    ? await db.select().from(schema.categories).where(eq(schema.categories.name, payload.name))
-    : [];
-  if (duplicate.length > 0 && duplicate[0].id !== categoryId) {
-    return c.json({ error: 'Category name already exists' }, 409);
-  }
-
-  const updateData = {
-    name: payload.name,
-    description: sanitizeOptionalText(payload.description),
-    isActive: payload.isActive ?? existing[0].isActive,
-    updatedAt: new Date().toISOString(),
-  };
-
-  const [updated] = await db.update(schema.categories)
-    .set(updateData)
-    .where(eq(schema.categories.id, categoryId))
-    .returning();
-
-  await logAudit(
-    user,
-    'update',
-    'category',
-    categoryId,
-    existing[0] as unknown as Record<string, unknown>,
-    updated as unknown as Record<string, unknown>,
-  );
-
-  return c.json({ category: updated });
-});
-
-catalogRoutes.delete('/categories/:id', async (c) => {
-  const user = c.get('user');
-  if (!canManageCategories(user)) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  const categoryId = c.req.param('id');
-  const existing = await db.select().from(schema.categories).where(eq(schema.categories.id, categoryId));
-  if (existing.length === 0) {
-    return c.json({ error: 'Category not found' }, 404);
-  }
-
-  const linkedProducts = await db.select().from(schema.products).where(eq(schema.products.categoryId, categoryId));
-  if (linkedProducts.length > 0) {
-    return c.json({ error: 'Category cannot be deleted while products still use it' }, 409);
-  }
-
-  await db.delete(schema.categories).where(eq(schema.categories.id, categoryId));
-  await logAudit(user, 'delete', 'category', categoryId, existing[0] as unknown as Record<string, unknown>);
-  return c.json({ message: 'Category deleted' });
-});
-
 catalogRoutes.get('/products', async (c) => {
   const user = c.get('user');
   const search = c.req.query('search')?.trim();
@@ -394,7 +297,6 @@ catalogRoutes.get('/products', async (c) => {
         name: schema.products.name,
         sku: schema.products.sku,
         barcode: schema.products.barcode,
-        categoryId: schema.products.categoryId,
         unitType: schema.products.unitType,
         sellingPrice: schema.products.sellingPrice,
         costPrice: schema.products.costPrice,
@@ -406,17 +308,14 @@ catalogRoutes.get('/products', async (c) => {
         isActive: schema.products.isActive,
         createdAt: schema.products.createdAt,
         updatedAt: schema.products.updatedAt,
-        categoryName: schema.categories.name,
       })
       .from(schema.products)
-      .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id))
       .where(and(...filters))
     : await db.select({
         id: schema.products.id,
         name: schema.products.name,
         sku: schema.products.sku,
         barcode: schema.products.barcode,
-        categoryId: schema.products.categoryId,
         unitType: schema.products.unitType,
         sellingPrice: schema.products.sellingPrice,
         costPrice: schema.products.costPrice,
@@ -428,10 +327,8 @@ catalogRoutes.get('/products', async (c) => {
         isActive: schema.products.isActive,
         createdAt: schema.products.createdAt,
         updatedAt: schema.products.updatedAt,
-        categoryName: schema.categories.name,
       })
-      .from(schema.products)
-      .innerJoin(schema.categories, eq(schema.products.categoryId, schema.categories.id));
+      .from(schema.products);
 
   const productIds = products.map((product) => product.id);
   const visibility = productIds.length > 0
@@ -469,7 +366,6 @@ catalogRoutes.post('/products', async (c) => {
     ? Array.from(new Set(payload.visibilityBranchIds))
     : [user.branchId!];
 
-  await assertCategoryExists(payload.categoryId);
   await assertBranchesExist(visibilityBranchIds);
 
   if (payload.sku) {
@@ -490,7 +386,6 @@ catalogRoutes.post('/products', async (c) => {
     name: payload.name,
     sku: sanitizeOptionalText(payload.sku),
     barcode: sanitizeOptionalText(payload.barcode),
-    categoryId: payload.categoryId,
     unitType: payload.unitType,
     sellingPrice: payload.sellingPrice,
     costPrice: payload.costPrice ?? null,
@@ -509,7 +404,15 @@ catalogRoutes.post('/products', async (c) => {
       await ensureProductVisibility(tx, product.id, visibilityBranchIds);
       await ensureInventoryRowsForBranches(tx, product.id, visibilityBranchIds, payload.lowStockThreshold);
       await writeAuditLog(tx, user, 'create', 'product', product.id, undefined, product as unknown as Record<string, unknown>);
-      return product;
+      const visibleBranches = await tx.select({
+        branchId: schema.productVisibility.branchId,
+        branchName: schema.branches.name,
+      })
+        .from(schema.productVisibility)
+        .innerJoin(schema.branches, eq(schema.productVisibility.branchId, schema.branches.id))
+        .where(eq(schema.productVisibility.productId, product.id));
+
+      return formatProductResponse(product, visibleBranches);
     });
 
     return c.json({ product: created }, 201);
@@ -539,10 +442,6 @@ catalogRoutes.patch('/products/:id', async (c) => {
     return c.json({ error: 'Access denied to this product' }, 403);
   }
 
-  if (payload.categoryId) {
-    await assertCategoryExists(payload.categoryId);
-  }
-
   if (payload.sku) {
     const skuConflict = await db.select().from(schema.products).where(eq(schema.products.sku, payload.sku));
     if (skuConflict.length > 0 && skuConflict[0].id !== productId) {
@@ -567,7 +466,6 @@ catalogRoutes.patch('/products/:id', async (c) => {
     name: payload.name ?? existing[0].name,
     sku: payload.sku === undefined ? existing[0].sku : sanitizeOptionalText(payload.sku),
     barcode: payload.barcode === undefined ? existing[0].barcode : sanitizeOptionalText(payload.barcode),
-    categoryId: payload.categoryId ?? existing[0].categoryId,
     unitType: payload.unitType ?? existing[0].unitType,
     sellingPrice: payload.sellingPrice ?? existing[0].sellingPrice,
     costPrice: payload.costPrice === undefined ? existing[0].costPrice : payload.costPrice,
@@ -596,7 +494,15 @@ catalogRoutes.patch('/products/:id', async (c) => {
       await ensureProductVisibility(tx, productId, nextVisibility);
       await ensureInventoryRowsForBranches(tx, productId, nextVisibility, product.lowStockThreshold);
       await writeAuditLog(tx, user, 'update', 'product', productId, existing[0] as unknown as Record<string, unknown>, product as unknown as Record<string, unknown>);
-      return product;
+      const visibleBranches = await tx.select({
+        branchId: schema.productVisibility.branchId,
+        branchName: schema.branches.name,
+      })
+        .from(schema.productVisibility)
+        .innerJoin(schema.branches, eq(schema.productVisibility.branchId, schema.branches.id))
+        .where(eq(schema.productVisibility.productId, product.id));
+
+      return formatProductResponse(product, visibleBranches);
     });
 
     return c.json({ product: updated });

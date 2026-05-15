@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Package, Plus, Search, AlertTriangle, X, type LucideIcon } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
@@ -64,7 +64,6 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState('');
   const [pageError, setPageError] = useState('');
 
-  const categoriesQuery = useQuery({ queryKey: ['catalog-categories'], queryFn: () => api.categories.list(false) });
   const branchesQuery = useQuery({ queryKey: ['catalog-branches'], queryFn: () => api.branches.list() });
   const productsQuery = useQuery({
     queryKey: ['catalog-products', search],
@@ -74,10 +73,6 @@ export default function ProductsPage() {
   const primaryBranch =
     (branchesQuery.data?.branches ?? []).find((b) => b.name === 'Evaya Naturals') ??
     branchesQuery.data?.branches?.[0];
-  const firstCategoryId = categoriesQuery.data?.categories?.[0]?.id ?? '';
-
-  useEffect(() => {}, [categoriesQuery.data]);
-
   const refreshAll = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['catalog-products'] }),
@@ -90,13 +85,11 @@ export default function ProductsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const catId = editingProduct?.categoryId || firstCategoryId;
-      if (!catId) throw new Error('No product category found. Please add a category first.');
+      if (!primaryBranch?.id) throw new Error('Evaya Naturals branch is not configured yet.');
       const payload = {
         name: form.name.trim(),
         sku: null,
         barcode: null,
-        categoryId: catId,
         unitType: form.unitType,
         sellingPrice: Number(form.sellingPrice),
         costPrice: Number(form.costPrice),
@@ -105,7 +98,7 @@ export default function ProductsPage() {
         usageInstructions: null,
         ingredients: null,
         allergyWarning: null,
-        visibilityBranchIds: primaryBranch?.id ? [primaryBranch.id] : [],
+        visibilityBranchIds: [primaryBranch.id],
         isActive: true,
       };
       if (editingProduct) return api.products.update(editingProduct.id, payload);
@@ -323,7 +316,7 @@ export default function ProductsPage() {
               </Field>
 
               <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={saveMutation.isPending || !firstCategoryId} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60" style={{ background: '#1B4332' }}>
+                <button type="submit" disabled={saveMutation.isPending || !primaryBranch?.id} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60" style={{ background: '#1B4332' }}>
                   {saveMutation.isPending ? 'Saving…' : editingProduct ? 'Save changes' : 'Create product'}
                 </button>
                 <button type="button" onClick={closeModal} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Cancel</button>

@@ -3,7 +3,6 @@ import type {
   BroadcastRecord,
   Branch,
   BusinessProfileSettings,
-  Category,
   Customer,
   CustomerHistory,
   Delivery,
@@ -201,25 +200,6 @@ export const api = {
       }),
     remove: (id: string) =>
       request<{ message: string }>(`/catalog/suppliers/${id}`, {
-        method: 'DELETE',
-      }),
-  },
-
-  categories: {
-    list: (includeInactive = true) =>
-      request<{ categories: Category[] }>(`/catalog/categories?includeInactive=${includeInactive}`),
-    create: (payload: { name: string; description?: string | null }) =>
-      request<{ category: Category }>('/catalog/categories', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    update: (id: string, payload: { name?: string; description?: string | null; isActive?: boolean }) =>
-      request<{ category: Category }>(`/catalog/categories/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/catalog/categories/${id}`, {
         method: 'DELETE',
       }),
   },

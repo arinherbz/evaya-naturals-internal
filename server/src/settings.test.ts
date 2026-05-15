@@ -36,20 +36,7 @@ async function createUser(roleName: string, email: string, branchId: string) {
   return user;
 }
 
-async function createCategory(adminToken: string, name: string) {
-  const response = await app.request('/api/catalog/categories', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${adminToken}`,
-    },
-    body: JSON.stringify({ name }),
-  });
-  expect(response.status).toBe(201);
-  return (await json(response)).category;
-}
-
-async function createProduct(adminToken: string, branchId: string, categoryId: string) {
+async function createProduct(adminToken: string, branchId: string) {
   const response = await app.request('/api/catalog/products', {
     method: 'POST',
     headers: {
@@ -59,7 +46,6 @@ async function createProduct(adminToken: string, branchId: string, categoryId: s
     body: JSON.stringify({
       name: `Settings Product ${Date.now()}`,
       sku: `SET-${Date.now()}`,
-      categoryId,
       unitType: 'kg',
       sellingPrice: 12000,
       costPrice: 6000,
@@ -137,7 +123,6 @@ describe('settings slice', () => {
     await db.delete(schema.batches);
     await db.delete(schema.productVisibility);
     await db.delete(schema.products);
-    await db.delete(schema.categories).where(eq(schema.categories.name, 'Settings Test Category'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.settings@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.settings@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'new.staff@evaya.ug'));
@@ -292,8 +277,7 @@ describe('settings slice', () => {
     });
     expect(methodsRes.status).toBe(200);
 
-    const category = await createCategory(adminToken, 'Settings Test Category');
-    const product = await createProduct(adminToken, branchId, category.id);
+    const product = await createProduct(adminToken, branchId);
     await receiveBatch(adminToken, branchId, product.id);
 
     const shiftRes = await app.request('/api/pos/shift/open', {

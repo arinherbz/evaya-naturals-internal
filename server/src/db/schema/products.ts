@@ -1,13 +1,12 @@
 import { pgTable, text, doublePrecision, integer, boolean } from 'drizzle-orm/pg-core';
-import { categories } from './categories.js';
 
 export const products = pgTable('products', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   sku: text('sku').unique(),
   barcode: text('barcode').unique(),
-  categoryId: text('category_id').notNull().references(() => categories.id),
-  unitType: text('unit_type').notNull().default('piece'), // piece, kg, g, ml, L, box
+  categoryId: text('category_id'),
+  unitType: text('unit_type').notNull().default('kg'),
   sellingPrice: doublePrecision('selling_price').notNull(),
   costPrice: doublePrecision('cost_price'),
   description: text('description'),

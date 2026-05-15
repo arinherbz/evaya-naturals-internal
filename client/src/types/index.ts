@@ -59,21 +59,11 @@ export interface Role {
   updatedAt: string;
 }
 
-export interface Category {
-  id: string;
-  name: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Product {
   id: string;
   name: string;
   sku?: string;
   barcode?: string;
-  categoryId: string;
   unitType: string;
   sellingPrice: number;
   costPrice?: number;
