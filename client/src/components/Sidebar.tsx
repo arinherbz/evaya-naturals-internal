@@ -87,17 +87,17 @@ export default function Sidebar() {
   const allVisibleItems = visibleGroups.flatMap((g) => g.items);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+    `flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-sm font-medium transition-colors ${
       isActive
-        ? 'bg-[#1B4332]/8 text-[#1B4332]'
-        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+        ? 'bg-[#1B4332]/10 text-[#1B4332]'
+        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
     }`;
 
   const iconNavLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center justify-center rounded-lg p-2 transition-colors ${
       isActive
-        ? 'bg-[#1B4332]/8 text-[#1B4332]'
-        : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+        ? 'bg-[#1B4332]/10 text-[#1B4332]'
+        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
     }`;
 
   const ShiftBadge = () =>
@@ -136,7 +136,7 @@ export default function Sidebar() {
         {visibleGroups.map((group, gi) => (
           <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
             {group.label && (
-              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                 {group.label}
               </p>
             )}
@@ -165,7 +165,7 @@ export default function Sidebar() {
       {/* User footer */}
       <div className="shrink-0 border-t border-slate-100 p-3">
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1B4332]/10 text-xs font-bold text-[#1B4332]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1B4332]/10 text-[13px] font-bold text-[#1B4332]">
             {user?.firstName?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div className="min-w-0 flex-1">

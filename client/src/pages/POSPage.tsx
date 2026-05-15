@@ -343,7 +343,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
                 {products.map((product) => {
                   const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
                   const qty = product.availableQuantity;
@@ -356,9 +356,9 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                       type="button"
                       disabled={disabled}
                       onClick={() => addToCart(product)}
-                      className={`relative flex flex-col rounded-2xl border p-4 text-left transition select-none ${
+                      className={`relative flex flex-col rounded-xl border p-3 text-left transition select-none ${
                         inCart > 0
-                          ? 'border-[#1B4332]/20 bg-[#1B4332]/5 shadow-sm ring-1 ring-[#1B4332]/10'
+                          ? 'border-[#1B4332]/25 bg-[#1B4332]/5 shadow-sm ring-1 ring-[#1B4332]/15'
                           : disabled
                           ? 'cursor-not-allowed border-slate-100 bg-white opacity-40'
                           : 'border-white bg-white shadow-sm hover:border-slate-200 hover:shadow-md active:scale-[0.98]'
@@ -366,18 +366,18 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                     >
                       {/* Cart badge */}
                       {inCart > 0 && (
-                        <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: '#1B4332' }}>
+                        <span className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: '#1B4332' }}>
                           {inCart}
                         </span>
                       )}
 
-                      <p className="pr-7 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
+                      <p className="pr-6 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
 
-                      <div className="mt-auto flex items-end justify-between pt-3">
+                      <div className="mt-auto flex items-end justify-between pt-2.5">
                         <span className={`text-[11px] font-medium ${
                           qty <= 0 ? 'text-rose-400' : isLow ? 'text-amber-500' : 'text-slate-400'
                         }`}>
-                          {qty <= 0 ? 'Out of stock' : isLow ? `Only ${qty} left` : `${qty} in stock`}
+                          {qty <= 0 ? 'Out' : isLow ? `${qty} left` : `${qty}`}
                         </span>
                         <span className="text-sm font-bold" style={{ color: '#1B4332' }}>
                           {ugx(product.sellingPrice)}
@@ -697,7 +697,7 @@ function CartPanel({
   const canCharge = currentShift && cart.length > 0 && !isPending;
 
   return (
-    <div className={`flex flex-col ${isDesktop ? 'hidden w-[300px] shrink-0 border-l border-slate-100 bg-white lg:flex' : 'bg-white'}`}>
+    <div className={`flex flex-col ${isDesktop ? 'hidden w-[320px] shrink-0 border-l border-slate-100 bg-white lg:flex' : 'bg-white'}`}>
 
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3.5">
@@ -719,9 +719,12 @@ function CartPanel({
       {/* Cart items */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {cart.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-300">
-            <ShoppingCart size={28} strokeWidth={1.25} />
-            <p className="text-xs text-slate-400">Tap a product to add</p>
+          <div className="flex flex-col items-center justify-center gap-2.5 py-12 text-slate-300">
+            <ShoppingCart size={30} strokeWidth={1.25} />
+            <div className="text-center">
+              <p className="text-sm font-medium text-slate-400">Cart is empty</p>
+              <p className="mt-0.5 text-xs text-slate-300">Tap a product to add it</p>
+            </div>
           </div>
         ) : (
           <ul className="divide-y divide-slate-50 px-4">
@@ -789,7 +792,7 @@ function CartPanel({
         </div>
 
         {/* Total */}
-        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-xl border border-[#1B4332]/15 bg-[#1B4332]/5 px-3 py-3">
           <span className="text-sm font-bold text-slate-900">Total</span>
           <span className="text-lg font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
         </div>
@@ -815,7 +818,7 @@ function CartPanel({
           type="button"
           disabled={!canCharge}
           onClick={onOpenConfirm}
-          className="w-full rounded-xl py-3 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: canCharge ? '#1B4332' : '#94A3B8' }}
         >
           {isPending
@@ -824,7 +827,7 @@ function CartPanel({
             ? 'Open a shift first'
             : cart.length === 0
             ? 'Cart is empty'
-            : `Complete Sale — ${ugx(total)}`}
+            : `Charge ${ugx(total)}`}
         </button>
       </div>
     </div>
