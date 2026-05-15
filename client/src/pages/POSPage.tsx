@@ -45,6 +45,7 @@ export default function POSPage() {
   const [openingCash, setOpeningCash] = useState('');
   const [err, setErr] = useState('');
   const deferredSearch = useDeferredValue(search);
+  const mobileSafeAreaBottom = 'calc(env(safe-area-inset-bottom, 0px) + 0.9rem)';
 
   const productsQuery = useQuery({
     queryKey: ['pos-products', deferredSearch],
@@ -318,7 +319,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
             </div>
 
             {/* Product grid */}
-            <div className={`flex-1 overflow-y-auto bg-[#f5f5f7] p-3 ${cartCount > 0 ? 'pb-20 lg:pb-3' : ''}`}>
+            <div className="flex-1 overflow-y-auto bg-[#f5f5f7] p-3 pb-28 lg:pb-3">
               {productsQuery.isLoading && (
                 <div className="flex flex-col items-center justify-center py-20 gap-2 text-slate-400">
                   <Zap size={22} strokeWidth={1.5} className="animate-pulse" />
@@ -401,31 +402,40 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
       </div>
 
       {/* Mobile cart — persistent bottom bar */}
-      {cartCount > 0 ? (
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 px-3 lg:hidden"
+        style={{ paddingBottom: mobileSafeAreaBottom }}
+      >
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          style={{ background: '#1B4332', touchAction: 'manipulation' }}
-          className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between px-5 py-4 shadow-2xl lg:hidden"
+          style={{ touchAction: 'manipulation', background: cartCount > 0 ? '#1B4332' : '#ffffff' }}
+          className={`flex w-full items-center justify-between rounded-2xl px-4 py-3.5 shadow-2xl transition active:scale-[0.99] ${
+            cartCount > 0
+              ? 'text-white'
+              : 'border border-slate-200 text-slate-700'
+          }`}
         >
-          <span className="flex items-center gap-2 text-sm font-semibold text-white">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">
+          <span className="flex items-center gap-3">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+              cartCount > 0 ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
               {cartCount}
             </span>
-            {cartCount} {cartCount === 1 ? 'item' : 'items'}
+            <span className="text-left">
+              <span className="block text-sm font-semibold">
+                {cartCount > 0 ? 'View cart' : 'Open cart'}
+              </span>
+              <span className={`block text-xs ${cartCount > 0 ? 'text-white/80' : 'text-slate-400'}`}>
+                {cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'items'}` : 'No items yet'}
+              </span>
+            </span>
           </span>
-          <span className="text-sm font-bold text-white">{ugx(cartTotal)}</span>
+          <span className={`text-sm font-bold ${cartCount > 0 ? 'text-white' : 'text-slate-700'}`}>
+            {ugx(cartTotal)}
+          </span>
         </button>
-      ) : (
-        <button
-          type="button"
-          className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition active:scale-95 lg:hidden"
-          style={{ background: '#1B4332', touchAction: 'manipulation' }}
-          onClick={() => setCartOpen(true)}
-        >
-          <ShoppingCart size={22} strokeWidth={1.75} className="text-white" />
-        </button>
-      )}
+      </div>
 
       {/* Mobile cart bottom sheet */}
       {cartOpen && (
@@ -436,7 +446,13 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
             className="absolute inset-0 bg-black/40"
             onClick={() => setCartOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white shadow-2xl">
+          <div
+            className="absolute bottom-0 left-0 right-0 flex max-h-[88dvh] min-h-[48dvh] flex-col rounded-t-3xl bg-white shadow-2xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
+            <div className="flex justify-center pt-2">
+              <span className="h-1.5 w-12 rounded-full bg-slate-200" />
+            </div>
             <CartPanel
               cart={cart}
               total={cartTotal}
@@ -456,7 +472,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
       {/* ── Sale confirmation modal ── */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+          <div className="flex max-h-[92dvh] w-full max-w-sm flex-col rounded-t-3xl bg-white shadow-2xl sm:max-h-[42rem] sm:rounded-2xl">
 
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -469,7 +485,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
               </button>
             </div>
 
-            <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {/* Low stock warning */}
               {lowStockCartItems.length > 0 && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
@@ -513,7 +529,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                       key={opt.value}
                       type="button"
                       onClick={() => setPaymentMethod(opt.value)}
-                      className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition active:scale-95 ${
+                      className={`rounded-xl border px-3 py-3 text-sm font-bold transition active:scale-95 ${
                         paymentMethod === opt.value
                           ? 'border-[#1B4332] bg-[#1B4332] text-white'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
@@ -544,7 +560,10 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
               )}
             </div>
 
-            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+            <div
+              className="sticky bottom-0 flex gap-3 border-t border-slate-100 bg-white px-5 pt-4"
+              style={{ paddingBottom: mobileSafeAreaBottom }}
+            >
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
@@ -662,9 +681,10 @@ function CartPanel({
   onSetQty, onNotes, onOpenConfirm, onClose, isDesktop = false,
 }: CartPanelProps) {
   const canCharge = currentShift && cart.length > 0 && !isPending;
+  const mobileSafeAreaBottom = 'calc(env(safe-area-inset-bottom, 0px) + 0.85rem)';
 
   return (
-    <div className={`flex flex-col ${isDesktop ? 'hidden w-[320px] shrink-0 border-l border-slate-100 bg-white lg:flex' : 'bg-white'}`}>
+    <div className={`flex h-full min-h-0 flex-col ${isDesktop ? 'hidden w-[320px] shrink-0 border-l border-slate-100 bg-white lg:flex' : 'bg-white'}`}>
 
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3.5">
@@ -689,8 +709,7 @@ function CartPanel({
           <div className="flex flex-col items-center justify-center gap-2.5 py-12 text-slate-300">
             <ShoppingCart size={30} strokeWidth={1.25} />
             <div className="text-center">
-              <p className="text-sm font-medium text-slate-400">Cart is empty</p>
-              <p className="mt-0.5 text-xs text-slate-300">Tap a product to add it</p>
+              <p className="text-sm font-medium text-slate-400">No items yet</p>
             </div>
           </div>
         ) : (
@@ -738,7 +757,10 @@ function CartPanel({
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 border-t border-slate-100 px-4 pb-4 pt-3 space-y-2.5">
+      <div
+        className="shrink-0 border-t border-slate-100 bg-white px-4 pt-3 space-y-2.5"
+        style={{ paddingBottom: isDesktop ? '1rem' : mobileSafeAreaBottom }}
+      >
         {/* Walk-in customer */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-slate-400">Customer</span>
@@ -780,8 +802,8 @@ function CartPanel({
             : !currentShift
             ? 'Open a shift first'
             : cart.length === 0
-            ? 'Cart is empty'
-            : `Charge ${ugx(total)}`}
+            ? 'No items yet'
+            : 'Review sale'}
         </button>
       </div>
     </div>

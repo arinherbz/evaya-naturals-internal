@@ -5,7 +5,7 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../hooks/useAuth';
 import { api, ApiError } from '../services/api';
 import { formatUGX as ugx } from '../lib/currency';
-import { EmptyState } from './ProductsPage';
+import { DestructiveModal, EmptyState } from './ProductsPage';
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
@@ -58,8 +58,10 @@ export default function DeliveriesPage() {
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [pageError, setPageError] = useState('');
+  const [editingDeliveryId, setEditingDeliveryId] = useState('');
   const [editingNotesId, setEditingNotesId] = useState('');
   const [editingNotesValue, setEditingNotesValue] = useState('');
+  const [destructiveTargetId, setDestructiveTargetId] = useState('');
 
   const isManager = ['Admin', 'Branch Manager'].includes(user?.role.name ?? '');
 
@@ -77,27 +79,20 @@ export default function DeliveriesPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['deliveries'] }),
       queryClient.invalidateQueries({ queryKey: ['delivery-support'] }),
+      queryClient.invalidateQueries({ queryKey: ['deliveries-dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
     ]);
   };
 
-  const createMutation = useMutation({
-    mutationFn: () => api.pos.createDelivery({
-      customerId,
-      receiptReference: receiptReference || null,
-      deliveryAddress,
-      riderId: null,
-      deliveryFee: Number(deliveryFee || 0),
-      deliveryDate,
-      notes: notes || null,
-    }),
-    onSuccess: async () => {
-      setCustomerId(''); setReceiptReference(''); setDeliveryAddress('');
-      setDeliveryFee('0'); setDeliveryDate(new Date().toISOString().slice(0, 10));
-      setNotes(''); setPageError(''); setShowForm(false);
-      await refreshOps();
-    },
-    onError: (error) => setPageError(getErrorMessage(error)),
-  });
+  const resetForm = () => {
+    setEditingDeliveryId('');
+    setCustomerId('');
+    setReceiptReference('');
+    setDeliveryAddress('');
+    setDeliveryFee('0');
+    setDeliveryDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) => api.pos.updateDelivery(id, payload),
@@ -108,14 +103,71 @@ export default function DeliveriesPage() {
     onError: (error) => setPageError(getErrorMessage(error)),
   });
 
+  const saveFormMutation = useMutation({
+    mutationFn: () => (
+      editingDeliveryId
+        ? api.pos.updateDelivery(editingDeliveryId, {
+          customerId,
+          receiptReference: receiptReference || null,
+          deliveryAddress,
+          deliveryFee: Number(deliveryFee || 0),
+          deliveryDate,
+          notes: notes || null,
+        })
+        : api.pos.createDelivery({
+          customerId,
+          receiptReference: receiptReference || null,
+          deliveryAddress,
+          riderId: null,
+          deliveryFee: Number(deliveryFee || 0),
+          deliveryDate,
+          notes: notes || null,
+        })
+    ),
+    onSuccess: async () => {
+      resetForm();
+      setPageError('');
+      setShowForm(false);
+      await refreshOps();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.pos.deleteDelivery(id),
+    onSuccess: async () => {
+      setDestructiveTargetId('');
+      setPageError('');
+      await refreshOps();
+    },
+    onError: (error) => setPageError(getErrorMessage(error)),
+  });
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPageError('');
-    await createMutation.mutateAsync();
+    await saveFormMutation.mutateAsync();
   };
 
   const deliveries = deliveriesQuery.data?.deliveries ?? [];
   const customers = supportQuery.data?.customers ?? [];
+  const destructiveTarget = deliveries.find((delivery) => delivery.id === destructiveTargetId) ?? null;
+
+  function loadDelivery(delivery: typeof deliveries[number]) {
+    setEditingDeliveryId(delivery.id);
+    setCustomerId(delivery.customerId);
+    setReceiptReference(delivery.receiptReference ?? '');
+    setDeliveryAddress(delivery.deliveryAddress);
+    setDeliveryFee(String(delivery.deliveryFee));
+    setDeliveryDate(delivery.deliveryDate ? delivery.deliveryDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setNotes(delivery.notes ?? '');
+    setShowForm(true);
+    setPageError('');
+  }
+
+  const destructiveAction = destructiveTarget
+    ? (['pending', 'failed', 'cancelled'].includes(destructiveTarget.status) ? 'delete' : 'cancel')
+    : null;
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
@@ -132,7 +184,12 @@ export default function DeliveriesPage() {
             {isManager && (
               <button
                 type="button"
-                onClick={() => setShowForm((v) => !v)}
+                onClick={() => {
+                  if (showForm) {
+                    resetForm();
+                  }
+                  setShowForm((v) => !v);
+                }}
                 className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                   showForm ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'text-white hover:opacity-90'
                 }`}
@@ -170,8 +227,8 @@ export default function DeliveriesPage() {
                   <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={iCls} required />
                 </div>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Notes (optional)" className={`${iCls} resize-none`} />
-                <button type="submit" disabled={createMutation.isPending} className="rounded-xl py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60" style={{ background: '#1B4332' }}>
-                  {createMutation.isPending ? 'Creating…' : 'Create delivery'}
+                <button type="submit" disabled={saveFormMutation.isPending} className="rounded-xl py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60" style={{ background: '#1B4332' }}>
+                  {saveFormMutation.isPending ? 'Saving…' : editingDeliveryId ? 'Save delivery' : 'Create delivery'}
                 </button>
               </form>
             </div>
@@ -283,12 +340,54 @@ export default function DeliveriesPage() {
                           <option key={s} value={s}>{statusLabels[s]}</option>
                         ))}
                       </select>
+                      {isManager && (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadDelivery(delivery)}
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+                          {delivery.status !== 'delivered' && (
+                            <button
+                              type="button"
+                              onClick={() => setDestructiveTargetId(delivery.id)}
+                              className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                            >
+                              {['pending', 'failed', 'cancelled'].includes(delivery.status) ? 'Delete' : 'Cancel'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {destructiveTarget && destructiveAction && (
+            <DestructiveModal
+              title={destructiveAction === 'delete' ? 'Delete delivery?' : 'Cancel delivery?'}
+              description={
+                destructiveAction === 'delete'
+                  ? `This will permanently remove the delivery for ${destructiveTarget.customerName}.`
+                  : `This will mark the delivery for ${destructiveTarget.customerName} as cancelled.`
+              }
+              confirmLabel={destructiveAction === 'delete' ? 'Delete delivery' : 'Cancel delivery'}
+              isPending={deleteMutation.isPending || updateMutation.isPending}
+              onConfirm={() => {
+                if (destructiveAction === 'delete') {
+                  deleteMutation.mutate(destructiveTarget.id);
+                  return;
+                }
+                updateMutation.mutate({ id: destructiveTarget.id, payload: { status: 'cancelled' } });
+                setDestructiveTargetId('');
+              }}
+              onCancel={() => setDestructiveTargetId('')}
+            />
+          )}
         </div>
       </main>
     </div>

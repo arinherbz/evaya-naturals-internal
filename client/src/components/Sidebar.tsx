@@ -127,7 +127,7 @@ export default function Sidebar() {
           onClick={() => { navigate(logoHref); onNav?.(); }}
           className="flex items-center gap-2.5 min-w-0"
         >
-          <BrandMark compact />
+          <BrandMark compact showName />
         </button>
       </div>
 

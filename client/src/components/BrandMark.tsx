@@ -3,42 +3,68 @@ import { useEffect, useState } from 'react';
 type BrandMarkProps = {
   compact?: boolean;
   className?: string;
+  showName?: boolean;
+  nameClassName?: string;
 };
 
-export default function BrandMark({ compact = false, className = '' }: BrandMarkProps) {
-  const [logoSrc, setLogoSrc] = useState('/evaya-logo.svg');
+export default function BrandMark({
+  compact = false,
+  className = '',
+  showName = false,
+  nameClassName = '',
+}: BrandMarkProps) {
+  const [brand, setBrand] = useState({
+    logoSrc: '/evaya-logo.svg',
+    businessName: 'Evaya Naturals',
+  });
 
   useEffect(() => {
-    const syncLogo = () => {
+    const syncBrand = () => {
       try {
         const raw = localStorage.getItem('evaya-business-profile');
         if (!raw) {
-          setLogoSrc('/evaya-logo.svg');
+          setBrand({
+            logoSrc: '/evaya-logo.svg',
+            businessName: 'Evaya Naturals',
+          });
           return;
         }
-        const profile = JSON.parse(raw) as { logoDataUrl?: string | null };
-        setLogoSrc(profile.logoDataUrl || '/evaya-logo.svg');
+        const profile = JSON.parse(raw) as { logoDataUrl?: string | null; businessName?: string | null };
+        setBrand({
+          logoSrc: profile.logoDataUrl || '/evaya-logo.svg',
+          businessName: profile.businessName?.trim() || 'Evaya Naturals',
+        });
       } catch {
-        setLogoSrc('/evaya-logo.svg');
+        setBrand({
+          logoSrc: '/evaya-logo.svg',
+          businessName: 'Evaya Naturals',
+        });
       }
     };
 
-    syncLogo();
-    window.addEventListener('storage', syncLogo);
-    window.addEventListener('evaya-brand-updated', syncLogo as EventListener);
+    syncBrand();
+    window.addEventListener('storage', syncBrand);
+    window.addEventListener('evaya-brand-updated', syncBrand as EventListener);
     return () => {
-      window.removeEventListener('storage', syncLogo);
-      window.removeEventListener('evaya-brand-updated', syncLogo as EventListener);
+      window.removeEventListener('storage', syncBrand);
+      window.removeEventListener('evaya-brand-updated', syncBrand as EventListener);
     };
   }, []);
 
   return (
     <div className={`flex items-center gap-3 ${className}`.trim()}>
       <img
-        src={logoSrc}
+        src={brand.logoSrc}
         alt="Evaya Naturals logo"
         className={compact ? 'h-10 w-auto' : 'h-14 w-auto'}
       />
+      {showName && (
+        <div className={`min-w-0 ${nameClassName}`.trim()}>
+          <p className={`truncate font-semibold text-slate-900 ${compact ? 'text-sm' : 'text-base'}`}>
+            {brand.businessName}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

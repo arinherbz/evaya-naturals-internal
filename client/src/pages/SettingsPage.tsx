@@ -66,18 +66,20 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!settingsQuery.data) return;
     const { businessProfile, systemSettings, roles } = settingsQuery.data;
-    setBusinessName(businessProfile.businessName);
-    setLogoDataUrl(businessProfile.logoDataUrl ?? null);
-    setPhone(businessProfile.phone);
-    setEmail(businessProfile.email);
-    setAddress(businessProfile.address ?? '');
+    if (!editingProfile) {
+      setBusinessName(businessProfile.businessName);
+      setLogoDataUrl(businessProfile.logoDataUrl ?? null);
+      setPhone(businessProfile.phone);
+      setEmail(businessProfile.email);
+      setAddress(businessProfile.address ?? '');
+    }
     setExpiryAlertDays(String(systemSettings.expiryAlertDays));
     setLowStockDefaultThreshold(String(systemSettings.lowStockDefaultThreshold));
     setReceiptFooterMessage(systemSettings.receiptFooterMessage ?? '');
     setReportFooterMessage(systemSettings.reportFooterMessage ?? '');
     if (!roleId && roles.length > 0) setRoleId(roles[0].id);
     persistBrandProfile(businessProfile);
-  }, [roleId, settingsQuery.data]);
+  }, [editingProfile, roleId, settingsQuery.data]);
 
   const roles = settingsQuery.data?.roles ?? [];
   const users = settingsQuery.data?.users ?? [];
@@ -87,14 +89,66 @@ export default function SettingsPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['settings-admin'] }),
       queryClient.invalidateQueries({ queryKey: ['public-settings'] }),
+      queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['receipt'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-receipt'] }),
     ]);
   };
+
+  function syncProfileDraft(profile: {
+    businessName: string;
+    logoDataUrl?: string | null;
+    phone: string;
+    email: string;
+    address?: string | null;
+  }) {
+    setBusinessName(profile.businessName);
+    setLogoDataUrl(profile.logoDataUrl ?? null);
+    setPhone(profile.phone);
+    setEmail(profile.email);
+    setAddress(profile.address ?? '');
+  }
+
+  function openProfileEditor() {
+    if (!settingsQuery.data) return;
+    syncProfileDraft(settingsQuery.data.businessProfile);
+    setEditingProfile(true);
+  }
+
+  function closeProfileEditor() {
+    if (settingsQuery.data) {
+      syncProfileDraft(settingsQuery.data.businessProfile);
+    }
+    setEditingProfile(false);
+  }
 
   const businessMutation = useMutation({
     mutationFn: () => api.settings.updateBusinessProfile({ businessName, logoDataUrl, phone, email, address: address || null }),
     onSuccess: async (payload) => {
-      setPageError(''); setEditingProfile(false);
+      setPageError('');
+      setEditingProfile(false);
       persistBrandProfile(payload.businessProfile);
+      queryClient.setQueryData(['public-settings'], (current: {
+        businessProfile?: typeof payload.businessProfile;
+        systemSettings?: unknown;
+        paymentMethods?: unknown;
+      } | undefined) => (
+        current
+          ? { ...current, businessProfile: payload.businessProfile }
+          : current
+      ));
+      queryClient.setQueryData(['settings-admin'], (current: {
+        businessProfile?: typeof payload.businessProfile;
+        systemSettings?: unknown;
+        paymentMethods?: unknown;
+        roles?: unknown;
+        users?: unknown;
+      } | undefined) => (
+        current
+          ? { ...current, businessProfile: payload.businessProfile }
+          : current
+      ));
       await refreshSettings();
     },
     onError: (error) => setPageError(getErrorMessage(error)),
@@ -213,7 +267,7 @@ export default function SettingsPage() {
                       <button type="submit" disabled={businessMutation.isPending} className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60" style={{ background: '#1B4332' }}>
                         {businessMutation.isPending ? 'Saving…' : 'Save'}
                       </button>
-                      <button type="button" onClick={() => setEditingProfile(false)} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                      <button type="button" onClick={closeProfileEditor} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                         Cancel
                       </button>
                     </div>
@@ -235,7 +289,7 @@ export default function SettingsPage() {
                         <span className="text-sm font-medium text-slate-900">{row.value}</span>
                       </div>
                     ))}
-                    <button type="button" onClick={() => setEditingProfile(true)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                    <button type="button" onClick={openProfileEditor} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                       Edit profile
                     </button>
                   </div>

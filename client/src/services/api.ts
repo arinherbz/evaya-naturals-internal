@@ -390,10 +390,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    updateDelivery: (id: string, payload: Partial<{ riderId?: string | null; status?: string; deliveryAddress?: string; deliveryFee?: number; deliveryDate?: string; notes?: string | null }>) =>
+    updateDelivery: (id: string, payload: Partial<{ customerId?: string; receiptReference?: string | null; riderId?: string | null; status?: string; deliveryAddress?: string; deliveryFee?: number; deliveryDate?: string; notes?: string | null }>) =>
       request<{ delivery: Delivery }>(`/pos/deliveries/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
+      }),
+    deleteDelivery: (id: string) =>
+      request<{ message: string }>(`/pos/deliveries/${id}`, {
+        method: 'DELETE',
       }),
   },
 };

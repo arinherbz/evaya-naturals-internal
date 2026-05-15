@@ -86,6 +86,8 @@ const deliverySchema = z.object({
 });
 
 const deliveryUpdateSchema = z.object({
+  customerId: z.string().trim().min(1).optional(),
+  receiptReference: z.string().trim().max(120).optional().nullable(),
   riderId: z.string().trim().optional().nullable(),
   status: z.enum(deliveryStatuses).optional(),
   deliveryAddress: z.string().trim().min(4).max(500).optional(),
@@ -1350,10 +1352,23 @@ posRoutes.patch('/deliveries/:id', requirePermission('update_delivery_status'), 
     return c.json({ error: 'Forbidden' }, 403);
   }
 
+  let customer = null;
+  if (payload.customerId && payload.customerId !== existing.customerId) {
+    const [nextCustomer] = await db.select().from(schema.customers).where(eq(schema.customers.id, payload.customerId));
+    if (!nextCustomer || !nextCustomer.isActive) {
+      return c.json({ error: 'Customer not found' }, 404);
+    }
+    customer = nextCustomer;
+  }
+
   const nowIso = new Date().toISOString();
   const nextStatus = payload.status ?? existing.status;
   const [delivery] = await db.update(schema.deliveries)
     .set({
+      customerId: customer?.id ?? existing.customerId,
+      customerName: customer?.name ?? existing.customerName,
+      customerPhone: customer?.phone ?? existing.customerPhone,
+      receiptReference: payload.receiptReference !== undefined ? normalizeText(payload.receiptReference) : existing.receiptReference,
       riderId: payload.riderId !== undefined ? normalizeText(payload.riderId) : existing.riderId,
       status: nextStatus,
       deliveryAddress: payload.deliveryAddress ?? existing.deliveryAddress,
@@ -1369,6 +1384,28 @@ posRoutes.patch('/deliveries/:id', requirePermission('update_delivery_status'), 
     .returning();
 
   return c.json({ delivery });
+});
+
+posRoutes.delete('/deliveries/:id', requirePermission('update_delivery_status'), async (c) => {
+  const user = c.get('user');
+  if (!canManageDeliveries(user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const branchId = await resolveBranchId(user);
+  const deliveryId = c.req.param('id') as string;
+  const [existing] = await db.select().from(schema.deliveries).where(eq(schema.deliveries.id, deliveryId));
+
+  if (!existing || existing.branchId !== branchId) {
+    return c.json({ error: 'Delivery not found' }, 404);
+  }
+
+  if (!['pending', 'failed', 'cancelled'].includes(existing.status)) {
+    return c.json({ error: 'Only pending, failed, or cancelled deliveries can be deleted' }, 400);
+  }
+
+  await db.delete(schema.deliveries).where(eq(schema.deliveries.id, deliveryId));
+  return c.json({ message: 'Delivery deleted' });
 });
 
 posRoutes.get('/receipts', async (c) => {

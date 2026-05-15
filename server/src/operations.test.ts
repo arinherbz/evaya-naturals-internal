@@ -307,6 +307,8 @@ describe('operations slices', () => {
   it('creates and updates deliveries for branch managers only', async () => {
     const manager = await createUser('Branch Manager', 'manager.ops@evaya.ug', branchId);
     const managerToken = await login(manager.email, 'secret123');
+    await createUser('Cashier', 'cashier.ops@evaya.ug', branchId);
+    const cashierToken = await login('cashier.ops@evaya.ug', 'secret123');
     const customer = await createCustomer(adminToken, 'Delivery Customer', '+256700444555');
 
     const createResponse = await app.request('/api/pos/deliveries', {
@@ -332,11 +334,20 @@ describe('operations slices', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${managerToken}`,
       },
-      body: JSON.stringify({ status: 'picked_up' }),
+      body: JSON.stringify({
+        status: 'picked_up',
+        deliveryAddress: 'Updated Kampala Road',
+        deliveryFee: 3500,
+        notes: 'Customer requested afternoon drop',
+      }),
     });
     expect(updateResponse.status).toBe(200);
+    const updatedDelivery = (await json(updateResponse)).delivery;
+    expect(updatedDelivery.deliveryAddress).toBe('Updated Kampala Road');
+    expect(updatedDelivery.deliveryFee).toBe(3500);
+    expect(updatedDelivery.notes).toBe('Customer requested afternoon drop');
 
-    await app.request('/api/pos/deliveries', {
+    const secondCreateResponse = await app.request('/api/pos/deliveries', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -350,13 +361,27 @@ describe('operations slices', () => {
         deliveryDate: new Date().toISOString().slice(0, 10),
       }),
     });
+    expect(secondCreateResponse.status).toBe(201);
+    const secondDelivery = (await json(secondCreateResponse)).delivery;
+
+    const cashierDelete = await app.request(`/api/pos/deliveries/${secondDelivery.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${cashierToken}` },
+    });
+    expect(cashierDelete.status).toBe(403);
+
+    const deleteResponse = await app.request(`/api/pos/deliveries/${secondDelivery.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    expect(deleteResponse.status).toBe(200);
 
     const deliveryList = await app.request('/api/pos/deliveries', {
       headers: { Authorization: `Bearer ${managerToken}` },
     });
     expect(deliveryList.status).toBe(200);
     const deliveryPayload = await json(deliveryList);
-    expect(deliveryPayload.deliveries).toHaveLength(2);
+    expect(deliveryPayload.deliveries).toHaveLength(1);
     expect(deliveryPayload.deliveries.some((item: Record<string, unknown>) => item.id === delivery.id)).toBe(true);
   });
 
