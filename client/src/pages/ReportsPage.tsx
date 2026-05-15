@@ -58,7 +58,7 @@ export default function ReportsPage() {
   const refreshOps = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
-      queryClient.invalidateQueries({ queryKey: ['report-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] }),
     ]);
   };

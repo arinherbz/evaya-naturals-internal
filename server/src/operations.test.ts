@@ -472,5 +472,13 @@ describe('operations slices', () => {
     const reportPayload = await json(reportRes);
     const lowStockItem = reportPayload.lowStockSummary.items.find((item: { productName: string }) => item.productName === product.name);
     expect(lowStockItem.quantity).toBe(1);
+
+    const dashboardRes = await app.request('/api/pos/reports/today', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(dashboardRes.status).toBe(200);
+    const dashboardPayload = await json(dashboardRes);
+    const dashboardLowStockItem = dashboardPayload.lowStockSummary.items.find((item: { productName: string }) => item.productName === product.name);
+    expect(dashboardLowStockItem.quantity).toBe(1);
   });
 });

@@ -102,7 +102,7 @@ export default function ExpensesPage() {
       queryClient.invalidateQueries({ queryKey: ['pos-expenses'] }),
       queryClient.invalidateQueries({ queryKey: ['pos-expenses-page'] }),
       queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
-      queryClient.invalidateQueries({ queryKey: ['report-today'] }),
+      queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
     ]);
 
   const expenseMutation = useMutation({

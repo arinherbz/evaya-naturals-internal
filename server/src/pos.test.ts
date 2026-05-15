@@ -390,7 +390,7 @@ describe('pos slice', () => {
     expect((await json(response)).error).toContain('Insufficient stock');
   });
 
-  it('rolls back a sale when inventory is out of sync with sellable batches', async () => {
+  it('reconciles stale inventory quantity from sellable batches during sale checkout', async () => {
     const category = await createCategory(adminToken, 'POS Category');
     const product = await createProduct(adminToken, branchId, category.id, 'Rollback Sale Product');
     const batch = await receiveBatch(adminToken, {
@@ -422,20 +422,26 @@ describe('pos slice', () => {
         items: [{ productId: product.id, quantity: 1 }],
       }),
     });
-    expect(saleRes.status).toBe(409);
+    expect(saleRes.status).toBe(201);
 
     const sales = await db.select().from(schema.sales).where(eq(schema.sales.branchId, branchId));
-    expect(sales).toHaveLength(0);
+    expect(sales).toHaveLength(1);
 
     const [reloadedBatch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batch.id));
-    expect(reloadedBatch.quantityRemaining).toBe(5);
+    expect(reloadedBatch.quantityRemaining).toBe(4);
+
+    const [reloadedInventory] = await db.select().from(schema.inventory).where(and(
+      eq(schema.inventory.productId, product.id),
+      eq(schema.inventory.branchId, branchId),
+    ));
+    expect(reloadedInventory.quantity).toBe(4);
 
     const saleMovements = await db.select().from(schema.inventoryMovements).where(and(
       eq(schema.inventoryMovements.productId, product.id),
       eq(schema.inventoryMovements.branchId, branchId),
       eq(schema.inventoryMovements.movementType, 'sale'),
     ));
-    expect(saleMovements).toHaveLength(0);
+    expect(saleMovements).toHaveLength(1);
   });
 
   it('allows cashier checkout and blocks branch manager from checkout while still allowing POS visibility', async () => {

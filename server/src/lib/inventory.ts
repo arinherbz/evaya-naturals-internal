@@ -1,6 +1,19 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
 
+type BatchQuantityRow = {
+  quantityRemaining: number;
+  expiryDate: string;
+};
+
+export function isSellableBatch(batch: BatchQuantityRow, now = new Date()) {
+  return batch.quantityRemaining > 0 && new Date(batch.expiryDate) >= now;
+}
+
+export function sumSellableBatchQuantity(batches: BatchQuantityRow[], now = new Date()) {
+  return batches.reduce((sum, batch) => sum + (isSellableBatch(batch, now) ? batch.quantityRemaining : 0), 0);
+}
+
 export function isUniqueViolation(error: unknown, constraintName?: string) {
   if (!error || typeof error !== 'object') {
     return false;
@@ -221,4 +234,45 @@ export async function syncBatchQuantitiesForAdjustment(
   }
 
   return { syntheticBatchId: null as string | null };
+}
+
+export async function reconcileInventoryQuantityFromBatches(
+  executor: any,
+  productId: string,
+  branchId: string,
+  lowStockThreshold: number,
+  updatedAt = new Date().toISOString(),
+) {
+  const batches = await executor.select({
+    quantityRemaining: schema.batches.quantityRemaining,
+    expiryDate: schema.batches.expiryDate,
+  })
+    .from(schema.batches)
+    .where(and(
+      eq(schema.batches.productId, productId),
+      eq(schema.batches.branchId, branchId),
+    ));
+
+  if (batches.length === 0) {
+    return null;
+  }
+
+  const sellableQuantity = sumSellableBatchQuantity(batches, new Date(updatedAt));
+  await ensureInventoryRowsForBranches(executor, productId, [branchId], lowStockThreshold);
+
+  const [updated] = await executor.update(schema.inventory)
+    .set({
+      quantity: sellableQuantity,
+      lowStockThreshold,
+      updatedAt,
+    })
+    .where(and(
+      eq(schema.inventory.productId, productId),
+      eq(schema.inventory.branchId, branchId),
+    ))
+    .returning({
+      quantity: schema.inventory.quantity,
+    });
+
+  return updated?.quantity ?? sellableQuantity;
 }

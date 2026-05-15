@@ -6,7 +6,7 @@ import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
 import { generateReportPdf } from '../lib/report-pdf.js';
 import { getAppSettings } from '../lib/app-settings.js';
-import { applyInventoryDelta } from '../lib/inventory.js';
+import { applyInventoryDelta, reconcileInventoryQuantityFromBatches, sumSellableBatchQuantity } from '../lib/inventory.js';
 
 const posRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -231,6 +231,7 @@ async function listLowStockProducts(branchId: string) {
     productId: schema.products.id,
     productName: schema.products.name,
     quantity: schema.inventory.quantity,
+    lowStockThreshold: schema.inventory.lowStockThreshold,
   })
     .from(schema.inventory)
     .innerJoin(schema.products, eq(schema.inventory.productId, schema.products.id))
@@ -246,11 +247,38 @@ async function listLowStockProducts(branchId: string) {
     ))
     .orderBy(asc(schema.inventory.quantity), asc(schema.products.name));
 
-  return rows.map((row) => ({
-    productId: row.productId,
-    productName: row.productName,
-    quantity: row.quantity,
-  }));
+  const batches = await db.select({
+    productId: schema.batches.productId,
+    branchId: schema.batches.branchId,
+    quantityRemaining: schema.batches.quantityRemaining,
+    expiryDate: schema.batches.expiryDate,
+  })
+    .from(schema.batches)
+    .where(eq(schema.batches.branchId, branchId));
+
+  const now = new Date();
+
+  return rows
+    .map((row) => {
+      const rowBatches = batches.filter((batch) => batch.productId === row.productId && batch.branchId === branchId);
+      const quantity = rowBatches.length > 0
+        ? sumSellableBatchQuantity(rowBatches, now)
+        : row.quantity;
+
+      return {
+        productId: row.productId,
+        productName: row.productName,
+        quantity,
+        lowStockThreshold: row.lowStockThreshold,
+      };
+    })
+    .filter((row) => row.quantity <= row.lowStockThreshold)
+    .sort((a, b) => a.quantity - b.quantity || a.productName.localeCompare(b.productName))
+    .map(({ productId, productName, quantity }) => ({
+      productId,
+      productName,
+      quantity,
+    }));
 }
 
 function resolveReportRange(period: 'daily' | 'weekly' | 'custom', startDate?: string, endDate?: string) {
@@ -589,20 +617,20 @@ posRoutes.get('/products', async (c) => {
   const data = products.map((product) => {
     const inventory = inventoryRows.find((row) => row.productId === product.id);
     const inventoryQty = inventory?.quantity ?? 0;
-    const sellableBatches = availableBatches.filter((batch) => (
-      batch.productId === product.id
-      && batch.quantityRemaining > 0
+    const productBatches = availableBatches.filter((batch) => batch.productId === product.id);
+    const sellableBatches = productBatches.filter((batch) => (
+      batch.quantityRemaining > 0
       && new Date(batch.expiryDate) >= now
     ));
-    const batchAvailable = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+    const batchAvailable = sumSellableBatchQuantity(sellableBatches, now);
     // If batches exist use batch availability; otherwise fall back to raw inventory qty
-    const hasBatches = availableBatches.some((b) => b.productId === product.id);
+    const hasBatches = productBatches.length > 0;
     const availableQuantity = hasBatches ? batchAvailable : inventoryQty;
     return {
       ...product,
       branchId,
       availableQuantity,
-      inventoryQuantity: inventoryQty,
+      inventoryQuantity: availableQuantity,
       lowStock: availableQuantity > 0 && availableQuantity <= product.lowStockThreshold,
       isOutOfStock: availableQuantity === 0,
       nextExpiryDate: sellableBatches[0]?.expiryDate ?? null,
@@ -1578,7 +1606,7 @@ posRoutes.post('/sales', async (c) => {
       const sellableBatches = productBatches.filter((batch) => batch.quantityRemaining > 0 && new Date(batch.expiryDate) >= now);
       const expiredAvailable = productBatches.some((batch) => batch.quantityRemaining > 0 && new Date(batch.expiryDate) < now);
       const hasBatches = productBatches.length > 0;
-      const batchAvailable = sellableBatches.reduce((sum, batch) => sum + batch.quantityRemaining, 0);
+      const batchAvailable = sumSellableBatchQuantity(sellableBatches, now);
       const inventoryRow = inventoryMap.get(item.productId);
       const inventoryQty = inventoryRow?.quantity ?? 0;
       // Mirror POS display logic exactly: batches win if they exist, else use inventory.quantity
@@ -1648,8 +1676,6 @@ posRoutes.post('/sales', async (c) => {
       const sale = saleRows[0];
 
       for (const line of lineAllocations) {
-        await applyInventoryDelta(tx, line.product.id, branchId, -line.item.quantity, line.product.lowStockThreshold, nowIso);
-
         if (line.allocations.length > 0) {
           for (const allocation of line.allocations) {
             const batch = batches.find((row) => row.id === allocation.batchId);
@@ -1694,7 +1720,20 @@ posRoutes.post('/sales', async (c) => {
               userId: user.id,
             });
           }
+
+          const reconciled = await reconcileInventoryQuantityFromBatches(
+            tx,
+            line.product.id,
+            branchId,
+            line.product.lowStockThreshold,
+            nowIso,
+          );
+          if (reconciled === null) {
+            await applyInventoryDelta(tx, line.product.id, branchId, -line.item.quantity, line.product.lowStockThreshold, nowIso);
+          }
         } else {
+          await applyInventoryDelta(tx, line.product.id, branchId, -line.item.quantity, line.product.lowStockThreshold, nowIso);
+
           await tx.insert(schema.saleItems).values({
             saleId: sale.id,
             productId: line.product.id,

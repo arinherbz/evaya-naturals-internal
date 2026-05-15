@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
-import { applyInventoryDelta, ensureInventoryRowsForBranches, ensureProductVisibility, isUniqueViolation, syncBatchQuantitiesForAdjustment } from '../lib/inventory.js';
+import { applyInventoryDelta, ensureInventoryRowsForBranches, ensureProductVisibility, isUniqueViolation, reconcileInventoryQuantityFromBatches, sumSellableBatchQuantity, syncBatchQuantitiesForAdjustment } from '../lib/inventory.js';
 
 const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -596,9 +596,15 @@ catalogRoutes.get('/inventory', async (c) => {
         return batch.quantityRemaining > 0 && expiry < now;
       });
 
+      const hasTrackedBatches = rowBatches.length > 0;
+      const sellableQuantity = hasTrackedBatches
+        ? sumSellableBatchQuantity(rowBatches, now)
+        : row.quantity;
+
       return {
         ...row,
-        lowStock: row.quantity <= row.lowStockThreshold,
+        quantity: sellableQuantity,
+        lowStock: sellableQuantity <= row.lowStockThreshold,
         expiringSoonCount: expiringSoon.length,
         expiredCount: expired.length,
         batches: rowBatches,
@@ -796,7 +802,10 @@ catalogRoutes.post('/inventory/batches', async (c) => {
       const [createdBatch] = await tx.insert(schema.batches).values(batchData).returning();
       await ensureProductVisibility(tx, payload.productId, [branchId]);
       await ensureInventoryRowsForBranches(tx, payload.productId, [branchId], product[0].lowStockThreshold);
-      await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityReceived, product[0].lowStockThreshold, nowIso);
+      const reconciled = await reconcileInventoryQuantityFromBatches(tx, payload.productId, branchId, product[0].lowStockThreshold, nowIso);
+      if (reconciled === null) {
+        await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityReceived, product[0].lowStockThreshold, nowIso);
+      }
       await tx.insert(schema.inventoryMovements).values({
         productId: payload.productId,
         branchId,
@@ -885,7 +894,10 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
         movementBatchId = batchSync.syntheticBatchId;
       }
 
-      await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityDelta, product[0].lowStockThreshold, nowIso);
+      const reconciled = await reconcileInventoryQuantityFromBatches(tx, payload.productId, branchId, product[0].lowStockThreshold, nowIso);
+      if (reconciled === null) {
+        await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityDelta, product[0].lowStockThreshold, nowIso);
+      }
 
       const [createdMovement] = await tx.insert(schema.inventoryMovements).values({
         productId: payload.productId,

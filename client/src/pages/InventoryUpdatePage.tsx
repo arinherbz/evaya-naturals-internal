@@ -109,7 +109,7 @@ export default function InventoryUpdatePage() {
         queryClient.invalidateQueries({ queryKey: ['catalog-products-for-inventory-update'] }),
         queryClient.invalidateQueries({ queryKey: ['pos-products'] }),
         queryClient.invalidateQueries({ queryKey: ['report-summary'] }),
-        queryClient.invalidateQueries({ queryKey: ['report-today'] }),
+        queryClient.invalidateQueries({ queryKey: ['pos-reports-today'] }),
       ]);
       navigate('/inventory');
     },

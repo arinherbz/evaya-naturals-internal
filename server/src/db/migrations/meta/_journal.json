@@ -43,6 +43,13 @@
       "when": 1778997600000,
       "tag": "0005_remove_product_category_dependency",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779004200000,
+      "tag": "0006_reconcile_inventory_with_sellable_batches",
+      "breakpoints": true
     }
   ]
 }

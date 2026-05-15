@@ -346,7 +346,7 @@ describe('catalog slice', () => {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     const inventory = (await json(inventoryRes)).inventory;
-    expect(inventory[0].quantity).toBe(19);
+    expect(inventory[0].quantity).toBe(17);
     expect(inventory[0].expiringSoonCount).toBeGreaterThan(0);
     expect(inventory[0].expiredCount).toBeGreaterThan(0);
 
@@ -442,7 +442,7 @@ describe('catalog slice', () => {
     expect(receivedMovements).toHaveLength(1);
   });
 
-  it('rolls back stock adjustments when inventory update fails after batch validation', async () => {
+  it('reconciles stale inventory quantity from sellable batches during stock adjustments', async () => {
     const productRes = await app.request('/api/catalog/products', {
       method: 'POST',
       headers: {
@@ -496,22 +496,22 @@ describe('catalog slice', () => {
         reason: 'Should rollback fully',
       }),
     });
-    expect(adjustmentRes.status).toBe(409);
+    expect(adjustmentRes.status).toBe(201);
 
     const [reloadedBatch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batch.id));
     const [reloadedInventory] = await db.select().from(schema.inventory).where(and(
       eq(schema.inventory.productId, product.id),
       eq(schema.inventory.branchId, branchA),
     ));
-    expect(reloadedBatch.quantityRemaining).toBe(5);
-    expect(reloadedInventory.quantity).toBe(0);
+    expect(reloadedBatch.quantityRemaining).toBe(4);
+    expect(reloadedInventory.quantity).toBe(4);
 
     const damagedMovements = await db.select().from(schema.inventoryMovements).where(and(
       eq(schema.inventoryMovements.productId, product.id),
       eq(schema.inventoryMovements.branchId, branchA),
       eq(schema.inventoryMovements.movementType, 'damaged'),
     ));
-    expect(damagedMovements).toHaveLength(0);
+    expect(damagedMovements).toHaveLength(1);
   });
 
   it('keeps generic stock adjustments in sync with POS batch availability', async () => {
@@ -603,6 +603,70 @@ describe('catalog slice', () => {
     });
     expect(afterDecreasePos.status).toBe(200);
     expect((await json(afterDecreasePos)).products[0].availableQuantity).toBe(3);
+  });
+
+  it('shows reconciled sellable quantity when inventory and batches drift apart', async () => {
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Batana-style mismatch product',
+        unitType: 'ml',
+        sellingPrice: 18000,
+        costPrice: 9000,
+        lowStockThreshold: 2,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'BATANA-DRIFT-1',
+        expiryDate: new Date(Date.now() + 86400000 * 30).toISOString(),
+        quantityReceived: 5,
+        costPrice: 9000,
+      }),
+    });
+
+    await db.update(schema.batches)
+      .set({ quantityRemaining: 0 })
+      .where(and(
+        eq(schema.batches.productId, product.id),
+        eq(schema.batches.branchId, branchA),
+      ));
+
+    await db.update(schema.inventory)
+      .set({ quantity: 5 })
+      .where(and(
+        eq(schema.inventory.productId, product.id),
+        eq(schema.inventory.branchId, branchA),
+      ));
+
+    const inventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchA}&search=Batana-style mismatch`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(inventoryRes.status).toBe(200);
+    expect((await json(inventoryRes)).inventory[0].quantity).toBe(0);
+
+    const posRes = await app.request('/api/pos/products?search=Batana-style mismatch', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(posRes.status).toBe(200);
+    const posPayload = await json(posRes);
+    expect(posPayload.products[0].availableQuantity).toBe(0);
+    expect(posPayload.products[0].inventoryQuantity).toBe(0);
+    expect(posPayload.products[0].isOutOfStock).toBe(true);
   });
 
   it('enforces branch scoping and permissions', async () => {
