@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Database, Plus, Search, AlertTriangle, X } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { InventoryRow } from '../types';
+import { SkeletonRows, EmptyState, DestructiveModal } from './ProductsPage';
 
 function getErrorMessage(e: unknown) {
   if (e instanceof ApiError) return e.message;
@@ -11,16 +13,7 @@ function getErrorMessage(e: unknown) {
   return 'Something went wrong';
 }
 
-const iCls =
-  'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/30';
-
-function XIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
+const iCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10';
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -46,9 +39,7 @@ export default function InventoryPage() {
   // Deactivate modal
   const [deactivatingRow, setDeactivatingRow] = useState<InventoryRow | null>(null);
 
-  const canManageInventory = ['Admin', 'Branch Manager'].includes(
-    user?.role.name ?? '',
-  );
+  const canManageInventory = ['Admin', 'Branch Manager'].includes(user?.role.name ?? '');
 
   const branchesQuery = useQuery({
     queryKey: ['catalog-branches'],
@@ -157,9 +148,7 @@ export default function InventoryPage() {
       const newQty = Number(editQty);
       if (!isNaN(newQty) && editQty !== '' && newQty !== editingRow.quantity) {
         const delta = newQty - editingRow.quantity;
-        if (delta === 0) {
-          // nothing
-        } else {
+        if (delta !== 0) {
           ops.push(
             api.inventory.adjust({
               productId: editingRow.productId,
@@ -203,109 +192,68 @@ export default function InventoryPage() {
     },
   });
 
+  const colCount = canManageInventory ? 5 : 4;
+
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 px-4 pb-10 pt-20 sm:px-6 lg:px-8 lg:pt-8">
+      <main className="flex-1 px-4 pb-12 pt-[76px] sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-5xl space-y-6">
 
           {/* Header */}
-          <section className="rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.05)] sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Inventory</h1>
-            <p className="mt-1 text-sm text-slate-500">Track stock levels and receive new stock.</p>
-          </section>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Inventory</h1>
+              <p className="mt-0.5 text-sm text-slate-400">Track stock levels and receive new batches.</p>
+            </div>
+            {canManageInventory && (
+              <button
+                type="button"
+                onClick={() => setShowAddStock(true)}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                style={{ background: '#1B4332' }}
+              >
+                <Plus size={15} strokeWidth={2} />
+                Add Stock
+              </button>
+            )}
+          </div>
 
           {pageError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
               {pageError}
             </div>
           )}
 
           {/* Stock list */}
-          <div className="rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-6 sm:py-5">
-              <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
+            <div className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-semibold text-slate-900">
                 Stock List
                 {inventory.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-slate-400">({inventory.length})</span>
+                  <span className="ml-2 font-normal text-slate-400">({inventory.length})</span>
                 )}
               </h2>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products…"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-emerald-400 sm:w-[200px]"
-              />
-              {canManageInventory && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddStock(true)}
-                  className="ml-auto rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 active:scale-95"
-                >
-                  + Add Stock
-                </button>
-              )}
+              <div className="relative ml-auto w-full sm:w-auto">
+                <Search size={14} strokeWidth={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search products…"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-4 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10 sm:w-52"
+                />
+              </div>
             </div>
 
-            {/* Mobile cards (< sm) */}
-            <div className="space-y-2 px-4 pb-4 sm:hidden">
-              {inventoryQuery.isLoading && (
-                <p className="py-6 text-center text-sm text-slate-400">Loading…</p>
-              )}
-              {!inventoryQuery.isLoading && inventory.length === 0 && (
-                <p className="py-6 text-center text-sm text-slate-400">No inventory records found</p>
-              )}
-              {inventory.map((row) => (
-                <div key={row.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-900">{row.productName}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {row.unitType.toUpperCase()} · {row.categoryName}
-                      </p>
-                    </div>
-                    <p className="text-2xl font-bold text-emerald-700">{row.quantity}</p>
-                  </div>
-                  {canManageInventory && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(row)}
-                        className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeactivatingRow(row)}
-                        className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
-                      >
-                        Deactivate
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Tablet / Desktop table (>= sm) */}
-            <div className="hidden overflow-x-auto sm:block">
+            {/* Desktop table */}
+            <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {[
-                      'Product',
-                      'Unit',
-                      'Quantity',
-                      'Low Stock Level',
-                      ...(canManageInventory ? ['Actions'] : []),
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
-                      >
+                    {['Product', 'Unit', 'Quantity', 'Low Stock Alert', ...(canManageInventory ? ['Actions'] : [])].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-medium text-slate-400 whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -314,55 +262,69 @@ export default function InventoryPage() {
                 <tbody className="divide-y divide-slate-50">
                   {inventoryQuery.isLoading && (
                     <tr>
-                      <td colSpan={canManageInventory ? 5 : 4} className="py-8 text-center text-sm text-slate-400">
-                        Loading…
+                      <td colSpan={colCount}>
+                        <SkeletonRows n={5} />
                       </td>
                     </tr>
                   )}
                   {!inventoryQuery.isLoading && inventory.length === 0 && (
                     <tr>
-                      <td colSpan={canManageInventory ? 5 : 4} className="py-8 text-center text-sm text-slate-400">
-                        No inventory records found
+                      <td colSpan={colCount}>
+                        <EmptyState
+                          icon={Database}
+                          text={search ? `No results for "${search}"` : 'No inventory records yet'}
+                          action={search ? { label: 'Clear search', onClick: () => setSearch('') } : undefined}
+                        />
                       </td>
                     </tr>
                   )}
-                  {inventory.map((row) => (
-                    <tr key={row.id} className="transition hover:bg-slate-50/60">
-                      <td className="max-w-[220px] px-4 py-3">
-                        <p className="truncate font-semibold text-slate-900">{row.productName}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">{row.categoryName}</p>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-500">
-                        {row.unitType.toUpperCase()}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xl font-bold text-emerald-700">
-                        {row.quantity}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">
-                        {row.lowStockThreshold}
-                      </td>
-                      {canManageInventory && (
-                        <td className="whitespace-nowrap px-4 py-3">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(row)}
-                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeactivatingRow(row)}
-                              className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
-                            >
-                              Deactivate
-                            </button>
-                          </div>
+                  {inventory.map((row) => {
+                    const isLow = row.quantity <= row.lowStockThreshold;
+                    const isOut = row.quantity === 0;
+                    return (
+                      <tr key={row.id} className="transition hover:bg-slate-50/60">
+                        <td className="max-w-[200px] px-5 py-3.5">
+                          <p className="truncate font-medium text-slate-900">{row.productName}</p>
+                          <p className="mt-0.5 text-xs text-slate-400">{row.categoryName}</p>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className="whitespace-nowrap px-5 py-3.5">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            {row.unitType.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3.5">
+                          <span className={`text-lg font-bold ${isOut ? 'text-rose-500' : isLow ? 'text-amber-600' : 'text-[#1B4332]'}`}>
+                            {row.quantity}
+                          </span>
+                          {isOut && <span className="ml-2 text-xs text-rose-400">Out of stock</span>}
+                          {!isOut && isLow && <span className="ml-2 text-xs text-amber-500">Low</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3.5 text-sm text-slate-500">
+                          {row.lowStockThreshold}
+                        </td>
+                        {canManageInventory && (
+                          <td className="whitespace-nowrap px-5 py-3.5">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(row)}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeactivatingRow(row)}
+                                className="rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-100"
+                              >
+                                Deactivate
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -373,39 +335,30 @@ export default function InventoryPage() {
       {/* ── Add Stock Modal ── */}
       {showAddStock && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
           onClick={(e) => { if (e.target === e.currentTarget) closeAddStock(); }}
         >
-          <div className="my-4 w-full max-w-md rounded-[28px] border border-white/70 bg-white p-5 shadow-2xl sm:my-auto sm:p-6">
+          <div className="my-4 w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl sm:my-auto">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Add Stock</h2>
-              <button
-                type="button"
-                onClick={closeAddStock}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100"
-                aria-label="Close"
-              >
-                <XIcon />
+              <h2 className="text-base font-semibold text-slate-900">Add Stock</h2>
+              <button type="button" onClick={closeAddStock} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100" aria-label="Close">
+                <X size={18} strokeWidth={1.75} />
               </button>
             </div>
 
             {stockError && (
-              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+                <AlertTriangle size={13} strokeWidth={1.75} className="shrink-0" />
                 {stockError}
               </div>
             )}
 
             <form onSubmit={handleAddStock} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-500">
-                  Product <span className="text-rose-500">*</span>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                  Product <span className="text-rose-400">*</span>
                 </label>
-                <select
-                  value={stockProductId}
-                  onChange={(e) => setStockProductId(e.target.value)}
-                  className={iCls}
-                  required
-                >
+                <select value={stockProductId} onChange={(e) => setStockProductId(e.target.value)} className={iCls} required>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -414,58 +367,31 @@ export default function InventoryPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">
-                    Quantity <span className="text-rose-500">*</span>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                    Quantity <span className="text-rose-400">*</span>
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={stockQty}
-                    onChange={(e) => setStockQty(e.target.value)}
-                    placeholder="0"
-                    className={iCls}
-                    required
-                  />
+                  <input type="number" min="1" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" className={iCls} required />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">
-                    Expiry Date <span className="text-rose-500">*</span>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                    Expiry Date <span className="text-rose-400">*</span>
                   </label>
-                  <input
-                    type="date"
-                    value={stockExpiry}
-                    onChange={(e) => setStockExpiry(e.target.value)}
-                    className={iCls}
-                    required
-                  />
+                  <input type="date" value={stockExpiry} onChange={(e) => setStockExpiry(e.target.value)} className={iCls} required />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-500">
-                  Batch Number <span className="text-slate-400 font-normal">(optional)</span>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                  Batch Number <span className="font-normal text-slate-400">(optional)</span>
                 </label>
-                <input
-                  value={stockBatch}
-                  onChange={(e) => setStockBatch(e.target.value)}
-                  placeholder="Auto-generated if left empty"
-                  className={iCls}
-                />
+                <input value={stockBatch} onChange={(e) => setStockBatch(e.target.value)} placeholder="Auto-generated if empty" className={iCls} />
               </div>
 
               <div className="flex gap-3 pt-1">
-                <button
-                  type="submit"
-                  disabled={addStockMutation.isPending}
-                  className="flex-1 rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
+                <button type="submit" disabled={addStockMutation.isPending} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60" style={{ background: '#1B4332' }}>
                   {addStockMutation.isPending ? 'Adding…' : 'Add Stock'}
                 </button>
-                <button
-                  type="button"
-                  onClick={closeAddStock}
-                  className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
+                <button type="button" onClick={closeAddStock} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                   Cancel
                 </button>
               </div>
@@ -477,78 +403,49 @@ export default function InventoryPage() {
       {/* ── Edit Stock Record Modal ── */}
       {editingRow && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
           onClick={(e) => { if (e.target === e.currentTarget) closeEdit(); }}
         >
-          <div className="my-4 w-full max-w-md rounded-[28px] border border-white/70 bg-white p-5 shadow-2xl sm:my-auto sm:p-6">
+          <div className="my-4 w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl sm:my-auto">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Edit Stock Record</h2>
-              <button
-                type="button"
-                onClick={closeEdit}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100"
-                aria-label="Close"
-              >
-                <XIcon />
+              <h2 className="text-base font-semibold text-slate-900">Edit Stock Record</h2>
+              <button type="button" onClick={closeEdit} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100" aria-label="Close">
+                <X size={18} strokeWidth={1.75} />
               </button>
             </div>
 
             {editError && (
-              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+                <AlertTriangle size={13} strokeWidth={1.75} className="shrink-0" />
                 {editError}
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-500">Product Name</label>
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className={iCls}
-                />
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">Product Name</label>
+                <input value={editName} onChange={(e) => setEditName(e.target.value)} className={iCls} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">
                     Quantity
                     <span className="ml-1 font-normal text-slate-400">(was {editingRow.quantity})</span>
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editQty}
-                    onChange={(e) => setEditQty(e.target.value)}
-                    className={iCls}
-                  />
+                  <input type="number" min="0" value={editQty} onChange={(e) => setEditQty(e.target.value)} className={iCls} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">Low Stock Level</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editThreshold}
-                    onChange={(e) => setEditThreshold(e.target.value)}
-                    className={iCls}
-                  />
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Low Stock Alert</label>
+                  <input type="number" min="0" value={editThreshold} onChange={(e) => setEditThreshold(e.target.value)} className={iCls} />
                 </div>
               </div>
 
               <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => editMutation.mutate()}
-                  disabled={editMutation.isPending}
-                  className="flex-1 rounded-full bg-slate-900 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
+                <button type="button" onClick={() => editMutation.mutate()} disabled={editMutation.isPending} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-60" style={{ background: '#1B4332' }}>
                   {editMutation.isPending ? 'Saving…' : 'Save changes'}
                 </button>
-                <button
-                  type="button"
-                  onClick={closeEdit}
-                  className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
+                <button type="button" onClick={closeEdit} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                   Cancel
                 </button>
               </div>
@@ -557,34 +454,18 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── Deactivate Confirmation Modal ── */}
+      {/* ── Deactivate Confirmation ── */}
       {deactivatingRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-900">Deactivate product?</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              <strong className="text-slate-900">{deactivatingRow.productName}</strong> will be removed
-              from Inventory, Products, and POS. Sales history is kept in the database.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => deactivateMutation.mutate(deactivatingRow.productId)}
-                disabled={deactivateMutation.isPending}
-                className="flex-1 rounded-full bg-rose-600 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
-              >
-                {deactivateMutation.isPending ? 'Deactivating…' : 'Deactivate'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeactivatingRow(null)}
-                className="flex-1 rounded-full border border-slate-200 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <DestructiveModal
+          title="Deactivate product?"
+          description={<>
+            <strong className="text-slate-900">{deactivatingRow.productName}</strong> will be removed from Inventory, Products, and POS. Sales history is kept.
+          </>}
+          confirmLabel={deactivateMutation.isPending ? 'Deactivating…' : 'Deactivate'}
+          isPending={deactivateMutation.isPending}
+          onConfirm={() => deactivateMutation.mutate(deactivatingRow.productId)}
+          onCancel={() => setDeactivatingRow(null)}
+        />
       )}
     </div>
   );

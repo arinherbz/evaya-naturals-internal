@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import BrandMark from '../components/BrandMark';
 import { getDefaultRoute } from '../lib/access';
@@ -16,40 +17,44 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
       const data = await login(email, password);
       const roleName: string = data.user?.role?.name ?? '';
       navigate(getDefaultRoute(roleName));
-    } catch (err) {
-      setError('Invalid email or password');
+    } catch {
+      setError('Invalid email or password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(47,125,87,0.12),_transparent_38%),linear-gradient(135deg,#fbfaf6,#eef5ef)]">
-      <div className="max-w-md w-full mx-4">
-        <div className="text-center mb-8">
-          <div className="inline-flex rounded-[28px] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-            <BrandMark />
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f5f7] px-4">
+      <div className="w-full max-w-sm">
+
+        {/* Brand */}
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <BrandMark compact />
           </div>
-          <h1 className="mt-5 text-2xl font-semibold text-gray-900">Welcome to Evaya Naturals</h1>
-          <p className="mt-2 text-gray-600">Sign in to start the day.</p>
+          <h1 className="mt-5 text-xl font-semibold text-slate-900">Sign in to Evaya</h1>
+          <p className="mt-1 text-sm text-slate-400">Internal management portal</p>
         </div>
 
-        <div className="rounded-[30px] border border-white/80 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Card */}
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-4">
+
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+              <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                <AlertTriangle size={14} className="shrink-0" strokeWidth={1.75} />
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+              <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-slate-500">
+                Email address
               </label>
               <input
                 id="email"
@@ -57,13 +62,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-evaya-green-500 focus:border-evaya-green-500 outline-none transition"
-                placeholder="admin@evaya.ug"
+                autoFocus
+                placeholder="you@evaya.ug"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-slate-500">
                 Password
               </label>
               <input
@@ -72,21 +78,25 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-evaya-green-500 focus:border-evaya-green-500 outline-none transition"
                 placeholder="••••••••"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10"
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-evaya-green-600 text-white py-3 rounded-md font-medium hover:bg-evaya-green-700 focus:outline-none focus:ring-2 focus:ring-evaya-green-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-2 w-full rounded-xl py-3 text-sm font-semibold text-white transition disabled:opacity-60"
+              style={{ background: '#1B4332' }}
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
         </div>
 
+        <p className="mt-6 text-center text-xs text-slate-400">
+          Evaya Naturals Internal System
+        </p>
       </div>
     </div>
   );

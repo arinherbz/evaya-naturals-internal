@@ -1,24 +1,66 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import {
+  LayoutDashboard, ShoppingCart, Receipt, ClipboardList, Users,
+  Package, Database, CreditCard, Truck, BarChart3, Settings,
+  LogOut, X, Menu, type LucideIcon,
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { formatUGX as ugx } from '../lib/currency';
 import BrandMark from './BrandMark';
 import { canAccessRoute, getDefaultRoute, ROUTE_ACCESS, type AllowedRoleList } from '../lib/access';
 
-const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/', icon: 'home', allowRoles: ROUTE_ACCESS.dashboard },
-  { label: 'POS', href: '/pos', icon: 'shopping-cart', allowRoles: ROUTE_ACCESS.pos },
-  { label: 'Receipts', href: '/receipts', icon: 'receipt', allowRoles: ROUTE_ACCESS.receipts },
-  { label: 'Orders', href: '/orders', icon: 'clipboard', allowRoles: ROUTE_ACCESS.orders },
-  { label: 'Products', href: '/products', icon: 'package', allowRoles: ROUTE_ACCESS.products },
-  { label: 'Inventory', href: '/inventory', icon: 'database', allowRoles: ROUTE_ACCESS.inventory },
-  { label: 'Customers', href: '/customers', icon: 'users', allowRoles: ROUTE_ACCESS.customers },
-  { label: 'Expenses', href: '/expenses', icon: 'wallet', allowRoles: ROUTE_ACCESS.expenses },
-  { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', allowRoles: ROUTE_ACCESS.deliveries },
-  { label: 'Reports', href: '/reports', icon: 'bar-chart', allowRoles: ROUTE_ACCESS.reports },
-  { label: 'Settings', href: '/settings', icon: 'settings', allowRoles: ROUTE_ACCESS.settings },
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  allowRoles?: AllowedRoleList;
+};
+
+type NavGroup = {
+  label: string | null;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { label: 'Dashboard', href: '/', icon: LayoutDashboard, allowRoles: ROUTE_ACCESS.dashboard },
+      { label: 'POS', href: '/pos', icon: ShoppingCart, allowRoles: ROUTE_ACCESS.pos },
+    ],
+  },
+  {
+    label: 'Sales',
+    items: [
+      { label: 'Receipts', href: '/receipts', icon: Receipt, allowRoles: ROUTE_ACCESS.receipts },
+      { label: 'Orders', href: '/orders', icon: ClipboardList, allowRoles: ROUTE_ACCESS.orders },
+      { label: 'Customers', href: '/customers', icon: Users, allowRoles: ROUTE_ACCESS.customers },
+    ],
+  },
+  {
+    label: 'Stock',
+    items: [
+      { label: 'Products', href: '/products', icon: Package, allowRoles: ROUTE_ACCESS.products },
+      { label: 'Inventory', href: '/inventory', icon: Database, allowRoles: ROUTE_ACCESS.inventory },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { label: 'Expenses', href: '/expenses', icon: CreditCard, allowRoles: ROUTE_ACCESS.expenses },
+      { label: 'Deliveries', href: '/deliveries', icon: Truck, allowRoles: ROUTE_ACCESS.deliveries },
+      { label: 'Reports', href: '/reports', icon: BarChart3, allowRoles: ROUTE_ACCESS.reports },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { label: 'Settings', href: '/settings', icon: Settings, allowRoles: ROUTE_ACCESS.settings },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -37,105 +79,121 @@ export default function Sidebar() {
 
   const canShowItem = (allowRoles?: AllowedRoleList) => canAccessRoute(user?.role.name, allowRoles);
 
-  const visibleItems = NAV_ITEMS.filter((item) => canShowItem(item.allowRoles));
+  const visibleGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => canShowItem(item.allowRoles)),
+  })).filter((g) => g.items.length > 0);
+
+  const allVisibleItems = visibleGroups.flatMap((g) => g.items);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
       isActive
-        ? 'bg-emerald-50 text-emerald-700'
-        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+        ? 'bg-[#1B4332]/8 text-[#1B4332]'
+        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
     }`;
 
   const iconNavLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center justify-center rounded-xl p-2.5 transition ${
+    `flex items-center justify-center rounded-lg p-2 transition-colors ${
       isActive
-        ? 'bg-emerald-50 text-emerald-700'
-        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+        ? 'bg-[#1B4332]/8 text-[#1B4332]'
+        : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
     }`;
 
-  const ShiftCard = () =>
+  const ShiftBadge = () =>
     currentShift ? (
-      <div className="mx-2 mb-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+      <div className="mx-3 mb-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5">
         <div className="mb-1 flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
             Shift Active
           </span>
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-[11px] text-slate-500">
           {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
         </p>
-        <p className="text-sm font-bold" style={{ color: '#1B4332' }}>
+        <p className="text-sm font-bold text-[#1B4332]">
           {ugx(currentShift.salesTotal ?? 0)}
         </p>
       </div>
     ) : null;
 
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
-    <>
-      <div className="border-b border-slate-100 p-5">
-        <button type="button" onClick={() => { navigate(logoHref); onNav?.(); }}>
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Brand */}
+      <div className="flex h-[60px] shrink-0 items-center gap-3 border-b border-slate-100 px-4">
+        <button
+          type="button"
+          onClick={() => { navigate(logoHref); onNav?.(); }}
+          className="flex items-center gap-2.5 min-w-0"
+        >
           <BrandMark compact />
         </button>
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-          Evaya Naturals
-        </p>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-0.5">
-          {visibleItems.map((item) => (
-            <li key={item.href}>
-              <NavLink
-                to={item.href}
-                onClick={onNav}
-                className={navLinkClass}
-                end={item.href === '/'}
-              >
-                <SidebarIcon name={item.icon} />
-                <span>{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2">
+        {visibleGroups.map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'mt-5' : ''}>
+            {group.label && (
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {group.label}
+              </p>
+            )}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => (
+                <li key={item.href}>
+                  <NavLink
+                    to={item.href}
+                    onClick={onNav}
+                    className={navLinkClass}
+                    end={item.href === '/'}
+                  >
+                    <item.icon size={16} strokeWidth={1.75} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      {/* FIX 2: Mini shift summary card */}
-      <ShiftCard />
+      {/* Shift badge */}
+      <ShiftBadge />
 
-      <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
-            {user?.firstName?.[0] ?? '?'}
+      {/* User footer */}
+      <div className="shrink-0 border-t border-slate-100 p-3">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1B4332]/10 text-xs font-bold text-[#1B4332]">
+            {user?.firstName?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-slate-800">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="truncate text-xs text-slate-400">{user?.role.name}</p>
+            <p className="truncate text-[11px] text-slate-400">{user?.role.name}</p>
           </div>
           <button
             type="button"
             onClick={logout}
-            title="Logout"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            title="Log out"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut size={15} strokeWidth={1.75} />
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 
   return (
     <>
-      {/* Mobile topbar — visible only on < md */}
-      <div className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b border-slate-100 bg-white px-4 shadow-sm md:hidden">
+      {/* Mobile topbar */}
+      <div className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b border-slate-100 bg-white px-4 md:hidden">
         <button type="button" onClick={() => navigate(logoHref)}>
           <div
-            className="flex h-8 w-8 items-center justify-center rounded-xl"
+            className="flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ background: '#1B4332' }}
           >
             <span className="text-sm font-bold leading-none text-white">E</span>
@@ -144,22 +202,20 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
           aria-label="Open navigation"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
+          <Menu size={20} strokeWidth={1.75} />
         </button>
       </div>
 
-      {/* Mobile drawer — slides in on < md */}
+      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40"
             aria-label="Close navigation"
           />
           <aside className="relative flex h-full w-[min(17rem,86vw)] flex-col border-r border-slate-100 bg-white">
@@ -169,9 +225,7 @@ export default function Sidebar() {
                 onClick={() => setMobileOpen(false)}
                 className="m-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-md text-slate-600"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={18} strokeWidth={1.75} />
               </button>
             </div>
             <SidebarContent onNav={() => setMobileOpen(false)} />
@@ -179,12 +233,12 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* FIX 5: Icon-only sidebar — md to < lg */}
-      <aside className="hidden min-h-screen w-14 shrink-0 flex-col border-r border-slate-100 bg-white md:flex lg:hidden">
+      {/* Icon-only sidebar (md–lg) */}
+      <aside className="hidden min-h-screen w-[52px] shrink-0 flex-col border-r border-slate-100 bg-white md:flex lg:hidden">
         <div className="flex h-[60px] items-center justify-center border-b border-slate-100">
           <button type="button" onClick={() => navigate(logoHref)}>
             <div
-              className="flex h-8 w-8 items-center justify-center rounded-xl"
+              className="flex h-8 w-8 items-center justify-center rounded-lg"
               style={{ background: '#1B4332' }}
             >
               <span className="text-sm font-bold leading-none text-white">E</span>
@@ -193,113 +247,47 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3">
-          <ul className="flex flex-col items-center gap-0.5">
-            {visibleItems.map((item) => (
-              <li key={item.href} className="w-full px-1">
+          <ul className="flex flex-col items-center gap-0.5 px-1">
+            {allVisibleItems.map((item) => (
+              <li key={item.href} className="w-full">
                 <NavLink
                   to={item.href}
                   className={iconNavLinkClass}
                   end={item.href === '/'}
                   title={item.label}
                 >
-                  <SidebarIcon name={item.icon} />
+                  <item.icon size={18} strokeWidth={1.75} />
                 </NavLink>
               </li>
             ))}
           </ul>
         </nav>
 
-        {/* Compact shift indicator for icon sidebar */}
         {currentShift && (
           <div className="flex justify-center pb-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" title="Shift active" />
           </div>
         )}
 
-        <div className="border-t border-slate-100 py-3 flex flex-col items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
-            {user?.firstName?.[0] ?? '?'}
+        <div className="shrink-0 border-t border-slate-100 py-3 flex flex-col items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1B4332]/10 text-xs font-bold text-[#1B4332]">
+            {user?.firstName?.[0]?.toUpperCase() ?? '?'}
           </div>
           <button
             type="button"
             onClick={logout}
-            title="Logout"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            title="Log out"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut size={15} strokeWidth={1.75} />
           </button>
         </div>
       </aside>
 
-      {/* Desktop sidebar — lg+ */}
-      <aside className="hidden min-h-screen w-60 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
+      {/* Desktop sidebar (lg+) */}
+      <aside className="hidden min-h-screen w-56 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
         <SidebarContent />
       </aside>
     </>
   );
-}
-
-function SidebarIcon({ name }: { name: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    home: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
-      </svg>
-    ),
-    'shopping-cart': (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    receipt: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-      </svg>
-    ),
-    package: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
-    database: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-      </svg>
-    ),
-    users: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
-    ),
-    wallet: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-    ),
-    'map-pin': (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-    'bar-chart': (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-    clipboard: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      </svg>
-    ),
-    settings: (
-      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  };
-  return <>{icons[name] ?? null}</>;
 }

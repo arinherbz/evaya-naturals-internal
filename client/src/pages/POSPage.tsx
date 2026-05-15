@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, useDeferredValue } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Search, ShoppingCart, Minus, Plus, X, CheckCircle2,
+  AlertTriangle, Printer, Zap,
+} from 'lucide-react';
 import { api, ApiError } from '../services/api';
 import { enqueueSale } from '../lib/offlineQueue';
 import { formatUGX as ugx } from '../lib/currency';
@@ -7,10 +11,10 @@ import Sidebar from '../components/Sidebar';
 import type { PosProduct } from '../types';
 
 const PAYMENT_OPTIONS = [
-  { value: 'cash' as const, label: 'Cash', bg: '#1B4332', color: '#FFFFFF' },
-  { value: 'mtn_mobile_money' as const, label: 'MTN MoMo', bg: '#FFD100', color: '#1B1B1B' },
-  { value: 'airtel_money' as const, label: 'Airtel Money', bg: '#E4002B', color: '#FFFFFF' },
-  { value: 'bank_card' as const, label: 'Bank Card', bg: '#1E293B', color: '#FFFFFF' },
+  { value: 'cash' as const, label: 'Cash' },
+  { value: 'mtn_mobile_money' as const, label: 'MTN MoMo' },
+  { value: 'airtel_money' as const, label: 'Airtel Money' },
+  { value: 'bank_card' as const, label: 'Bank Card' },
 ];
 
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]['value'];
@@ -228,12 +232,12 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
     <div className="flex h-screen overflow-hidden bg-[#f5f5f7]">
       <Sidebar />
 
-      {/* Main content — offset top by mobile topbar on small screens (topbar hides at md+) */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[60px] md:pt-0">
 
-        {/* ── Top bar: no-shift warning only — shift stats moved into search row (FIX 1) ── */}
+        {/* ── No-shift banner ── */}
         {!currentShift && (
           <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
+            <AlertTriangle size={15} className="shrink-0 text-amber-600" strokeWidth={1.75} />
             <span className="text-sm font-semibold text-amber-800">
               No active shift — open one to start selling.
             </span>
@@ -267,11 +271,11 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           {/* ── LEFT: product search + grid ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-            {/* FIX 1: Search bar + shift pill badges */}
+            {/* Search bar + shift status */}
             <div className="shrink-0 border-b border-black/5 bg-white px-4 py-3">
-              {/* Mobile-only: shift pills above search */}
+              {/* Mobile shift pills */}
               {currentShift && (
-                <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 md:hidden">
+                <div className="mb-2.5 flex items-center gap-2 overflow-x-auto pb-1 md:hidden">
                   <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
                     {new Date(currentShift.openedAt).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
@@ -279,17 +283,14 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                     {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
                   </span>
-                  <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: '#E8F5EF', color: '#1B4332' }}>
+                  <span className="shrink-0 rounded-full bg-[#1B4332]/8 px-2.5 py-1 text-xs font-bold text-[#1B4332]">
                     {ugx(currentShift.salesTotal ?? 0)}
                   </span>
                 </div>
               )}
-              {/* Search row: input + desktop pills */}
               <div className="flex items-center gap-3">
                 <div className="relative min-w-0 flex-1 max-w-sm">
-                  <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <Search size={16} strokeWidth={1.75} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     ref={searchRef}
                     value={search}
@@ -302,10 +303,10 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                     }}
                     placeholder="Search products…"
                     style={{ fontSize: '16px' }}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-[#F7F4EE] pl-9 pr-4 text-sm outline-none transition focus:border-[#1B4332]/50"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10"
                   />
                 </div>
-                {/* Desktop-only: shift pills inline */}
+                {/* Desktop shift pills */}
                 {currentShift && (
                   <div className="hidden items-center gap-2 md:flex">
                     <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -315,7 +316,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                       {currentShift.saleCount ?? 0} {(currentShift.saleCount ?? 0) === 1 ? 'sale' : 'sales'}
                     </span>
-                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: '#E8F5EF', color: '#1B4332' }}>
+                    <span className="rounded-full bg-[#1B4332]/8 px-2.5 py-1 text-xs font-bold text-[#1B4332]">
                       {ugx(currentShift.salesTotal ?? 0)}
                     </span>
                   </div>
@@ -323,50 +324,60 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
               </div>
             </div>
 
-            {/* FIX 3: Product grid — 1→2→2→3→4 col responsive */}
+            {/* Product grid */}
             <div className={`flex-1 overflow-y-auto bg-[#f5f5f7] p-3 ${cartCount > 0 ? 'pb-20 lg:pb-3' : ''}`}>
               {productsQuery.isLoading && (
-                <p className="py-16 text-center text-sm text-slate-400">Loading catalog…</p>
+                <div className="flex flex-col items-center justify-center py-20 gap-2 text-slate-400">
+                  <Zap size={22} strokeWidth={1.5} className="animate-pulse" />
+                  <p className="text-sm">Loading catalog…</p>
+                </div>
               )}
               {!productsQuery.isLoading && products.length === 0 && (
-                <p className="py-16 text-center text-sm text-slate-400">No products found</p>
+                <div className="flex flex-col items-center justify-center py-20 gap-2">
+                  <Search size={24} strokeWidth={1.25} className="text-slate-300" />
+                  <p className="text-sm text-slate-400">No products found</p>
+                  {search && (
+                    <button type="button" onClick={() => setSearch('')} className="text-xs text-emerald-700 hover:underline">
+                      Clear search
+                    </button>
+                  )}
+                </div>
               )}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {products.map((product) => {
                   const inCart = cart.find((l) => l.product.id === product.id)?.qty ?? 0;
                   const qty = product.availableQuantity;
                   const disabled = !currentShift || product.isOutOfStock;
+                  const isLow = qty > 0 && qty <= 5;
+
                   return (
                     <button
                       key={product.id}
                       type="button"
                       disabled={disabled}
                       onClick={() => addToCart(product)}
-                      className={`relative flex flex-col gap-1 rounded-2xl border p-4 text-left transition select-none ${
+                      className={`relative flex flex-col rounded-2xl border p-4 text-left transition select-none ${
                         inCart > 0
-                          ? 'border-emerald-200 bg-emerald-50 shadow-sm'
+                          ? 'border-[#1B4332]/20 bg-[#1B4332]/5 shadow-sm ring-1 ring-[#1B4332]/10'
                           : disabled
                           ? 'cursor-not-allowed border-slate-100 bg-white opacity-40'
-                          : 'border-white bg-white shadow-sm hover:border-emerald-100 hover:shadow active:scale-[0.98]'
+                          : 'border-white bg-white shadow-sm hover:border-slate-200 hover:shadow-md active:scale-[0.98]'
                       }`}
                     >
                       {/* Cart badge */}
                       {inCart > 0 && (
-                        <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: '#1B4332' }}>
+                        <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: '#1B4332' }}>
                           {inCart}
                         </span>
                       )}
 
-                      {/* Stock dot */}
-                      <span className={`mb-0.5 h-1.5 w-6 rounded-full ${
-                        qty <= 0 ? 'bg-slate-200' : qty <= 5 ? 'bg-amber-400' : 'bg-emerald-400'
-                      }`} />
+                      <p className="pr-7 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
 
-                      <p className="pr-6 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
-
-                      <div className="mt-auto flex items-center justify-between pt-2">
-                        <span className="text-xs text-slate-400">
-                          {qty <= 0 ? 'Out of stock' : qty <= 5 ? `Only ${qty} left` : `${qty} in stock`}
+                      <div className="mt-auto flex items-end justify-between pt-3">
+                        <span className={`text-[11px] font-medium ${
+                          qty <= 0 ? 'text-rose-400' : isLow ? 'text-amber-500' : 'text-slate-400'
+                        }`}>
+                          {qty <= 0 ? 'Out of stock' : isLow ? `Only ${qty} left` : `${qty} in stock`}
                         </span>
                         <span className="text-sm font-bold" style={{ color: '#1B4332' }}>
                           {ugx(product.sellingPrice)}
@@ -379,7 +390,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
             </div>
           </div>
 
-          {/* ── RIGHT: cart (desktop) ── */}
+          {/* ── RIGHT: cart panel (desktop) ── */}
           <CartPanel
             cart={cart}
             subtotal={subtotal}
@@ -399,7 +410,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
         </div>
       </div>
 
-      {/* FIX 4: Mobile cart — persistent bottom bar when items in cart, FAB when empty */}
+      {/* Mobile cart — persistent bottom bar */}
       {cartCount > 0 ? (
         <button
           type="button"
@@ -422,13 +433,11 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           style={{ background: '#1B4332', touchAction: 'manipulation' }}
           onClick={() => setCartOpen(true)}
         >
-          <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
+          <ShoppingCart size={22} strokeWidth={1.75} className="text-white" />
         </button>
       )}
 
-      {/* ── Mobile: cart bottom sheet ── */}
+      {/* Mobile cart bottom sheet */}
       {cartOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
@@ -437,7 +446,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
             className="absolute inset-0 bg-black/40"
             onClick={() => setCartOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl">
+          <div className="absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white shadow-2xl">
             <CartPanel
               cart={cart}
               subtotal={subtotal}
@@ -460,42 +469,55 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
       {/* ── Sale confirmation modal ── */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-sm rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
-            <div className="px-6 pt-6 pb-2">
-              <h2 className="text-xl font-bold text-slate-900">Confirm Sale</h2>
-              <p className="mt-0.5 text-sm text-slate-500">Pick payment method, then charge.</p>
+          <div className="w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
 
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Confirm Sale</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Review and select payment method</p>
+              </div>
+              <button type="button" onClick={() => setShowConfirm(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                <X size={18} strokeWidth={1.75} />
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-4">
+              {/* Low stock warning */}
               {lowStockCartItems.length > 0 && (
-                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  ⚠ Low stock: {lowStockCartItems.map((l) => `${l.product.name} (${l.product.availableQuantity} left)`).join(', ')}
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" strokeWidth={1.75} />
+                  <p className="text-xs text-amber-800">
+                    Low stock: {lowStockCartItems.map((l) => `${l.product.name} (${l.product.availableQuantity} left)`).join(', ')}
+                  </p>
                 </div>
               )}
 
-              {/* Cart items summary */}
-              <div className="mt-4 max-h-40 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs space-y-1.5">
+              {/* Cart summary */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50 divide-y divide-slate-100">
                 {cart.map((line) => (
-                  <div key={line.product.id} className="flex justify-between">
-                    <span className="text-slate-600">{line.product.name} × {line.qty}</span>
-                    <span className="font-semibold text-slate-900">{ugx(line.product.sellingPrice * line.qty)}</span>
+                  <div key={line.product.id} className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-sm text-slate-700">{line.product.name} <span className="text-slate-400">× {line.qty}</span></span>
+                    <span className="text-sm font-semibold text-slate-900">{ugx(line.product.sellingPrice * line.qty)}</span>
                   </div>
                 ))}
                 {Number(discount) > 0 && (
-                  <div className="flex justify-between text-slate-500 border-t border-slate-200 pt-1.5 mt-1">
-                    <span>Discount</span>
-                    <span>-{ugx(Number(discount))}</span>
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-sm text-slate-500">Discount</span>
+                    <span className="text-sm font-semibold text-rose-600">-{ugx(Number(discount))}</span>
                   </div>
                 )}
               </div>
 
               {/* Total */}
-              <div className="mt-3 flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3">
-                <span className="font-bold text-slate-900">Total</span>
-                <span className="text-2xl font-black" style={{ color: '#1B4332' }}>{ugx(cartTotal)}</span>
+              <div className="flex items-center justify-between rounded-xl bg-[#1B4332]/5 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-900">Total</span>
+                <span className="text-xl font-black text-[#1B4332]">{ugx(cartTotal)}</span>
               </div>
 
               {/* Payment method */}
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Payment method
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -504,14 +526,11 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                       key={opt.value}
                       type="button"
                       onClick={() => setPaymentMethod(opt.value)}
-                      className="rounded-xl px-3 py-2.5 text-xs font-bold transition active:scale-95"
-                      style={{
-                        background: opt.bg,
-                        color: opt.color,
-                        outline: paymentMethod === opt.value ? `2px solid ${opt.bg}` : 'none',
-                        outlineOffset: '2px',
-                        opacity: paymentMethod === opt.value ? 1 : 0.65,
-                      } as React.CSSProperties}
+                      className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition active:scale-95 ${
+                        paymentMethod === opt.value
+                          ? 'border-[#1B4332] bg-[#1B4332] text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
                     >
                       {opt.label}
                     </button>
@@ -519,17 +538,16 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                 </div>
               </div>
 
-              {paymentMethod !== 'cash' && (
+              {/* Payment reference or cash input */}
+              {paymentMethod !== 'cash' ? (
                 <input
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
                   placeholder="Transaction reference"
                   style={{ fontSize: '16px' }}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-slate-300 focus:bg-white"
                 />
-              )}
-
-              {paymentMethod === 'cash' && (
+              ) : (
                 <input
                   type="number"
                   min="0"
@@ -537,23 +555,26 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                   onChange={(e) => setCashOut(e.target.value)}
                   placeholder="Customer pays (UGX)"
                   style={{ fontSize: '16px' }}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-slate-300 focus:bg-white"
                 />
               )}
 
               {cashChange !== null && cashChange >= 0 && (
-                <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2">
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
                   <span className="text-sm font-semibold text-emerald-800">Change</span>
-                  <span className="text-sm font-bold text-emerald-700">{ugx(cashChange)}</span>
+                  <span className="text-lg font-black text-emerald-700">{ugx(cashChange)}</span>
                 </div>
               )}
 
               {err && (
-                <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+                <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+                  <AlertTriangle size={13} className="shrink-0 text-rose-500" strokeWidth={1.75} />
+                  <p className="text-xs text-rose-700">{err}</p>
+                </div>
               )}
             </div>
 
-            <div className="flex gap-3 border-t border-slate-100 p-4 mt-2">
+            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
@@ -575,74 +596,61 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
         </div>
       )}
 
-      {/* ── Receipt preview modal ── */}
+      {/* ── Sale success modal ── */}
       {completedSaleId && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-sm rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
-            <div className="p-6">
-              <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: '#1B4332' }}>
-                  <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="mt-3 text-xl font-bold text-slate-900">Sale Complete!</h2>
-                {receipt && (
-                  <p className="mt-1 text-sm text-slate-400">Receipt #{receipt.receiptNumber}</p>
-                )}
+          <div className="w-full max-w-sm rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+
+            {/* Success header */}
+            <div className="px-6 pt-6 pb-4 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full" style={{ background: '#1B4332' }}>
+                <CheckCircle2 size={28} strokeWidth={1.75} className="text-white" />
               </div>
-
-              {receiptQuery.isLoading && (
-                <p className="mt-4 text-center text-sm text-slate-400">Loading receipt…</p>
-              )}
-
+              <h2 className="mt-3 text-xl font-bold text-slate-900">Sale Complete</h2>
               {receipt && (
-                <div className="mt-5 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-4 font-mono text-xs">
-                  <p className="mb-1 text-center font-bold text-slate-900">EVAYA NATURALS</p>
-                  <p className="mb-3 text-center text-slate-400">
-                    {new Date(receipt.createdAt).toLocaleString()}
-                  </p>
-                  <div className="space-y-1 border-t border-dashed border-slate-300 pt-2">
-                    {receipt.items.map((item) => (
-                      <div key={item.productId} className="flex justify-between">
-                        <span className="text-slate-700">{item.productName} ×{item.quantity}</span>
-                        <span className="font-semibold">{ugx(item.total)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 space-y-1 border-t border-dashed border-slate-300 pt-2">
-                    <div className="flex justify-between text-slate-500">
-                      <span>Subtotal</span><span>{ugx(receipt.subtotal)}</span>
-                    </div>
-                    {receipt.discount > 0 && (
-                      <div className="flex justify-between text-slate-500">
-                        <span>Discount</span><span>-{ugx(receipt.discount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-slate-900">
-                      <span>Total</span><span>{ugx(receipt.total)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-500">
-                      <span>Payment</span>
-                      <span>{PAYMENT_OPTIONS.find((o) => o.value === receipt.paymentMethod)?.label ?? receipt.paymentMethod}</span>
-                    </div>
-                  </div>
-                  {receipt.receiptFooterMessage && (
-                    <p className="mt-3 border-t border-dashed border-slate-300 pt-2 text-center text-slate-400">
-                      {receipt.receiptFooterMessage}
-                    </p>
-                  )}
-                </div>
+                <p className="mt-0.5 font-mono text-xs text-slate-400">#{receipt.receiptNumber}</p>
               )}
             </div>
 
-            <div className="flex gap-3 border-t border-slate-100 p-4">
+            {/* Receipt preview */}
+            {receiptQuery.isLoading && (
+              <p className="pb-4 text-center text-sm text-slate-400">Loading receipt…</p>
+            )}
+            {receipt && (
+              <div className="mx-5 mb-4 max-h-48 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-4 font-mono text-xs">
+                <div className="divide-y divide-slate-100">
+                  {receipt.items.map((item) => (
+                    <div key={item.productId} className="flex justify-between py-1.5">
+                      <span className="text-slate-600">{item.productName} <span className="text-slate-400">×{item.quantity}</span></span>
+                      <span className="font-semibold text-slate-800">{ugx(item.total)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 space-y-1 border-t border-dashed border-slate-300 pt-2">
+                  {receipt.discount > 0 && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Discount</span><span>-{ugx(receipt.discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-slate-900">
+                    <span>Total</span><span>{ugx(receipt.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Payment</span>
+                    <span>{PAYMENT_OPTIONS.find((o) => o.value === receipt.paymentMethod)?.label ?? receipt.paymentMethod}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
               <button
                 type="button"
                 onClick={printReceipt}
                 disabled={!receipt}
-                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
               >
+                <Printer size={15} strokeWidth={1.75} />
                 Print
               </button>
               <button
@@ -662,7 +670,7 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
 }
 
 // ──────────────────────────────────────────────────────────────
-// Cart panel — shared between desktop sidebar and mobile sheet
+// Cart panel
 // ──────────────────────────────────────────────────────────────
 
 interface CartPanelProps {
@@ -689,12 +697,12 @@ function CartPanel({
   const canCharge = currentShift && cart.length > 0 && !isPending;
 
   return (
-    <div className={`flex flex-col ${isDesktop ? 'hidden w-[320px] shrink-0 border-l border-black/[0.06] bg-white lg:flex' : 'bg-white'}`}>
+    <div className={`flex flex-col ${isDesktop ? 'hidden w-[300px] shrink-0 border-l border-slate-100 bg-white lg:flex' : 'bg-white'}`}>
 
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3.5">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-bold text-slate-900">Current Sale</h2>
+          <h2 className="text-sm font-bold text-slate-900">Current Sale</h2>
           {cart.length > 0 && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: '#1B4332' }}>
               {cart.reduce((s, l) => s + l.qty, 0)}
@@ -702,10 +710,8 @@ function CartPanel({
           )}
         </div>
         {!isDesktop && (
-          <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+            <X size={18} strokeWidth={1.75} />
           </button>
         )}
       </div>
@@ -713,40 +719,42 @@ function CartPanel({
       {/* Cart items */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {cart.length === 0 ? (
-          <div className="flex h-24 flex-col items-center justify-center gap-1 text-xs text-slate-400">
-            <svg className="h-6 w-6 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Tap a product to add
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-300">
+            <ShoppingCart size={28} strokeWidth={1.25} />
+            <p className="text-xs text-slate-400">Tap a product to add</p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-50 px-4 py-1">
+          <ul className="divide-y divide-slate-50 px-4">
             {cart.map((line) => (
               <li key={line.product.id} className="py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="flex-1 text-sm font-semibold leading-snug text-slate-900">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="flex-1 text-sm font-medium leading-snug text-slate-900">
                     {line.product.name}
                   </p>
                   <button
                     type="button"
                     onClick={() => onSetQty(line.product.id, 0)}
-                    className="mt-0.5 rounded-md p-0.5 text-slate-300 transition hover:text-rose-400"
+                    className="shrink-0 rounded-md p-1 text-slate-300 transition hover:bg-rose-50 hover:text-rose-400"
                   >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={13} strokeWidth={2} />
                   </button>
                 </div>
-                <div className="mt-1.5 flex items-center justify-between">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => onSetQty(line.product.id, line.qty - 1)}
-                      className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95">
-                      −
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(line.product.id, line.qty - 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 active:scale-95"
+                    >
+                      <Minus size={12} strokeWidth={2} />
                     </button>
-                    <span className="w-7 text-center text-sm font-bold">{line.qty}</span>
-                    <button type="button" onClick={() => onSetQty(line.product.id, line.qty + 1)}
-                      className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600 transition hover:bg-slate-50 active:scale-95">
-                      +
+                    <span className="w-8 text-center text-sm font-bold text-slate-900">{line.qty}</span>
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(line.product.id, line.qty + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 active:scale-95"
+                    >
+                      <Plus size={12} strokeWidth={2} />
                     </button>
                   </div>
                   <span className="text-sm font-bold" style={{ color: '#1B4332' }}>
@@ -759,45 +767,55 @@ function CartPanel({
         )}
       </div>
 
-      {/* Footer: totals + charge */}
-      <div className="shrink-0 space-y-2 border-t border-slate-100 p-4">
+      {/* Footer */}
+      <div className="shrink-0 border-t border-slate-100 p-4 space-y-3">
+        {/* Subtotal row */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Subtotal</span>
           <span className="font-semibold text-slate-900">{ugx(subtotal)}</span>
         </div>
 
-        <input
-          type="number"
-          min="0"
-          value={discount}
-          onChange={(e) => onDiscount(e.target.value)}
-          placeholder="Discount (UGX)"
-          style={{ fontSize: '16px' }}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
-        />
-
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-900">Total</span>
-          <span className="text-xl font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
+        {/* Discount input */}
+        <div className="relative">
+          <input
+            type="number"
+            min="0"
+            value={discount}
+            onChange={(e) => onDiscount(e.target.value)}
+            placeholder="Discount (UGX)"
+            style={{ fontSize: '16px' }}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300 focus:bg-white"
+          />
         </div>
 
+        {/* Total */}
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
+          <span className="text-sm font-bold text-slate-900">Total</span>
+          <span className="text-lg font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
+        </div>
+
+        {/* Notes */}
         <input
           value={notes}
           onChange={(e) => onNotes(e.target.value)}
-          placeholder="Notes (optional)"
+          placeholder="Note (optional)"
           style={{ fontSize: '16px' }}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300 focus:bg-white"
         />
 
         {err && (
-          <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+            <AlertTriangle size={12} className="shrink-0 text-rose-500" strokeWidth={1.75} />
+            <p className="text-xs text-rose-700">{err}</p>
+          </div>
         )}
 
+        {/* Charge button */}
         <button
           type="button"
           disabled={!canCharge}
           onClick={onOpenConfirm}
-          className="w-full rounded-xl py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-xl py-3 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: canCharge ? '#1B4332' : '#94A3B8' }}
         >
           {isPending

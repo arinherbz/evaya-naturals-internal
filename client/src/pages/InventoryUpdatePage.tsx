@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { api, ApiError } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -40,6 +41,8 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return 'Something went wrong';
 }
+
+const iCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10';
 
 export default function InventoryUpdatePage() {
   const { user } = useAuth();
@@ -119,88 +122,102 @@ export default function InventoryUpdatePage() {
     await updateMutation.mutateAsync();
   };
 
-  if (!canManageInventory) {
-    return null;
-  }
+  if (!canManageInventory) return null;
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
       <Sidebar />
-      <main className="flex-1 px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:pt-6">
-        <div className="mx-auto max-w-4xl space-y-6">
-          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700/70">Inventory</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight">Update Stock</h1>
-                <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Fix counts and save a clear reason.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/inventory')}
-                className="rounded-full border border-slate-200 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Back to Inventory
-              </button>
+      <main className="flex-1 px-4 pb-12 pt-[76px] sm:px-6 lg:px-8 lg:pt-8">
+        <div className="mx-auto max-w-lg space-y-6">
+
+          {/* Header */}
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Update Stock</h1>
+              <p className="mt-0.5 text-sm text-slate-400">Fix counts and record a clear reason.</p>
             </div>
-          </section>
+            <button
+              type="button"
+              onClick={() => navigate('/inventory')}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              <ArrowLeft size={14} strokeWidth={1.75} />
+              Back
+            </button>
+          </div>
 
           {pageError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <AlertTriangle size={14} strokeWidth={1.75} className="shrink-0" />
               {pageError}
             </div>
           )}
 
-          <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
             <form className="grid gap-4" onSubmit={handleSubmit}>
-              <select
-                value={form.productId}
-                onChange={(event) => setForm((current) => ({ ...current, productId: event.target.value }))}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-              >
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>{product.name}</option>
-                ))}
-              </select>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">Product</label>
+                <select
+                  value={form.productId}
+                  onChange={(event) => setForm((current) => ({ ...current, productId: event.target.value }))}
+                  className={iCls}
+                >
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>{product.name}</option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                value={form.reason}
-                onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value as UpdateReason }))}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-              >
-                {reasonOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">Reason</label>
+                <select
+                  value={form.reason}
+                  onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value as UpdateReason }))}
+                  className={iCls}
+                >
+                  {reasonOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
 
-              <input
-                type="number"
-                value={form.quantityChange}
-                onChange={(event) => setForm((current) => ({ ...current, quantityChange: event.target.value }))}
-                placeholder="Quantity change"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                required
-              />
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                  Quantity change <span className="font-normal text-slate-400">(use negative to remove)</span>
+                </label>
+                <input
+                  type="number"
+                  value={form.quantityChange}
+                  onChange={(event) => setForm((current) => ({ ...current, quantityChange: event.target.value }))}
+                  placeholder="e.g. 50 or −10"
+                  className={iCls}
+                  required
+                />
+              </div>
 
-              <textarea
-                value={form.explanation}
-                onChange={(event) => setForm((current) => ({ ...current, explanation: event.target.value }))}
-                rows={4}
-                placeholder="Explanation (optional)"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-              />
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                  Explanation <span className="font-normal text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  value={form.explanation}
+                  onChange={(event) => setForm((current) => ({ ...current, explanation: event.target.value }))}
+                  rows={3}
+                  placeholder="Additional context…"
+                  className={`${iCls} resize-none`}
+                />
+              </div>
 
               <button
                 type="submit"
                 disabled={updateMutation.isPending}
-                className="justify-self-start rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                className="rounded-xl py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                style={{ background: '#1B4332' }}
               >
                 {updateMutation.isPending ? 'Saving…' : 'Update Stock'}
               </button>
             </form>
-          </section>
+          </div>
         </div>
       </main>
     </div>
