@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import BrandMark from '../components/BrandMark';
 import { getDefaultRoute } from '../lib/access';
+import { api } from '../services/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,6 +14,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const settingsQuery = useQuery({
+    queryKey: ['public-settings'],
+    queryFn: () => api.settings.public(),
+    staleTime: 5 * 60_000,
+  });
+
+  const businessName = settingsQuery.data?.businessProfile.businessName ?? 'Evaya Naturals';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +44,9 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center justify-center rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <BrandMark compact />
+            <BrandMark compact showName nameClassName="text-left" />
           </div>
-          <h1 className="mt-5 text-xl font-semibold text-slate-900">Sign in to Evaya</h1>
+          <h1 className="mt-5 text-xl font-semibold text-slate-900">Sign in to {businessName}</h1>
           <p className="mt-1 text-sm text-slate-400">Internal management portal</p>
         </div>
 
@@ -95,7 +104,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Evaya Naturals Internal System
+          {businessName} Internal System
         </p>
       </div>
     </div>

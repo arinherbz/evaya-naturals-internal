@@ -73,6 +73,12 @@ export default function DashboardPage() {
     refetchInterval: 60_000,
   });
 
+  const settingsQuery = useQuery({
+    queryKey: ['public-settings'],
+    queryFn: () => api.settings.public(),
+    staleTime: 5 * 60_000,
+  });
+
   const receiptQuery = useQuery({
     queryKey: ['receipt', selectedReceiptId],
     queryFn: () => api.pos.receipt(selectedReceiptId!),
@@ -168,6 +174,7 @@ export default function DashboardPage() {
   const dateLabel = new Date().toLocaleDateString('en-UG', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
+  const businessName = settingsQuery.data?.businessProfile.businessName ?? 'Evaya Naturals';
 
   return (
     <div className="flex min-h-screen bg-[#f5f5f7] text-slate-900">
@@ -183,6 +190,7 @@ export default function DashboardPage() {
               <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-slate-900">
                 {getGreeting()}, {user?.firstName}
               </h1>
+              <p className="mt-1 text-sm text-slate-400">Today at {businessName}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 pt-1">
               {canCheckout && (
