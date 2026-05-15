@@ -40,8 +40,6 @@ export default function POSPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>('cash');
   const [paymentRef, setPaymentRef] = useState('');
-  const [discount, setDiscount] = useState('');
-  const [cashOut, setCashOut] = useState('');
   const [notes, setNotes] = useState('');
   const [completedSaleId, setCompletedSaleId] = useState<string | null>(null);
   const [openingCash, setOpeningCash] = useState('');
@@ -106,7 +104,7 @@ export default function POSPage() {
       api.pos.createSale({
         customerId: null,
         quickCustomer: null,
-        discount: Number(discount || 0),
+        discount: 0,
         paymentMethod,
         paymentReference: paymentRef || null,
         notes: notes || null,
@@ -116,8 +114,6 @@ export default function POSPage() {
       setShowConfirm(false);
       setCompletedSaleId(payload.sale.id);
       setCart([]);
-      setDiscount('');
-      setCashOut('');
       setPaymentRef('');
       setNotes('');
       setErr('');
@@ -128,7 +124,7 @@ export default function POSPage() {
         const salePayload = {
           customerId: null,
           quickCustomer: null,
-          discount: Number(discount || 0),
+          discount: 0,
           paymentMethod,
           paymentReference: paymentRef || null,
           notes: notes || null,
@@ -137,8 +133,6 @@ export default function POSPage() {
         await enqueueSale(salePayload);
         setShowConfirm(false);
         setCart([]);
-        setDiscount('');
-        setCashOut('');
         setPaymentRef('');
         setNotes('');
         setErr('Sale saved offline — will sync when connected');
@@ -157,10 +151,8 @@ export default function POSPage() {
   );
 
   const subtotal = cart.reduce((s, l) => s + l.product.sellingPrice * l.qty, 0);
-  const cartTotal = Math.max(0, subtotal - Number(discount || 0));
+  const cartTotal = subtotal;
   const cartCount = cart.reduce((s, l) => s + l.qty, 0);
-  const cashChange =
-    paymentMethod === 'cash' && cashOut ? Math.max(0, Number(cashOut) - cartTotal) : null;
 
   const lowStockCartItems = cart.filter(
     (l) => l.product.availableQuantity > 0 && l.product.availableQuantity <= 5,
@@ -235,14 +227,15 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[60px] md:pt-0">
 
-        {/* ── No-shift banner ── */}
+        {/* ── No-shift bar ── */}
         {!currentShift && (
-          <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
-            <AlertTriangle size={15} className="shrink-0 text-amber-600" strokeWidth={1.75} />
-            <span className="text-sm font-semibold text-amber-800">
-              No active shift — open one to start selling.
-            </span>
-            <div className="flex flex-1 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              <span className="text-sm font-medium text-slate-600">No active shift</span>
+              {err && <span className="ml-1 text-xs text-rose-500">{err}</span>}
+            </div>
+            <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
@@ -250,19 +243,18 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                 onChange={(e) => setOpeningCash(e.target.value)}
                 placeholder="Opening cash (UGX)"
                 style={{ fontSize: '16px' }}
-                className="w-44 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400"
+                className="w-40 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-[#1B4332]/40 focus:ring-2 focus:ring-[#1B4332]/10"
               />
               <button
                 type="button"
                 onClick={() => { setErr(''); openShiftMutation.mutate(); }}
                 disabled={openShiftMutation.isPending}
                 style={{ background: '#1B4332', touchAction: 'manipulation' }}
-                className="rounded-xl px-4 py-2 text-sm font-bold text-white transition disabled:opacity-60"
+                className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition disabled:opacity-60"
               >
                 {openShiftMutation.isPending ? 'Opening…' : 'Open Shift'}
               </button>
             </div>
-            {err && <span className="text-xs text-rose-600">{err}</span>}
           </div>
         )}
 
@@ -394,15 +386,12 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           {/* ── RIGHT: cart panel (desktop) ── */}
           <CartPanel
             cart={cart}
-            subtotal={subtotal}
             total={cartTotal}
-            discount={discount}
             notes={notes}
             currentShift={!!currentShift}
             err={err}
             isPending={saleMutation.isPending}
             onSetQty={setQty}
-            onDiscount={setDiscount}
             onNotes={setNotes}
             onOpenConfirm={() => { setErr(''); setShowConfirm(true); }}
             onClose={() => setCartOpen(false)}
@@ -450,15 +439,12 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
           <div className="absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white shadow-2xl">
             <CartPanel
               cart={cart}
-              subtotal={subtotal}
               total={cartTotal}
-              discount={discount}
               notes={notes}
               currentShift={!!currentShift}
               err={err}
               isPending={saleMutation.isPending}
               onSetQty={setQty}
-              onDiscount={setDiscount}
               onNotes={setNotes}
               onOpenConfirm={() => { setCartOpen(false); setErr(''); setShowConfirm(true); }}
               onClose={() => setCartOpen(false)}
@@ -494,20 +480,20 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                 </div>
               )}
 
+              {/* Walk-in customer */}
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                <span className="text-xs font-medium text-slate-500">Customer</span>
+                <span className="text-xs font-semibold text-slate-700">Walk-in</span>
+              </div>
+
               {/* Cart summary */}
               <div className="rounded-xl border border-slate-100 bg-slate-50 divide-y divide-slate-100">
                 {cart.map((line) => (
                   <div key={line.product.id} className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-sm text-slate-700">{line.product.name} <span className="text-slate-400">× {line.qty}</span></span>
+                    <span className="text-sm text-slate-700">{line.product.name} <span className="text-slate-400">×{line.qty}</span></span>
                     <span className="text-sm font-semibold text-slate-900">{ugx(line.product.sellingPrice * line.qty)}</span>
                   </div>
                 ))}
-                {Number(discount) > 0 && (
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-sm text-slate-500">Discount</span>
-                    <span className="text-sm font-semibold text-rose-600">-{ugx(Number(discount))}</span>
-                  </div>
-                )}
               </div>
 
               {/* Total */}
@@ -539,32 +525,15 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
                 </div>
               </div>
 
-              {/* Payment reference or cash input */}
-              {paymentMethod !== 'cash' ? (
+              {/* Transaction reference (non-cash only) */}
+              {paymentMethod !== 'cash' && (
                 <input
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
-                  placeholder="Transaction reference"
+                  placeholder="Transaction reference (optional)"
                   style={{ fontSize: '16px' }}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-slate-300 focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#1B4332]/40 focus:bg-white focus:ring-2 focus:ring-[#1B4332]/10"
                 />
-              ) : (
-                <input
-                  type="number"
-                  min="0"
-                  value={cashOut}
-                  onChange={(e) => setCashOut(e.target.value)}
-                  placeholder="Customer pays (UGX)"
-                  style={{ fontSize: '16px' }}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-slate-300 focus:bg-white"
-                />
-              )}
-
-              {cashChange !== null && cashChange >= 0 && (
-                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
-                  <span className="text-sm font-semibold text-emerald-800">Change</span>
-                  <span className="text-lg font-black text-emerald-700">{ugx(cashChange)}</span>
-                </div>
               )}
 
               {err && (
@@ -676,15 +645,12 @@ ${receipt.items.map((item) => `<tr><td>${item.productName} × ${item.quantity}</
 
 interface CartPanelProps {
   cart: CartLine[];
-  subtotal: number;
   total: number;
-  discount: string;
   notes: string;
   currentShift: boolean;
   err: string;
   isPending: boolean;
   onSetQty: (id: string, qty: number) => void;
-  onDiscount: (v: string) => void;
   onNotes: (v: string) => void;
   onOpenConfirm: () => void;
   onClose: () => void;
@@ -692,8 +658,8 @@ interface CartPanelProps {
 }
 
 function CartPanel({
-  cart, subtotal, total, discount, notes, currentShift, err, isPending,
-  onSetQty, onDiscount, onNotes, onOpenConfirm, onClose, isDesktop = false,
+  cart, total, notes, currentShift, err, isPending,
+  onSetQty, onNotes, onOpenConfirm, onClose, isDesktop = false,
 }: CartPanelProps) {
   const canCharge = currentShift && cart.length > 0 && !isPending;
 
@@ -772,24 +738,11 @@ function CartPanel({
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 border-t border-slate-100 p-4 space-y-3">
-        {/* Subtotal row */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Subtotal</span>
-          <span className="font-semibold text-slate-900">{ugx(subtotal)}</span>
-        </div>
-
-        {/* Discount input */}
-        <div className="relative">
-          <input
-            type="number"
-            min="0"
-            value={discount}
-            onChange={(e) => onDiscount(e.target.value)}
-            placeholder="Discount (UGX)"
-            style={{ fontSize: '16px' }}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300 focus:bg-white"
-          />
+      <div className="shrink-0 border-t border-slate-100 px-4 pb-4 pt-3 space-y-2.5">
+        {/* Walk-in customer */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-400">Customer</span>
+          <span className="text-xs font-medium text-slate-600">Walk-in</span>
         </div>
 
         {/* Total */}
@@ -798,13 +751,13 @@ function CartPanel({
           <span className="text-lg font-black" style={{ color: '#1B4332' }}>{ugx(total)}</span>
         </div>
 
-        {/* Notes */}
+        {/* Note */}
         <input
           value={notes}
           onChange={(e) => onNotes(e.target.value)}
           placeholder="Note (optional)"
           style={{ fontSize: '16px' }}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-300 focus:bg-white"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#1B4332]/40 focus:bg-white"
         />
 
         {err && (
