@@ -1,4 +1,4 @@
-import { Hono, type Context, type Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
@@ -6,50 +6,36 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
 import { authMiddleware, invalidateSessionCache } from '../middleware/auth.js';
 import { appEnv, logServerError } from '../env.js';
+import { generateSessionToken, getRequestIp, getSessionExpiryIso, loginRateLimiter, parseBearerToken } from '../lib/auth-security.js';
 
 const authRoutes = new Hono();
-
-// Simple in-process rate limiter for the login endpoint (max 10 per IP per 15 min)
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
-const RATE_LIMIT_MAX = 10;
-
-function loginRateLimit(c: Context, next: Next) {
-  // Skip rate limiting in test environment so integration tests can log in freely
-  if (process.env.NODE_ENV === 'test') return next();
-
-  const ip = c.req.header('X-Forwarded-For') ?? c.req.header('CF-Connecting-IP') ?? 'unknown';
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-
-  if (entry && now < entry.resetAt) {
-    if (entry.count >= RATE_LIMIT_MAX) {
-      return c.json({ error: 'Too many login attempts. Try again in 15 minutes.' }, 429);
-    }
-    entry.count++;
-  } else {
-    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-  }
-
-  return next();
-}
 
 // Login schema
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8),
 });
 
 // POST /api/auth/login
-authRoutes.post('/login', loginRateLimit, async (c) => {
+authRoutes.post('/login', async (c) => {
   try {
-    const body = await c.req.json();
-    const { email, password } = loginSchema.parse(body);
+    const body = await c.req.json().catch(() => null);
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid login request' }, 400);
+    }
+
+    const { email, password } = parsed.data;
+    const rateLimitKey = `${getRequestIp(c)}:${email.trim().toLowerCase()}`;
+    if (process.env.NODE_ENV !== 'test' && loginRateLimiter.isBlocked(rateLimitKey)) {
+      return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
+    }
 
     // Find user by email
     const users = await db.select().from(schema.users).where(eq(schema.users.email, email));
     
     if (users.length === 0) {
+      loginRateLimiter.recordFailure(rateLimitKey);
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
@@ -64,19 +50,20 @@ authRoutes.post('/login', loginRateLimit, async (c) => {
     const validPassword = await bcrypt.compare(password, user.passwordHash);
     
     if (!validPassword) {
+      loginRateLimiter.recordFailure(rateLimitKey);
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     // Create session token
-    const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    const token = generateSessionToken();
+    const expiresAt = getSessionExpiryIso();
 
     // Create session
     await db.insert(schema.sessions).values({
       userId: user.id,
       token,
       expiresAt,
-      ipAddress: c.req.header('X-Forwarded-For') || c.req.header('CF-Connecting-IP'),
+      ipAddress: getRequestIp(c),
       userAgent: c.req.header('User-Agent'),
     });
 
@@ -121,25 +108,25 @@ authRoutes.post('/login', loginRateLimit, async (c) => {
       return c.json({ error: 'Account is deactivated' }, 401);
     }
 
+    loginRateLimiter.reset(rateLimitKey);
+
     // Log audit
     await db.insert(schema.auditLogs).values({
       userId: user.id,
       action: 'login',
       entityType: 'user',
       entityId: user.id,
-      ipAddress: c.req.header('X-Forwarded-For') || c.req.header('CF-Connecting-IP'),
+      ipAddress: getRequestIp(c),
       userAgent: c.req.header('User-Agent'),
     });
 
     return c.json({
       message: 'Login successful',
       token,
+      expiresAt,
       user: userDetails[0],
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return c.json({ error: 'Validation error', details: error.errors }, 400);
-    }
     logServerError('Login', error);
     return c.json({ error: appEnv.isProduction ? 'Internal server error' : 'Login failed' }, 500);
   }
@@ -148,7 +135,7 @@ authRoutes.post('/login', loginRateLimit, async (c) => {
 // POST /api/auth/logout
 authRoutes.post('/logout', authMiddleware, async (c) => {
   try {
-    const sessionToken = c.req.header('Authorization')?.replace('Bearer ', '');
+    const sessionToken = parseBearerToken(c.req.header('Authorization'));
     const user = c.get('user');
 
     if (sessionToken) {

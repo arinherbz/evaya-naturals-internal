@@ -1,25 +1,16 @@
 import { Context, Next } from 'hono';
 import { db } from '../db/index.js';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, lte } from 'drizzle-orm';
 import * as schema from '../db/schema/index.js';
 import { appEnv, logServerError } from '../env.js';
+import { getSessionExpiryIso, parseBearerToken, shouldRefreshSession } from '../lib/auth-security.js';
 
-const sessionCache = new Map<string, { user: AuthUser; expiresAt: number }>();
-const CACHE_TTL = 5 * 60 * 1000;
-
-function getCachedSession(token: string): AuthUser | null {
-  const entry = sessionCache.get(token);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) { sessionCache.delete(token); return null; }
-  return entry.user;
+export function invalidateSessionCache(_token: string): void {
+  return;
 }
 
-function setCachedSession(token: string, user: AuthUser): void {
-  sessionCache.set(token, { user, expiresAt: Date.now() + CACHE_TTL });
-}
-
-export function invalidateSessionCache(token: string): void {
-  sessionCache.delete(token);
+export async function invalidateUserSessions(userId: string) {
+  await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
 }
 
 // User type for context
@@ -28,6 +19,7 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  isActive: boolean;
   roleId: string;
   branchId: string | null;
   role: {
@@ -44,20 +36,21 @@ export interface AuthUser {
 
 // Simple session-based auth middleware
 export const authMiddleware = async (c: Context, next: Next) => {
-  const sessionToken = c.req.header('Authorization')?.replace('Bearer ', '');
+  const sessionToken = parseBearerToken(c.req.header('Authorization'));
   
   if (!sessionToken) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   try {
-    const cached = getCachedSession(sessionToken);
-    if (cached) {
-      c.set('user', cached);
-      return next();
-    }
+    await db.update(schema.sessions)
+      .set({ isActive: false })
+      .where(and(
+        eq(schema.sessions.token, sessionToken),
+        eq(schema.sessions.isActive, true),
+        lte(schema.sessions.expiresAt, new Date().toISOString()),
+      ));
 
-    // Look up session in database
     const sessions = await db.select().from(schema.sessions).where(
       and(
         eq(schema.sessions.token, sessionToken),
@@ -78,6 +71,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
       email: schema.users.email,
       firstName: schema.users.firstName,
       lastName: schema.users.lastName,
+      isActive: schema.users.isActive,
       roleId: schema.users.roleId,
       branchId: schema.users.branchId,
       role: {
@@ -97,13 +91,25 @@ export const authMiddleware = async (c: Context, next: Next) => {
     .where(eq(schema.users.id, session.userId));
 
     if (users.length === 0) {
+      await db.update(schema.sessions)
+        .set({ isActive: false })
+        .where(eq(schema.sessions.id, session.id));
       return c.json({ error: 'User not found' }, 401);
     }
 
     const user = users[0];
 
-    // Ensure role is not null (should always exist for valid users)
+    if (!user.isActive) {
+      await db.update(schema.sessions)
+        .set({ isActive: false })
+        .where(eq(schema.sessions.id, session.id));
+      return c.json({ error: 'Account is deactivated' }, 401);
+    }
+
     if (!user.role) {
+      await db.update(schema.sessions)
+        .set({ isActive: false })
+        .where(eq(schema.sessions.id, session.id));
       return c.json({ error: 'User role not found' }, 401);
     }
 
@@ -111,12 +117,21 @@ export const authMiddleware = async (c: Context, next: Next) => {
       .from(schema.roles)
       .where(eq(schema.roles.id, user.role.id));
     if (!roleRecord?.isActive) {
+      await db.update(schema.sessions)
+        .set({ isActive: false })
+        .where(eq(schema.sessions.id, session.id));
       return c.json({ error: 'User role is inactive' }, 401);
     }
 
-    setCachedSession(sessionToken, user as AuthUser);
+    if (shouldRefreshSession(session.expiresAt)) {
+      await db.update(schema.sessions)
+        .set({
+          expiresAt: getSessionExpiryIso(),
+          isActive: true,
+        })
+        .where(eq(schema.sessions.id, session.id));
+    }
 
-    // Attach user to context
     c.set('user', user as AuthUser);
 
     return next();

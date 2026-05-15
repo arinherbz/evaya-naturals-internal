@@ -136,6 +136,7 @@ NODE_ENV=production
 PORT=3001
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
 SESSION_SECRET=change-this-to-a-secure-random-secret
+ADMIN_BOOTSTRAP_PASSWORD=set-a-strong-one-time-admin-password
 CLIENT_URL=https://yourdomain.com
 VITE_API_URL=https://yourdomain.com/api
 ```
@@ -146,6 +147,7 @@ Notes:
 - `CLIENT_URL` is used for backend CORS
 - `VITE_API_URL` is used by the frontend production build
 - `SESSION_SECRET` is required in production and should be a long random string
+- `ADMIN_BOOTSTRAP_PASSWORD` is required only when production is creating the first admin user
 - keep `.env` files local to the server or workstation and out of GitHub
 
 ## 5. Database Commands
@@ -171,6 +173,7 @@ What they do:
   - applies migrations to the configured PostgreSQL database
 - `npm run db:seed`
   - creates core data and sample pilot data without duplicating records
+  - in production, the first admin account will only be created if `ADMIN_BOOTSTRAP_PASSWORD` is set
 
 Database discipline:
 
@@ -321,6 +324,8 @@ Notes:
 - it works in a normal browser
 - it is intended for phones, tablets, and computers
 - each staff member signs in with the login assigned to them
+- current production auth stores bearer tokens in browser `sessionStorage`
+- the recommended next security phase is to move production auth to HttpOnly cookie-based sessions
 
 ## 13. Production Checklist
 

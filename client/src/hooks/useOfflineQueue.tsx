@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getAuthToken } from '../lib/auth-storage';
 
 interface QueuedRequest {
   id: string;
@@ -98,7 +99,7 @@ export function useOfflineQueue() {
           method: request.method,
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+            Authorization: `Bearer ${getAuthToken() ?? ''}`,
           },
           body: request.body ? JSON.stringify(request.body) : undefined,
         });

@@ -24,6 +24,7 @@ import type {
   SystemSettings,
   TodayReport,
 } from '../types';
+import { getAuthToken } from '../lib/auth-storage';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -38,7 +39,7 @@ async function request<T>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
@@ -65,7 +66,7 @@ async function requestBlob(
   url: string,
   options: RequestInit = {}
 ): Promise<Blob> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   const headers = new Headers(options.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -92,7 +93,7 @@ async function requestBlob(
 
 export const authApi = {
   login: (email: string, password: string) =>
-    request<{ message: string; token: string; user: any }>('/auth/login', {
+    request<{ message: string; token: string; expiresAt: string; user: any }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),

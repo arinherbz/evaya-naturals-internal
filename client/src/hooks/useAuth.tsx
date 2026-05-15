@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { authApi } from '../services/api';
+import { clearAuthToken, getAuthToken, setAuthToken } from '../lib/auth-storage';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ message: string; token: string; expiresAt: string; user: User }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -15,7 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(getAuthToken());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authApi.getCurrentUser()
         .then((data) => setUser(data.user))
         .catch(() => {
-          localStorage.removeItem('token');
+          clearAuthToken();
           setToken(null);
           setUser(null);
         })
@@ -35,9 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const data = await authApi.login(email, password);
-    localStorage.setItem('token', data.token);
+    setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    return data;
   };
 
   const logout = async () => {
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       // Ignore errors during logout
     }
-    localStorage.removeItem('token');
+    clearAuthToken();
     setToken(null);
     setUser(null);
   };

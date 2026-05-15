@@ -1,13 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import bcrypt from 'bcryptjs';
 import { db } from '../src/db';
-import { users, roles, branches } from '../src/db/schema';
+import { users, roles, branches, sessions } from '../src/db/schema';
 import { eq } from 'drizzle-orm';
 import app from '../src/index';
+import { loginRateLimiter } from '../src/lib/auth-security';
+import { resolveAdminBootstrapPassword } from '../src/db/init';
 
 describe('Authentication System', () => {
   beforeAll(async () => {
     // Tables should already exist from db initialization
+  });
+
+  beforeEach(() => {
+    loginRateLimiter.clear();
   });
 
   afterAll(async () => {
@@ -102,5 +108,86 @@ describe('Authentication System', () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'Account is deactivated' });
+  });
+
+  it('rate limits repeated failed login attempts', async () => {
+    for (let index = 0; index < 5; index += 1) {
+      const response = await app.request('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '203.0.113.10',
+        },
+        body: JSON.stringify({ email: 'admin@evaya.ug', password: 'wrongpass123' }),
+      });
+
+      expect(response.status).toBe(401);
+    }
+
+    const blockedResponse = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': '203.0.113.10',
+      },
+      body: JSON.stringify({ email: 'admin@evaya.ug', password: 'wrongpass123' }),
+    });
+
+    expect(blockedResponse.status).toBe(429);
+    expect(await blockedResponse.json()).toEqual({ error: 'Too many login attempts. Please try again later.' });
+  });
+
+  it('returns a generic validation error for malformed login requests', async () => {
+    const response = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: 'not-an-email', password: 'short' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid login request' });
+  });
+
+  it('marks expired sessions inactive and rejects them', async () => {
+    const adminUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'admin@evaya.ug'))
+      .get();
+
+    expect(adminUser).toBeDefined();
+
+    const inserted = await db.insert(sessions).values({
+      userId: adminUser!.id,
+      token: 'expired-session-token',
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      isActive: true,
+    }).returning();
+
+    const response = await app.request('/api/auth/me', {
+      headers: {
+        Authorization: 'Bearer expired-session-token',
+      },
+    });
+
+    expect(response.status).toBe(401);
+
+    const session = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, inserted[0].id))
+      .get();
+
+    expect(session?.isActive).toBe(false);
+  });
+
+  it('requires a secure production bootstrap password for the initial admin account', () => {
+    expect(resolveAdminBootstrapPassword({ isProduction: false, configuredPassword: undefined })).toBe('admin123');
+    expect(resolveAdminBootstrapPassword({ isProduction: false, configuredPassword: 'custom-dev-password' })).toBe('custom-dev-password');
+    expect(resolveAdminBootstrapPassword({ isProduction: true, configuredPassword: 'very-secure-bootstrap-password' })).toBe('very-secure-bootstrap-password');
+    expect(() => resolveAdminBootstrapPassword({ isProduction: true, configuredPassword: undefined }))
+      .toThrow('Production requires ADMIN_BOOTSTRAP_PASSWORD before the initial admin account can be created.');
   });
 });

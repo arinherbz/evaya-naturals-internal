@@ -247,6 +247,8 @@ describe('settings slice', () => {
     });
     expect(activateRes.status).toBe(200);
 
+    const previousToken = await login('new.staff@evaya.ug', 'welcome123');
+
     const resetRes = await app.request(`/api/settings/staff/${createdUser.id}/reset-password`, {
       method: 'POST',
       headers: {
@@ -258,6 +260,13 @@ describe('settings slice', () => {
       }),
     });
     expect(resetRes.status).toBe(200);
+
+    const staleSessionRes = await app.request('/api/auth/me', {
+      headers: {
+        Authorization: `Bearer ${previousToken}`,
+      },
+    });
+    expect(staleSessionRes.status).toBe(401);
 
     const loginToken = await login('new.staff@evaya.ug', 'newsecret123');
     expect(loginToken).toBeTruthy();

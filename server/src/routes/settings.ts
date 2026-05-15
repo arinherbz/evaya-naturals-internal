@@ -2,10 +2,11 @@ import { Context, Hono } from 'hono';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, invalidateUserSessions } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
 import { getAppSettings, updateAppSettings } from '../lib/app-settings.js';
+import { getRequestIp, passwordResetRateLimiter } from '../lib/auth-security.js';
 
 const settingsRoutes = new Hono();
 
@@ -54,7 +55,7 @@ const staffUpdateSchema = z.object({
 });
 
 const passwordResetSchema = z.object({
-  password: z.string().min(6).max(100),
+  password: z.string().min(8).max(100),
 });
 
 function requireAdmin(c: Context) {
@@ -351,7 +352,21 @@ settingsRoutes.post('/staff/:id/reset-password', async (c) => {
   if (adminCheck) return adminCheck;
 
   const userId = c.req.param('id');
-  const payload = passwordResetSchema.parse(await c.req.json());
+  const body = await c.req.json().catch(() => null);
+  const parsed = passwordResetSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid password reset request' }, 400);
+  }
+
+  const limiterKey = `${getRequestIp(c)}:${userId}`;
+  if (process.env.NODE_ENV !== 'test' && passwordResetRateLimiter.isBlocked(limiterKey)) {
+    return c.json({ error: 'Too many password reset attempts. Please try again later.' }, 429);
+  }
+  if (process.env.NODE_ENV !== 'test') {
+    passwordResetRateLimiter.recordFailure(limiterKey);
+  }
+
+  const payload = parsed.data;
   const [user] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId));
   if (!user) {
     return c.json({ error: 'User not found' }, 404);
@@ -364,8 +379,9 @@ settingsRoutes.post('/staff/:id/reset-password', async (c) => {
       updatedAt: new Date().toISOString(),
     })
     .where(eq(schema.users.id, userId));
+  await invalidateUserSessions(userId);
 
-  return c.json({ message: 'Password reset' });
+  return c.json({ message: 'Password reset. Active sessions were signed out.' });
 });
 
 export default settingsRoutes;

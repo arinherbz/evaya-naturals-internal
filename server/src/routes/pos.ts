@@ -1567,15 +1567,11 @@ posRoutes.post('/sales', async (c) => {
       // Mirror POS display logic exactly: batches win if they exist, else use inventory.quantity
       const availableQuantity = hasBatches ? batchAvailable : inventoryQty;
 
-      // Log for diagnostics
-      console.log(`[SALE STOCK CHECK] product=${item.productId} name="${product.name}" requested=${item.quantity} available=${availableQuantity} hasBatches=${hasBatches} batchAvailable=${batchAvailable} inventoryQty=${inventoryQty} branchId=${branchId}`);
-
       if (availableQuantity <= 0 && expiredAvailable) {
         throw new Error(`${product.name} only has expired stock`);
       }
 
       if (availableQuantity < item.quantity) {
-        console.error(`[SALE STOCK FAIL] product=${item.productId} name="${product.name}" requested=${item.quantity} available=${availableQuantity} hasBatches=${hasBatches} batchAvailable=${batchAvailable} inventoryQty=${inventoryQty} branchId=${branchId}`);
         throw new Error(`Insufficient stock for ${product.name}`);
       }
 

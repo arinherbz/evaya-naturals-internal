@@ -108,10 +108,17 @@ If `DATABASE_URL` is not set outside production, the app can fall back to in-mem
 
 That fallback is not the standard local development setup. Use Homebrew PostgreSQL for normal Evaya work.
 
-### Default Login
+### Development Login
 
 - **Email**: admin@evaya.ug
 - **Password**: admin123
+
+That seeded login is only for local development and tests. Production must use a strong `ADMIN_BOOTSTRAP_PASSWORD` and rotate the initial admin password immediately.
+
+### Security Notes
+
+- Auth tokens are stored in browser `sessionStorage`, not `localStorage`, to reduce long-lived browser exposure.
+- The recommended next security phase is to move production auth to HttpOnly cookies so browser JavaScript cannot read the session token at all.
 
 ## Project Structure
 

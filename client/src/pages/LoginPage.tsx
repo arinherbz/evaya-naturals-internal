@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { authApi } from '../services/api';
 import BrandMark from '../components/BrandMark';
 import { getDefaultRoute } from '../lib/access';
 
@@ -19,9 +18,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const data = await authApi.login(email, password);
+      const data = await login(email, password);
       const roleName: string = data.user?.role?.name ?? '';
-      await login(email, password);
       navigate(getDefaultRoute(roleName));
     } catch (err) {
       setError('Invalid email or password');

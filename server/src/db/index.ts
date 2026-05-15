@@ -15,6 +15,15 @@ function isSqliteUrl(url: string) {
   return url.startsWith('file:') || url.endsWith('.db') || url.endsWith('.sqlite');
 }
 
+function isLocalPostgresUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 if (appEnv.isProduction && !databaseUrl) {
   throw new Error('Production requires DATABASE_URL to be set to a PostgreSQL connection string.');
 }
@@ -32,7 +41,9 @@ export const usingPglite = !databaseUrl && !appEnv.isProduction;
 const pgPool = !usingPglite
   ? new Pool({
     connectionString: databaseUrl,
-    ssl: appEnv.isProduction ? { rejectUnauthorized: false } : undefined,
+    ssl: appEnv.isProduction && databaseUrl && !isLocalPostgresUrl(databaseUrl)
+      ? { rejectUnauthorized: true }
+      : undefined,
   })
   : null;
 

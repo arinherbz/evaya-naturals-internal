@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { db, usingPglite } from './index.js';
 import * as schema from './schema/index.js';
 import { defaultAppSettings } from '../lib/app-settings.js';
+import { appEnv } from '../env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +123,24 @@ async function ensureBranches() {
   }
 }
 
+export function resolveAdminBootstrapPassword({
+  isProduction,
+  configuredPassword,
+}: {
+  isProduction: boolean;
+  configuredPassword?: string;
+}) {
+  if (configuredPassword) {
+    return configuredPassword;
+  }
+
+  if (isProduction) {
+    throw new Error('Production requires ADMIN_BOOTSTRAP_PASSWORD before the initial admin account can be created.');
+  }
+
+  return 'admin123';
+}
+
 async function ensureAdmin(primaryBranchId: string) {
   const [adminRole] = await db.select().from(schema.roles).where(eq(schema.roles.name, 'Admin'));
   if (!adminRole) {
@@ -130,7 +149,11 @@ async function ensureAdmin(primaryBranchId: string) {
 
   const existingAdmin = await db.select().from(schema.users).where(eq(schema.users.email, 'admin@evaya.ug'));
   if (existingAdmin.length === 0) {
-    const passwordHash = await bcrypt.hash('admin123', 10);
+    const bootstrapPassword = resolveAdminBootstrapPassword({
+      isProduction: appEnv.isProduction,
+      configuredPassword: appEnv.adminBootstrapPassword,
+    });
+    const passwordHash = await bcrypt.hash(bootstrapPassword, 10);
     await db.insert(schema.users).values({
       email: 'admin@evaya.ug',
       passwordHash,

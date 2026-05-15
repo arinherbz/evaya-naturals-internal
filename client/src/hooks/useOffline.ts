@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getQueuedSales, deleteQueuedSale } from '../lib/offlineQueue';
+import { getQueuedSales, deleteQueuedSale, getQueuedSaleReplayToken } from '../lib/offlineQueue';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -19,11 +19,15 @@ export function useOffline() {
     setReplaying(true);
     for (const { key, item } of queued) {
       try {
+        const token = getQueuedSaleReplayToken();
+        if (!token) {
+          break;
+        }
         const res = await fetch(`${API_BASE}/pos/sales`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${item.token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(item.payload),
         });

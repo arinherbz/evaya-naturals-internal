@@ -1,3 +1,5 @@
+import { getAuthToken } from './auth-storage';
+
 const DB_NAME = 'evaya-offline';
 const STORE = 'sale-queue';
 const DB_VERSION = 1;
@@ -13,16 +15,14 @@ function openDb(): Promise<IDBDatabase> {
 
 export interface QueuedSale {
   payload: unknown;
-  token: string;
   queuedAt: string;
 }
 
 export async function enqueueSale(payload: unknown): Promise<void> {
   const db = await openDb();
-  const token = localStorage.getItem('token') ?? '';
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).add({ payload, token, queuedAt: new Date().toISOString() });
+    const req = tx.objectStore(STORE).add({ payload, queuedAt: new Date().toISOString() });
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
@@ -69,4 +69,8 @@ export async function clearQueue(): Promise<void> {
     req.onerror = () => reject(req.error);
   });
   db.close();
+}
+
+export function getQueuedSaleReplayToken() {
+  return getAuthToken() ?? '';
 }

@@ -10,6 +10,7 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url().optional(),
   VITE_API_URL: z.string().url().optional(),
   SESSION_SECRET: z.string().min(16).optional(),
+  ADMIN_BOOTSTRAP_PASSWORD: z.string().min(12).optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -44,6 +45,7 @@ export const appEnv = {
   clientUrl: env.CLIENT_URL?.trim() || 'http://localhost:3000',
   viteApiUrl: env.VITE_API_URL?.trim(),
   sessionSecret: env.SESSION_SECRET?.trim(),
+  adminBootstrapPassword: env.ADMIN_BOOTSTRAP_PASSWORD?.trim(),
 };
 
 export function logServerError(scope: string, error: unknown) {
