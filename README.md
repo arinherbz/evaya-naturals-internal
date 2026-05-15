@@ -231,22 +231,38 @@ Use GitHub and migrations as the source of truth:
 Standard deployment checklist:
 
 ```bash
-git pull
-npm install
-npm run install:all
+git pull --ff-only origin main
+npm ci
+npm --prefix server ci
+npm --prefix client ci
+npm run check
+npm test
 npm run db:migrate
 npm run build
-pm2 restart evaya-api
+pm2 restart evaya-api --update-env
+bash scripts/smoke-check.sh https://evayainternal.com
 ```
 
 After deploy, smoke test:
 
 - `/api/health`
-- login
-- POS
-- products
-- inventory
-- reports and PDF download
+- `/login`
+- `/pos`
+
+Rollback basics:
+
+```bash
+git rev-parse HEAD
+git log --oneline -n 5
+git checkout main
+git reset --hard <previous-good-commit>
+npm ci
+npm --prefix server ci
+npm --prefix client ci
+npm run build
+pm2 restart evaya-api --update-env
+bash scripts/smoke-check.sh https://evayainternal.com
+```
 
 Before production migrations:
 

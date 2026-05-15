@@ -3,99 +3,88 @@ name: Deploy to Production
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: evaya-production-deploy
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - name: Deploy via SSH
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+
+      - name: Run typecheck
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production artifacts
+        run: npm run build
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Deploy verified commit to VPS
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          TARGET_COMMIT: ${{ github.sha }}
+          APP_DIR: /var/www/evaya-naturals-internal
+          APP_DOMAIN: evayainternal.com
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
+          envs: TARGET_COMMIT,APP_DIR,APP_DOMAIN
+          script_stop: true
+          command_timeout: 50m
           script: |
-            set -e
-            cd /var/www/evaya-naturals-internal
-            git pull origin main
+            set -euo pipefail
+            cd "$APP_DIR"
+            PREVIOUS_COMMIT="$(git rev-parse HEAD)"
+            echo "[deploy] previous commit: ${PREVIOUS_COMMIT}"
+            git fetch origin main
+            REMOTE_MAIN="$(git rev-parse origin/main)"
+            echo "[deploy] remote main: ${REMOTE_MAIN}"
+            if [ "${REMOTE_MAIN}" != "${TARGET_COMMIT}" ]; then
+              echo "[deploy] target commit ${TARGET_COMMIT} does not match origin/main ${REMOTE_MAIN}" >&2
+              exit 1
+            fi
+            git checkout main
+            git pull --ff-only origin main
+            CURRENT_COMMIT="$(git rev-parse HEAD)"
+            echo "[deploy] checked out commit: ${CURRENT_COMMIT}"
+            if [ "${CURRENT_COMMIT}" != "${TARGET_COMMIT}" ]; then
+              echo "[deploy] checked out commit does not match GitHub SHA" >&2
+              exit 1
+            fi
+            export PREVIOUS_COMMIT
+            bash scripts/deploy-production.sh
 
-            echo "Building server..."
-            cd server
-            npm ci
-            npm run build
-
-            echo "Building client..."
-            cd ../client
-            npm ci
-            npm run build
-
-            echo "Stamping service worker with build timestamp..."
-            BUILD_TS=$(date +%s)
-            sed -i "s/evaya-v[0-9]*/evaya-v${BUILD_TS}/g" dist/sw.js
-            echo "Service worker cache: evaya-v${BUILD_TS}"
-
-            echo "Fixing nginx cache headers..."
-            cat > /etc/nginx/sites-available/evaya << 'NGINX_EOF'
-            server {
-                server_name evayainternal.com;
-                root /var/www/evaya-naturals-internal/client/dist;
-                index index.html;
-
-                # Never cache index.html so new deploys are visible immediately
-                location = /index.html {
-                    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
-                    add_header Pragma "no-cache" always;
-                    expires 0;
-                }
-
-                # Never cache sw.js so the browser always picks up a new service worker
-                location = /sw.js {
-                    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
-                    add_header Pragma "no-cache" always;
-                    expires 0;
-                }
-
-                # Cache hashed assets forever (filenames change on every build)
-                location ~* /assets/ {
-                    expires 1y;
-                    add_header Cache-Control "public, immutable" always;
-                }
-
-                location / {
-                    try_files $uri /index.html;
-                }
-
-                location /api/ {
-                    proxy_pass http://127.0.0.1:3001;
-                    proxy_http_version 1.1;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                }
-
-                listen 443 ssl; # managed by Certbot
-                ssl_certificate /etc/letsencrypt/live/evayainternal.com/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/evayainternal.com/privkey.pem;
-                include /etc/letsencrypt/options-ssl-nginx.conf;
-                ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-            }
-
-            server {
-                if ($host = evayainternal.com) {
-                    return 301 https://$host$request_uri;
-                }
-                listen 80;
-                server_name evayainternal.com;
-                return 404;
-            }
-            NGINX_EOF
-
-            ln -sf /etc/nginx/sites-available/evaya /etc/nginx/sites-enabled/evaya
-            nginx -t && systemctl reload nginx
-            echo "Nginx reloaded"
-
-            echo "Restarting API..."
-            pm2 restart evaya-api
-
-            echo "Deploy complete."
+      - name: Verify public endpoints after deploy
+        run: |
+          set -euo pipefail
+          bash scripts/smoke-check.sh https://evayainternal.com

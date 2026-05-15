@@ -330,6 +330,9 @@ Notes:
 - [ ] PostgreSQL credentials work
 - [ ] latest code is pulled from GitHub
 - [ ] dependencies are installed
+- [ ] `npm run check` passes
+- [ ] `npm test` passes
+- [ ] `npm run build` passes
 - [ ] production backup is taken before migrations
 - [ ] database schema is migrated
 - [ ] admin user is created
@@ -394,7 +397,64 @@ After migration and seed:
 5. confirm report preview and PDF download work
 6. confirm a sale can be completed and appears in reports
 
-## 19. Deployment Reality Check
+## 19. Deployment Workflow
+
+Production deploys should use the same gated order every time:
+
+```bash
+git pull --ff-only origin main
+npm ci
+npm --prefix server ci
+npm --prefix client ci
+npm run check
+npm test
+npm run build
+npm run db:migrate
+pm2 restart evaya-api --update-env
+bash scripts/smoke-check.sh https://yourdomain.com
+```
+
+The production restart must happen only after:
+
+- typecheck passes
+- tests pass
+- build passes
+- migrations pass
+
+If any step fails, stop and do not restart PM2.
+
+## 20. Rollback
+
+If a deploy must be rolled back:
+
+1. identify the last known good commit
+2. restore that commit on the VPS
+3. rebuild from that commit
+4. restart PM2
+5. rerun smoke checks
+
+Example:
+
+```bash
+cd /var/www/evaya-naturals-internal
+git log --oneline -n 5
+git checkout main
+git reset --hard <previous-good-commit>
+npm ci
+npm --prefix server ci
+npm --prefix client ci
+npm run build
+pm2 restart evaya-api --update-env
+bash scripts/smoke-check.sh https://yourdomain.com
+```
+
+Before rollback:
+
+- confirm whether the latest migration changed data shape
+- restore a PostgreSQL backup first if the rollback requires database reversal
+- keep the backup outside the server
+
+## 21. Deployment Reality Check
 
 This repo is now PostgreSQL-ready for deployment review and pilot setup.
 
