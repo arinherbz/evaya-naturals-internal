@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import { and, asc, eq, inArray, like, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { authMiddleware, requirePermission, type AuthUser } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
+import { applyInventoryDelta, ensureInventoryRowsForBranches, ensureProductVisibility, isUniqueViolation } from '../lib/inventory.js';
 
 const catalogRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -124,8 +125,8 @@ async function roleScopedBranchId(user: AuthUser, branchId?: string | null) {
   return user.branchId;
 }
 
-async function logAudit(user: AuthUser, action: string, entityType: string, entityId: string | null, oldValue?: Record<string, unknown>, newValue?: Record<string, unknown>) {
-  await db.insert(schema.auditLogs).values({
+async function writeAuditLog(executor: any, user: AuthUser, action: string, entityType: string, entityId: string | null, oldValue?: Record<string, unknown>, newValue?: Record<string, unknown>) {
+  await executor.insert(schema.auditLogs).values({
     userId: user.id,
     action,
     entityType,
@@ -135,55 +136,8 @@ async function logAudit(user: AuthUser, action: string, entityType: string, enti
   });
 }
 
-async function upsertInventoryRecord(productId: string, branchId: string, quantityDelta: number, lowStockThreshold: number) {
-  const existing = await db.select().from(schema.inventory).where(
-    and(eq(schema.inventory.productId, productId), eq(schema.inventory.branchId, branchId))
-  );
-
-  if (existing.length === 0) {
-    const created = {
-      productId,
-      branchId,
-      quantity: quantityDelta,
-      lowStockThreshold,
-      updatedAt: new Date().toISOString(),
-    };
-    await db.insert(schema.inventory).values(created);
-    return created.quantity;
-  }
-
-  const nextQuantity = existing[0].quantity + quantityDelta;
-  if (nextQuantity < 0) {
-    throw new Error('Insufficient stock for this adjustment');
-  }
-
-  await db.update(schema.inventory)
-    .set({
-      quantity: nextQuantity,
-      lowStockThreshold: existing[0].lowStockThreshold || lowStockThreshold,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(schema.inventory.id, existing[0].id));
-
-  return nextQuantity;
-}
-
-async function ensureVisibility(productId: string, branchIds: string[]) {
-  const existing = await db.select().from(schema.productVisibility).where(eq(schema.productVisibility.productId, productId));
-  const existingBranchIds = new Set(existing.map((row) => row.branchId));
-  const nextBranchIds = Array.from(new Set(branchIds));
-
-  for (const branchId of nextBranchIds) {
-    if (!existingBranchIds.has(branchId)) {
-      await db.insert(schema.productVisibility).values({ productId, branchId });
-    }
-  }
-
-  for (const row of existing) {
-    if (!nextBranchIds.includes(row.branchId)) {
-      await db.delete(schema.productVisibility).where(eq(schema.productVisibility.id, row.id));
-    }
-  }
+async function logAudit(user: AuthUser, action: string, entityType: string, entityId: string | null, oldValue?: Record<string, unknown>, newValue?: Record<string, unknown>) {
+  await writeAuditLog(db, user, action, entityType, entityId, oldValue, newValue);
 }
 
 async function assertCategoryExists(categoryId: string) {
@@ -549,29 +503,22 @@ catalogRoutes.post('/products', async (c) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const [created] = await db.insert(schema.products).values(productData).returning();
-  await ensureVisibility(created.id, visibilityBranchIds);
+  try {
+    const created = await db.transaction(async (tx) => {
+      const [product] = await tx.insert(schema.products).values(productData).returning();
+      await ensureProductVisibility(tx, product.id, visibilityBranchIds);
+      await ensureInventoryRowsForBranches(tx, product.id, visibilityBranchIds, payload.lowStockThreshold);
+      await writeAuditLog(tx, user, 'create', 'product', product.id, undefined, product as unknown as Record<string, unknown>);
+      return product;
+    });
 
-  // Create an inventory row for every branch so the product appears in Inventory and POS immediately
-  for (const bid of visibilityBranchIds) {
-    const existing = await db
-      .select({ id: schema.inventory.id })
-      .from(schema.inventory)
-      .where(and(eq(schema.inventory.productId, created.id), eq(schema.inventory.branchId, bid)))
-      .limit(1);
-    if (existing.length === 0) {
-      await db.insert(schema.inventory).values({
-        productId: created.id,
-        branchId: bid,
-        quantity: 0,
-        lowStockThreshold: payload.lowStockThreshold,
-        updatedAt: new Date().toISOString(),
-      });
+    return c.json({ product: created }, 201);
+  } catch (error) {
+    if (isUniqueViolation(error, 'inventory_product_branch_unique') || isUniqueViolation(error, 'product_visibility_product_branch_unique')) {
+      return c.json({ error: 'Product setup conflicted with existing inventory data. Please refresh and try again.' }, 409);
     }
+    throw error;
   }
-
-  await logAudit(user, 'create', 'product', created.id, undefined, created as unknown as Record<string, unknown>);
-  return c.json({ product: created }, 201);
 });
 
 catalogRoutes.patch('/products/:id', async (c) => {
@@ -633,21 +580,32 @@ catalogRoutes.patch('/products/:id', async (c) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const [updated] = await db.update(schema.products)
-    .set(updateData)
-    .where(eq(schema.products.id, productId))
-    .returning();
+  try {
+    const updated = await db.transaction(async (tx) => {
+      const [product] = await tx.update(schema.products)
+        .set(updateData)
+        .where(eq(schema.products.id, productId))
+        .returning();
 
-  // Keep inventory threshold in sync with the product threshold
-  if (payload.lowStockThreshold !== undefined) {
-    await db.update(schema.inventory)
-      .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
-      .where(eq(schema.inventory.productId, productId));
+      if (payload.lowStockThreshold !== undefined) {
+        await tx.update(schema.inventory)
+          .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
+          .where(eq(schema.inventory.productId, productId));
+      }
+
+      await ensureProductVisibility(tx, productId, nextVisibility);
+      await ensureInventoryRowsForBranches(tx, productId, nextVisibility, product.lowStockThreshold);
+      await writeAuditLog(tx, user, 'update', 'product', productId, existing[0] as unknown as Record<string, unknown>, product as unknown as Record<string, unknown>);
+      return product;
+    });
+
+    return c.json({ product: updated });
+  } catch (error) {
+    if (isUniqueViolation(error, 'inventory_product_branch_unique') || isUniqueViolation(error, 'product_visibility_product_branch_unique')) {
+      return c.json({ error: 'Product visibility conflicted with existing inventory data. Please refresh and try again.' }, 409);
+    }
+    throw error;
   }
-
-  await ensureVisibility(productId, nextVisibility);
-  await logAudit(user, 'update', 'product', productId, existing[0] as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>);
-  return c.json({ product: updated });
 });
 
 catalogRoutes.get('/inventory', async (c) => {
@@ -909,6 +867,7 @@ catalogRoutes.post('/inventory/batches', async (c) => {
     }
   }
 
+  const nowIso = new Date().toISOString();
   const batchData = {
     productId: payload.productId,
     branchId,
@@ -921,25 +880,40 @@ catalogRoutes.post('/inventory/batches', async (c) => {
     sellingPrice: payload.sellingPrice ?? product[0].sellingPrice,
     receivedDate: payload.receivedDate ?? new Date().toISOString(),
     isExpired: new Date(payload.expiryDate) < new Date(),
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso,
   };
 
-  const [batch] = await db.insert(schema.batches).values(batchData).returning();
-  await ensureVisibility(payload.productId, [branchId]);
-  await upsertInventoryRecord(payload.productId, branchId, payload.quantityReceived, product[0].lowStockThreshold);
-  await db.insert(schema.inventoryMovements).values({
-    productId: payload.productId,
-    branchId,
-    batchId: batch.id,
-    movementType: 'stock_received',
-    quantity: payload.quantityReceived,
-    referenceType: 'batch',
-    referenceId: batch.id,
-    reason: `Batch ${payload.batchNumber} received`,
-    userId: user.id,
-  });
-  await logAudit(user, 'stock_received', 'inventory_batch', batch.id, undefined, batch as unknown as Record<string, unknown>);
-  return c.json({ batch }, 201);
+  try {
+    const batch = await db.transaction(async (tx) => {
+      const [createdBatch] = await tx.insert(schema.batches).values(batchData).returning();
+      await ensureProductVisibility(tx, payload.productId, [branchId]);
+      await ensureInventoryRowsForBranches(tx, payload.productId, [branchId], product[0].lowStockThreshold);
+      await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityReceived, product[0].lowStockThreshold, nowIso);
+      await tx.insert(schema.inventoryMovements).values({
+        productId: payload.productId,
+        branchId,
+        batchId: createdBatch.id,
+        movementType: 'stock_received',
+        quantity: payload.quantityReceived,
+        referenceType: 'batch',
+        referenceId: createdBatch.id,
+        reason: `Batch ${payload.batchNumber} received`,
+        userId: user.id,
+      });
+      await writeAuditLog(tx, user, 'stock_received', 'inventory_batch', createdBatch.id, undefined, createdBatch as unknown as Record<string, unknown>);
+      return createdBatch;
+    });
+
+    return c.json({ batch }, 201);
+  } catch (error) {
+    if (isUniqueViolation(error, 'batches_product_branch_batch_number_unique')) {
+      return c.json({ error: 'Batch number already exists for this product in this branch' }, 409);
+    }
+    if (isUniqueViolation(error, 'inventory_product_branch_unique') || isUniqueViolation(error, 'product_visibility_product_branch_unique')) {
+      return c.json({ error: 'Inventory state conflicted while receiving stock. Please refresh and try again.' }, 409);
+    }
+    throw error;
+  }
 });
 
 catalogRoutes.post('/inventory/adjustments', async (c) => {
@@ -966,40 +940,50 @@ catalogRoutes.post('/inventory/adjustments', async (c) => {
     if (batch.length === 0 || batch[0].branchId !== branchId || batch[0].productId !== payload.productId) {
       return c.json({ error: 'Batch not found for this product and branch' }, 404);
     }
-
-    const nextRemaining = batch[0].quantityRemaining + payload.quantityDelta;
-    if (nextRemaining < 0) {
-      return c.json({ error: 'Insufficient batch quantity for this adjustment' }, 409);
-    }
-
-    await db.update(schema.batches)
-      .set({
-        quantityRemaining: nextRemaining,
-        isExpired: new Date(batch[0].expiryDate) < new Date(),
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(schema.batches.id, payload.batchId));
   }
 
   try {
-    await upsertInventoryRecord(payload.productId, branchId, payload.quantityDelta, product[0].lowStockThreshold);
+    const movement = await db.transaction(async (tx) => {
+      const nowIso = new Date().toISOString();
+
+      if (payload.batchId) {
+        const updatedBatch = await tx.update(schema.batches)
+          .set({
+            quantityRemaining: sql`${schema.batches.quantityRemaining} + ${payload.quantityDelta}`,
+            isExpired: sql`CASE WHEN ${schema.batches.expiryDate} < ${nowIso} THEN true ELSE false END`,
+            updatedAt: nowIso,
+          })
+          .where(and(
+            eq(schema.batches.id, payload.batchId),
+            sql`${schema.batches.quantityRemaining} + ${payload.quantityDelta} >= 0`,
+          ))
+          .returning();
+        if (updatedBatch.length === 0) {
+          throw new Error('Insufficient batch quantity for this adjustment');
+        }
+      }
+
+      await applyInventoryDelta(tx, payload.productId, branchId, payload.quantityDelta, product[0].lowStockThreshold, nowIso);
+
+      const [createdMovement] = await tx.insert(schema.inventoryMovements).values({
+        productId: payload.productId,
+        branchId,
+        batchId: payload.batchId ?? null,
+        movementType: payload.movementType,
+        quantity: payload.quantityDelta,
+        referenceType: 'adjustment',
+        reason: payload.reason,
+        userId: user.id,
+      }).returning();
+
+      await writeAuditLog(tx, user, 'inventory_adjustment', 'inventory_movement', createdMovement.id, undefined, createdMovement as unknown as Record<string, unknown>);
+      return createdMovement;
+    });
+
+    return c.json({ movement }, 201);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Inventory adjustment failed' }, 409);
   }
-
-  const [movement] = await db.insert(schema.inventoryMovements).values({
-    productId: payload.productId,
-    branchId,
-    batchId: payload.batchId ?? null,
-    movementType: payload.movementType,
-    quantity: payload.quantityDelta,
-    referenceType: 'adjustment',
-    reason: payload.reason,
-    userId: user.id,
-  }).returning();
-
-  await logAudit(user, 'inventory_adjustment', 'inventory_movement', movement.id, undefined, movement as unknown as Record<string, unknown>);
-  return c.json({ movement }, 201);
 });
 
 catalogRoutes.delete('/products/:id', async (c) => {
@@ -1040,17 +1024,20 @@ catalogRoutes.patch('/inventory/:id/threshold', async (c) => {
     return c.json({ error: error instanceof Error ? error.message : 'Access denied' }, 403);
   }
 
-  const [updated] = await db.update(schema.inventory)
-    .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
-    .where(eq(schema.inventory.id, inventoryId))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [inventoryRecord] = await tx.update(schema.inventory)
+      .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
+      .where(eq(schema.inventory.id, inventoryId))
+      .returning();
 
-  // Keep product threshold in sync with the inventory threshold
-  await db.update(schema.products)
-    .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
-    .where(eq(schema.products.id, existing[0].productId));
+    await tx.update(schema.products)
+      .set({ lowStockThreshold: payload.lowStockThreshold, updatedAt: new Date().toISOString() })
+      .where(eq(schema.products.id, existing[0].productId));
 
-  await logAudit(user, 'update_threshold', 'inventory', inventoryId, existing[0] as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>);
+    await writeAuditLog(tx, user, 'update_threshold', 'inventory', inventoryId, existing[0] as unknown as Record<string, unknown>, inventoryRecord as unknown as Record<string, unknown>);
+    return inventoryRecord;
+  });
+
   return c.json({ inventory: updated });
 });
 

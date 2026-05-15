@@ -1,4 +1,4 @@
-import { pgTable, text, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 import { products } from './products.js';
 import { branches } from './branches.js';
 import { users } from './users.js';
@@ -11,7 +11,9 @@ export const inventory = pgTable('inventory', {
   lowStockThreshold: integer('low_stock_threshold').notNull().default(10),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
-});
+}, (table) => ({
+  inventoryProductBranchUnique: uniqueIndex('inventory_product_branch_unique').on(table.productId, table.branchId),
+}));
 
 export const inventoryMovements = pgTable('inventory_movements', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

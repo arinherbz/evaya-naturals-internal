@@ -375,4 +375,57 @@ describe('operations slices', () => {
     expect(deliveryPayload.deliveries).toHaveLength(2);
     expect(deliveryPayload.deliveries.some((item: Record<string, unknown>) => item.id === delivery.id)).toBe(true);
   });
+
+  it('keeps inventory, POS, and report stock numbers consistent after stock changes', async () => {
+    await createUser('Cashier', 'cashier.ops@evaya.ug', branchId);
+    const cashierToken = await login('cashier.ops@evaya.ug', 'secret123');
+    await openShift(cashierToken);
+
+    const category = await createCategory(adminToken, 'Consistency Category');
+    const product = await createProduct(adminToken, branchId, category.id, `Consistency Product ${Date.now()}`);
+    await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: `CONS-${Date.now()}`,
+      expiryDate: new Date(Date.now() + 86400000 * 30).toISOString(),
+      quantityReceived: 5,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    const saleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        paymentMethod: 'cash',
+        items: [{ productId: product.id, quantity: 2 }],
+      }),
+    });
+    expect(saleRes.status).toBe(201);
+
+    const inventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchId}&search=Consistency Product`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(inventoryRes.status).toBe(200);
+    const inventoryPayload = await json(inventoryRes);
+    expect(inventoryPayload.inventory[0].quantity).toBe(3);
+
+    const posProductsRes = await app.request('/api/pos/products?search=Consistency Product', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(posProductsRes.status).toBe(200);
+    const posProductsPayload = await json(posProductsRes);
+    expect(posProductsPayload.products[0].availableQuantity).toBe(3);
+
+    const reportRes = await app.request('/api/pos/reports/summary?period=daily', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(reportRes.status).toBe(200);
+    const reportPayload = await json(reportRes);
+    const lowStockItem = reportPayload.lowStockSummary.items.find((item: { productName: string }) => item.productName === product.name);
+    expect(lowStockItem.quantity).toBe(3);
+  });
 });

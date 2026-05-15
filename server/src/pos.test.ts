@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import app from './index';
 import { db } from './db';
 import { initializeDatabase } from './db/init';
@@ -397,6 +397,54 @@ describe('pos slice', () => {
 
     expect(response.status).toBe(409);
     expect((await json(response)).error).toContain('Insufficient stock');
+  });
+
+  it('rolls back a sale when inventory is out of sync with sellable batches', async () => {
+    const category = await createCategory(adminToken, 'POS Category');
+    const product = await createProduct(adminToken, branchId, category.id, 'Rollback Sale Product');
+    const batch = await receiveBatch(adminToken, {
+      productId: product.id,
+      branchId,
+      batchNumber: 'ROLLBACK-SALE-B1',
+      expiryDate: new Date(Date.now() + 86400000 * 10).toISOString(),
+      quantityReceived: 5,
+      costPrice: 5000,
+      sellingPrice: 12000,
+    });
+
+    await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
+    const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
+    await openShift(cashierToken);
+
+    await db.update(schema.inventory)
+      .set({ quantity: 0 })
+      .where(and(eq(schema.inventory.productId, product.id), eq(schema.inventory.branchId, branchId)));
+
+    const saleRes = await app.request('/api/pos/sales', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        paymentMethod: 'cash',
+        items: [{ productId: product.id, quantity: 1 }],
+      }),
+    });
+    expect(saleRes.status).toBe(409);
+
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.branchId, branchId));
+    expect(sales).toHaveLength(0);
+
+    const [reloadedBatch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batch.id));
+    expect(reloadedBatch.quantityRemaining).toBe(5);
+
+    const saleMovements = await db.select().from(schema.inventoryMovements).where(and(
+      eq(schema.inventoryMovements.productId, product.id),
+      eq(schema.inventoryMovements.branchId, branchId),
+      eq(schema.inventoryMovements.movementType, 'sale'),
+    ));
+    expect(saleMovements).toHaveLength(0);
   });
 
   it('allows cashier checkout and blocks branch manager from checkout while still allowing POS visibility', async () => {

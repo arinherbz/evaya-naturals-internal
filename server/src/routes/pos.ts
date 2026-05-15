@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import * as schema from '../db/schema/index.js';
 import { generateReportPdf } from '../lib/report-pdf.js';
 import { getAppSettings } from '../lib/app-settings.js';
+import { applyInventoryDelta } from '../lib/inventory.js';
 
 const posRoutes = new Hono();
 const primaryBranchName = 'Evaya Naturals';
@@ -1613,117 +1614,115 @@ posRoutes.post('/sales', async (c) => {
     return c.json({ error: 'Discount cannot exceed subtotal' }, 400);
   }
 
-  const result = await db.transaction(async (tx) => {
-    const saleRows = await tx.insert(schema.sales).values({
-      receiptNumber,
-      branchId,
-      cashierId: user.id,
-      shiftId: activeShift.id,
-      customerId,
-      subtotal,
-      discount: payload.discount,
-      total,
-      paymentMethod: payload.paymentMethod,
-      paymentReference: normalizeText(payload.paymentReference),
-      notes: normalizeText(payload.notes),
-      status: 'completed',
-      updatedAt: nowIso,
-    }).returning();
-    const sale = saleRows[0];
+  let result;
+  try {
+    result = await db.transaction(async (tx) => {
+      const saleRows = await tx.insert(schema.sales).values({
+        receiptNumber,
+        branchId,
+        cashierId: user.id,
+        shiftId: activeShift.id,
+        customerId,
+        subtotal,
+        discount: payload.discount,
+        total,
+        paymentMethod: payload.paymentMethod,
+        paymentReference: normalizeText(payload.paymentReference),
+        notes: normalizeText(payload.notes),
+        status: 'completed',
+        updatedAt: nowIso,
+      }).returning();
+      const sale = saleRows[0];
 
-    for (const line of lineAllocations) {
-      const inventory = line.inventory;
-      if (!inventory || inventory.quantity < line.item.quantity) {
-        throw new Error(`Inventory record is out of sync for ${line.product.name}`);
-      }
+      for (const line of lineAllocations) {
+        await applyInventoryDelta(tx, line.product.id, branchId, -line.item.quantity, line.product.lowStockThreshold, nowIso);
 
-      await tx.update(schema.inventory)
-        .set({
-          quantity: inventory.quantity - line.item.quantity,
-          updatedAt: nowIso,
-        })
-        .where(eq(schema.inventory.id, inventory.id));
+        if (line.allocations.length > 0) {
+          for (const allocation of line.allocations) {
+            const batch = batches.find((row) => row.id === allocation.batchId);
+            if (!batch) {
+              throw new Error('Batch allocation failed');
+            }
 
-      if (line.allocations.length > 0) {
-        // Batch-tracked: deduct from each batch and record per-allocation sale items
-        for (const allocation of line.allocations) {
-          const batch = batches.find((row) => row.id === allocation.batchId);
-          if (!batch) {
-            throw new Error('Batch allocation failed');
+            const updatedBatch = await tx.update(schema.batches)
+              .set({
+                quantityRemaining: sql`${schema.batches.quantityRemaining} - ${allocation.quantity}`,
+                isExpired: sql`CASE WHEN ${schema.batches.expiryDate} < ${nowIso} THEN true ELSE false END`,
+                updatedAt: nowIso,
+              })
+              .where(and(
+                eq(schema.batches.id, batch.id),
+                sql`${schema.batches.quantityRemaining} - ${allocation.quantity} >= 0`,
+              ))
+              .returning();
+            if (updatedBatch.length === 0) {
+              throw new Error(`Inventory record is out of sync for ${line.product.name}`);
+            }
+
+            await tx.insert(schema.saleItems).values({
+              saleId: sale.id,
+              productId: line.product.id,
+              batchId: batch.id,
+              quantity: allocation.quantity,
+              unitPrice: line.product.sellingPrice,
+              discount: 0,
+              total: allocation.quantity * line.product.sellingPrice,
+            });
+
+            await tx.insert(schema.inventoryMovements).values({
+              productId: line.product.id,
+              branchId,
+              batchId: batch.id,
+              movementType: 'sale',
+              quantity: -allocation.quantity,
+              referenceId: sale.id,
+              referenceType: 'sale',
+              reason: `Sale ${receiptNumber}`,
+              userId: user.id,
+            });
           }
-
-          await tx.update(schema.batches)
-            .set({
-              quantityRemaining: batch.quantityRemaining - allocation.quantity,
-              isExpired: new Date(batch.expiryDate) < now,
-              updatedAt: nowIso,
-            })
-            .where(eq(schema.batches.id, batch.id));
-
+        } else {
           await tx.insert(schema.saleItems).values({
             saleId: sale.id,
             productId: line.product.id,
-            batchId: batch.id,
-            quantity: allocation.quantity,
+            batchId: null,
+            quantity: line.item.quantity,
             unitPrice: line.product.sellingPrice,
             discount: 0,
-            total: allocation.quantity * line.product.sellingPrice,
+            total: line.item.quantity * line.product.sellingPrice,
           });
 
           await tx.insert(schema.inventoryMovements).values({
             productId: line.product.id,
             branchId,
-            batchId: batch.id,
+            batchId: null,
             movementType: 'sale',
-            quantity: -allocation.quantity,
+            quantity: -line.item.quantity,
             referenceId: sale.id,
             referenceType: 'sale',
             reason: `Sale ${receiptNumber}`,
             userId: user.id,
           });
-
-          batch.quantityRemaining -= allocation.quantity;
         }
-      } else {
-        // No-batch: inventory.quantity is the sole source; record one sale item without a batch
-        await tx.insert(schema.saleItems).values({
-          saleId: sale.id,
-          productId: line.product.id,
-          batchId: null,
-          quantity: line.item.quantity,
-          unitPrice: line.product.sellingPrice,
-          discount: 0,
-          total: line.item.quantity * line.product.sellingPrice,
-        });
-
-        await tx.insert(schema.inventoryMovements).values({
-          productId: line.product.id,
-          branchId,
-          batchId: null,
-          movementType: 'sale',
-          quantity: -line.item.quantity,
-          referenceId: sale.id,
-          referenceType: 'sale',
-          reason: `Sale ${receiptNumber}`,
-          userId: user.id,
-        });
       }
-    }
 
-    await tx.insert(schema.auditLogs).values({
-      userId: user.id,
-      action: 'checkout_sale',
-      entityType: 'sale',
-      entityId: sale.id,
-      newValue: {
-        receiptNumber,
-        total,
-        itemCount: payload.items.length,
-      },
+      await tx.insert(schema.auditLogs).values({
+        userId: user.id,
+        action: 'checkout_sale',
+        entityType: 'sale',
+        entityId: sale.id,
+        newValue: {
+          receiptNumber,
+          total,
+          itemCount: payload.items.length,
+        },
+      });
+
+      return sale;
     });
-
-    return sale;
-  });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Sale failed' }, 409);
+  }
 
   const receiptResponse = await db.select({
     id: schema.sales.id,

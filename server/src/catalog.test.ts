@@ -4,7 +4,7 @@ import app from './index';
 import { db } from './db';
 import { initializeDatabase } from './db/init';
 import * as schema from './db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 async function json(response: Response) {
   return response.json() as Promise<Record<string, any>>;
@@ -438,6 +438,178 @@ describe('catalog slice', () => {
     const types = movements.map((movement: Record<string, unknown>) => movement.movementType);
     expect(types).toContain('stock_received');
     expect(types).toContain('damaged');
+  });
+
+  it('prevents duplicate inventory, visibility, and batch records', async () => {
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Integrity Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Integrity Product',
+        categoryId: category.id,
+        unitType: 'kg',
+        sellingPrice: 10000,
+        costPrice: 5000,
+        lowStockThreshold: 3,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    await expect(db.insert(schema.inventory).values({
+      productId: product.id,
+      branchId: branchA,
+      quantity: 0,
+      lowStockThreshold: 3,
+    })).rejects.toBeDefined();
+
+    await expect(db.insert(schema.productVisibility).values({
+      productId: product.id,
+      branchId: branchA,
+    })).rejects.toBeDefined();
+
+    const batchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'INTEGRITY-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+        quantityReceived: 5,
+        costPrice: 5000,
+      }),
+    });
+    expect(batchRes.status).toBe(201);
+
+    const duplicateBatchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'INTEGRITY-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 10).toISOString(),
+        quantityReceived: 4,
+        costPrice: 5000,
+      }),
+    });
+    expect(duplicateBatchRes.status).toBe(409);
+
+    const [inventoryRow] = await db.select().from(schema.inventory).where(and(
+      eq(schema.inventory.productId, product.id),
+      eq(schema.inventory.branchId, branchA),
+    ));
+    expect(inventoryRow.quantity).toBe(5);
+
+    const receivedMovements = await db.select().from(schema.inventoryMovements).where(and(
+      eq(schema.inventoryMovements.productId, product.id),
+      eq(schema.inventoryMovements.branchId, branchA),
+      eq(schema.inventoryMovements.movementType, 'stock_received'),
+    ));
+    expect(receivedMovements).toHaveLength(1);
+  });
+
+  it('rolls back stock adjustments when inventory update fails after batch validation', async () => {
+    const categoryRes = await app.request('/api/catalog/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ name: 'Rollback Category' }),
+    });
+    const category = (await json(categoryRes)).category;
+
+    const productRes = await app.request('/api/catalog/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: 'Rollback Product',
+        categoryId: category.id,
+        unitType: 'kg',
+        sellingPrice: 10000,
+        costPrice: 5000,
+        lowStockThreshold: 3,
+        visibilityBranchIds: [branchA],
+      }),
+    });
+    const product = (await json(productRes)).product;
+
+    const batchRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchNumber: 'ROLLBACK-B1',
+        expiryDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+        quantityReceived: 5,
+        costPrice: 5000,
+      }),
+    });
+    const batch = (await json(batchRes)).batch;
+
+    await db.update(schema.inventory)
+      .set({ quantity: 0 })
+      .where(and(eq(schema.inventory.productId, product.id), eq(schema.inventory.branchId, branchA)));
+
+    const adjustmentRes = await app.request('/api/catalog/inventory/adjustments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        productId: product.id,
+        branchId: branchA,
+        batchId: batch.id,
+        movementType: 'damaged',
+        quantityDelta: -1,
+        reason: 'Should rollback fully',
+      }),
+    });
+    expect(adjustmentRes.status).toBe(409);
+
+    const [reloadedBatch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batch.id));
+    const [reloadedInventory] = await db.select().from(schema.inventory).where(and(
+      eq(schema.inventory.productId, product.id),
+      eq(schema.inventory.branchId, branchA),
+    ));
+    expect(reloadedBatch.quantityRemaining).toBe(5);
+    expect(reloadedInventory.quantity).toBe(0);
+
+    const damagedMovements = await db.select().from(schema.inventoryMovements).where(and(
+      eq(schema.inventoryMovements.productId, product.id),
+      eq(schema.inventoryMovements.branchId, branchA),
+      eq(schema.inventoryMovements.movementType, 'damaged'),
+    ));
+    expect(damagedMovements).toHaveLength(0);
   });
 
   it('enforces branch scoping and permissions', async () => {

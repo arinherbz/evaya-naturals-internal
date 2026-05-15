@@ -1,4 +1,4 @@
-import { pgTable, text, doublePrecision, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, doublePrecision, integer, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { products } from './products.js';
 import { suppliers } from './suppliers.js';
 import { branches } from './branches.js';
@@ -18,7 +18,9 @@ export const batches = pgTable('batches', {
   isExpired: boolean('is_expired').notNull().default(false),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
-});
+}, (table) => ({
+  batchesProductBranchBatchNumberUnique: uniqueIndex('batches_product_branch_batch_number_unique').on(table.productId, table.branchId, table.batchNumber),
+}));
 
 export type Batch = typeof batches.$inferSelect;
 export type NewBatch = typeof batches.$inferInsert;
