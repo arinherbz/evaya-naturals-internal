@@ -110,6 +110,17 @@ authRoutes.post('/login', loginRateLimit, async (c) => {
     .leftJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
     .where(eq(schema.users.id, user.id));
 
+    if (userDetails.length === 0 || !userDetails[0].role || userDetails[0].role.name == null) {
+      return c.json({ error: 'Account role is not available' }, 401);
+    }
+
+    const [roleRecord] = await db.select({ isActive: schema.roles.isActive })
+      .from(schema.roles)
+      .where(eq(schema.roles.id, userDetails[0].role.id));
+    if (!roleRecord?.isActive) {
+      return c.json({ error: 'Account is deactivated' }, 401);
+    }
+
     // Log audit
     await db.insert(schema.auditLogs).values({
       userId: user.id,

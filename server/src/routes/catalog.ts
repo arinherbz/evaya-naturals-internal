@@ -80,7 +80,7 @@ function canManageProducts(user: AuthUser) {
 }
 
 function canManageInventory(user: AuthUser) {
-  return ['Admin', 'Branch Manager', 'Inventory Officer'].includes(user.role.name);
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 function canReadInventory(user: AuthUser) {

@@ -107,6 +107,13 @@ export const authMiddleware = async (c: Context, next: Next) => {
       return c.json({ error: 'User role not found' }, 401);
     }
 
+    const [roleRecord] = await db.select({ isActive: schema.roles.isActive })
+      .from(schema.roles)
+      .where(eq(schema.roles.id, user.role.id));
+    if (!roleRecord?.isActive) {
+      return c.json({ error: 'User role is inactive' }, 401);
+    }
+
     setCachedSession(sessionToken, user as AuthUser);
 
     // Attach user to context

@@ -5,19 +5,20 @@ import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { formatUGX as ugx } from '../lib/currency';
 import BrandMark from './BrandMark';
+import { canAccessRoute, getDefaultRoute, ROUTE_ACCESS, type AllowedRoleList } from '../lib/access';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/', icon: 'home', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant'] },
-  { label: 'POS', href: '/pos', icon: 'shopping-cart', allowRoles: ['Branch Manager', 'Cashier'] },
-  { label: 'Receipts', href: '/receipts', icon: 'receipt', allowRoles: ['Branch Manager', 'Cashier'] },
-  { label: 'Orders', href: '/orders', icon: 'clipboard', allowRoles: ['Branch Manager'] },
-  { label: 'Products', href: '/products', icon: 'package', allowRoles: ['Branch Manager'] },
-  { label: 'Inventory', href: '/inventory', icon: 'database', allowRoles: ['Branch Manager', 'Cashier', 'Inventory Officer'] },
-  { label: 'Customers', href: '/customers', icon: 'users', allowRoles: ['Branch Manager', 'Cashier'] },
-  { label: 'Expenses', href: '/expenses', icon: 'wallet', allowRoles: ['Branch Manager', 'Accountant'] },
-  { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', allowRoles: ['Branch Manager'] },
-  { label: 'Reports', href: '/reports', icon: 'bar-chart', allowRoles: ['Branch Manager', 'Accountant'] },
-  { label: 'Settings', href: '/settings', icon: 'settings', allowRoles: ['Admin'] },
+  { label: 'Dashboard', href: '/', icon: 'home', allowRoles: ROUTE_ACCESS.dashboard },
+  { label: 'POS', href: '/pos', icon: 'shopping-cart', allowRoles: ROUTE_ACCESS.pos },
+  { label: 'Receipts', href: '/receipts', icon: 'receipt', allowRoles: ROUTE_ACCESS.receipts },
+  { label: 'Orders', href: '/orders', icon: 'clipboard', allowRoles: ROUTE_ACCESS.orders },
+  { label: 'Products', href: '/products', icon: 'package', allowRoles: ROUTE_ACCESS.products },
+  { label: 'Inventory', href: '/inventory', icon: 'database', allowRoles: ROUTE_ACCESS.inventory },
+  { label: 'Customers', href: '/customers', icon: 'users', allowRoles: ROUTE_ACCESS.customers },
+  { label: 'Expenses', href: '/expenses', icon: 'wallet', allowRoles: ROUTE_ACCESS.expenses },
+  { label: 'Deliveries', href: '/deliveries', icon: 'map-pin', allowRoles: ROUTE_ACCESS.deliveries },
+  { label: 'Reports', href: '/reports', icon: 'bar-chart', allowRoles: ROUTE_ACCESS.reports },
+  { label: 'Settings', href: '/settings', icon: 'settings', allowRoles: ROUTE_ACCESS.settings },
 ];
 
 export default function Sidebar() {
@@ -32,14 +33,9 @@ export default function Sidebar() {
   });
   const currentShift = shiftQuery.data?.shift ?? null;
 
-  const logoHref = user?.role.name === 'Cashier' ? '/pos' : '/';
+  const logoHref = getDefaultRoute(user?.role.name);
 
-  const canShowItem = (allowRoles?: string[]) => {
-    if (!user) return false;
-    if (user.role.name === 'Admin') return true;
-    if (!allowRoles || allowRoles.length === 0) return true;
-    return allowRoles.includes(user.role.name);
-  };
+  const canShowItem = (allowRoles?: AllowedRoleList) => canAccessRoute(user?.role.name, allowRoles);
 
   const visibleItems = NAV_ITEMS.filter((item) => canShowItem(item.allowRoles));
 

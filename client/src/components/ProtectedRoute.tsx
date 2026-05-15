@@ -1,13 +1,12 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { canAccessRoute, getDefaultRoute, type AllowedRoleList } from '../lib/access';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   permission?: string;
-  allowRoles?: string[];
+  allowRoles?: AllowedRoleList;
 }
-
-const STAFF_ROLES = ['Cashier', 'Delivery Rider'];
 
 export default function ProtectedRoute({ children, permission, allowRoles }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -34,15 +33,11 @@ export default function ProtectedRoute({ children, permission, allowRoles }: Pro
     return <>{children}</>;
   }
 
-  const hasRoleAccess = !allowRoles || allowRoles.length === 0 || allowRoles.includes(roleName);
+  const hasRoleAccess = canAccessRoute(roleName, allowRoles);
   const hasPermission = !permission || (user?.role.permissions.includes('*') ?? false) || (user?.role.permissions.includes(permission) ?? false);
 
   if (!hasRoleAccess || !hasPermission) {
-    // Staff roles redirect to POS instead of "Access Denied"
-    if (STAFF_ROLES.includes(roleName)) {
-      return <Navigate to="/pos" replace />;
-    }
-    return <Navigate to="/" replace />;
+    return <Navigate to={getDefaultRoute(roleName)} replace />;
   }
 
   return <>{children}</>;

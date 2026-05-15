@@ -93,6 +93,7 @@ async function listStaffUsers() {
   })
     .from(schema.users)
     .innerJoin(schema.roles, eq(schema.users.roleId, schema.roles.id))
+    .where(eq(schema.roles.isActive, true))
     .orderBy(asc(schema.users.isActive), asc(schema.users.firstName), asc(schema.users.lastName));
 }
 
@@ -270,7 +271,9 @@ settingsRoutes.patch('/staff/:id', async (c) => {
   }
 
   if (payload.roleId) {
-    const role = await db.select({ id: schema.roles.id }).from(schema.roles).where(eq(schema.roles.id, payload.roleId));
+    const role = await db.select({ id: schema.roles.id })
+      .from(schema.roles)
+      .where(and(eq(schema.roles.id, payload.roleId), eq(schema.roles.isActive, true)));
     if (role.length === 0) {
       return c.json({ error: 'Role not found' }, 404);
     }

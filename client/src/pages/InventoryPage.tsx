@@ -46,7 +46,7 @@ export default function InventoryPage() {
   // Deactivate modal
   const [deactivatingRow, setDeactivatingRow] = useState<InventoryRow | null>(null);
 
-  const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(
+  const canManageInventory = ['Admin', 'Branch Manager'].includes(
     user?.role.name ?? '',
   );
 

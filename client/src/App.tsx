@@ -17,6 +17,7 @@ import ReceiptsPage from './pages/ReceiptsPage';
 import { AuthProvider } from './hooks/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
 import OfflineBanner from './components/OfflineBanner';
+import { ROUTE_ACCESS } from './lib/access';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -38,7 +39,7 @@ function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager', 'Cashier', 'Inventory Officer', 'Accountant']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.dashboard}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -46,7 +47,7 @@ function App() {
             <Route
               path="/pos"
               element={
-                <ProtectedRoute permission="process_sales" allowRoles={['Branch Manager']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.pos}>
                   <POSPage />
                 </ProtectedRoute>
               }
@@ -54,7 +55,7 @@ function App() {
             <Route
               path="/products"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.products}>
                   <ProductsPage />
                 </ProtectedRoute>
               }
@@ -62,7 +63,7 @@ function App() {
             <Route
               path="/inventory"
               element={
-                <ProtectedRoute permission="manage_inventory" allowRoles={['Cashier']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.inventory}>
                   <InventoryPage />
                 </ProtectedRoute>
               }
@@ -70,7 +71,7 @@ function App() {
             <Route
               path="/inventory/update"
               element={
-                <ProtectedRoute permission="manage_inventory">
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.inventoryUpdate}>
                   <InventoryUpdatePage />
                 </ProtectedRoute>
               }
@@ -78,7 +79,7 @@ function App() {
             <Route
               path="/customers"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager', 'Cashier']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.customers}>
                   <CustomersPage />
                 </ProtectedRoute>
               }
@@ -86,7 +87,7 @@ function App() {
             <Route
               path="/expenses"
               element={
-                <ProtectedRoute permission="view_reports" allowRoles={['Branch Manager']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.expenses}>
                   <ExpensesPage />
                 </ProtectedRoute>
               }
@@ -94,7 +95,7 @@ function App() {
             <Route
               path="/reports"
               element={
-                <ProtectedRoute permission="view_reports">
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.reports}>
                   <ReportsPage />
                 </ProtectedRoute>
               }
@@ -102,7 +103,7 @@ function App() {
             <Route
               path="/deliveries"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager', 'Delivery Rider']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.deliveries}>
                   <DeliveriesPage />
                 </ProtectedRoute>
               }
@@ -110,7 +111,7 @@ function App() {
             <Route
               path="/receipts"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager', 'Cashier', 'Accountant']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.receipts}>
                   <ReceiptsPage />
                 </ProtectedRoute>
               }
@@ -118,7 +119,7 @@ function App() {
             <Route
               path="/orders"
               element={
-                <ProtectedRoute allowRoles={['Branch Manager', 'Admin']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.orders}>
                   <OrdersPage />
                 </ProtectedRoute>
               }
@@ -126,7 +127,7 @@ function App() {
             <Route
               path="/settings"
               element={
-                <ProtectedRoute allowRoles={['Admin']}>
+                <ProtectedRoute allowRoles={ROUTE_ACCESS.settings}>
                   <SettingsPage />
                 </ProtectedRoute>
               }

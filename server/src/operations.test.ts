@@ -147,9 +147,7 @@ describe('operations slices', () => {
     await db.delete(schema.categories).where(eq(schema.categories.name, 'Ops Category'));
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.ops@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.ops@evaya.ug'));
-    await db.delete(schema.users).where(eq(schema.users.email, 'accountant.ops@evaya.ug'));
-    await db.delete(schema.users).where(eq(schema.users.email, 'rider.ops@evaya.ug'));
-    await db.delete(schema.users).where(eq(schema.users.email, 'rider.two@evaya.ug'));
+    await db.delete(schema.users).where(eq(schema.users.email, 'manager.ops@evaya.ug'));
     adminToken = await login('admin@evaya.ug', 'admin123');
   });
 
@@ -190,9 +188,9 @@ describe('operations slices', () => {
 
   it('returns daily, weekly, and custom report data and includes expenses', async () => {
     await createUser('Cashier', 'cashier.ops@evaya.ug', branchId);
-    await createUser('Accountant', 'accountant.ops@evaya.ug', branchId);
     const cashierToken = await login('cashier.ops@evaya.ug', 'secret123');
-    const accountantToken = await login('accountant.ops@evaya.ug', 'secret123');
+    const manager = await createUser('Branch Manager', 'manager.ops@evaya.ug', branchId);
+    const managerToken = await login(manager.email, 'secret123');
     await openShift(cashierToken);
 
     const customDate = new Date();
@@ -206,7 +204,7 @@ describe('operations slices', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accountantToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         title: 'Packaging tape',
@@ -221,7 +219,7 @@ describe('operations slices', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accountantToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         title: 'Same-day till float',
@@ -277,16 +275,16 @@ describe('operations slices', () => {
   });
 
   it('enforces expense create edit delete permissions', async () => {
-    await createUser('Accountant', 'accountant.ops@evaya.ug', branchId);
+    const manager = await createUser('Branch Manager', 'manager.ops@evaya.ug', branchId);
     await createUser('Cashier', 'cashier.ops@evaya.ug', branchId);
-    const accountantToken = await login('accountant.ops@evaya.ug', 'secret123');
+    const managerToken = await login(manager.email, 'secret123');
     const cashierToken = await login('cashier.ops@evaya.ug', 'secret123');
 
     const createResponse = await app.request('/api/pos/expenses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accountantToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         title: 'Fuel top-up',
@@ -303,7 +301,7 @@ describe('operations slices', () => {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accountantToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({ amount: 9000 }),
     });
@@ -322,12 +320,9 @@ describe('operations slices', () => {
     expect(adminDelete.status).toBe(200);
   });
 
-  it('creates and updates deliveries, and riders only see assigned deliveries', async () => {
+  it('creates and updates deliveries for branch managers only', async () => {
     const manager = await createUser('Branch Manager', 'manager.ops@evaya.ug', branchId);
-    const rider = await createUser('Delivery Rider', 'rider.ops@evaya.ug', branchId);
-    await createUser('Delivery Rider', 'rider.two@evaya.ug', branchId);
     const managerToken = await login(manager.email, 'secret123');
-    const riderToken = await login(rider.email, 'secret123');
     const customer = await createCustomer(adminToken, 'Delivery Customer', '+256700444555');
 
     const createResponse = await app.request('/api/pos/deliveries', {
@@ -340,7 +335,6 @@ describe('operations slices', () => {
         customerId: customer.id,
         receiptReference: 'EVN-REF-001',
         deliveryAddress: 'Kampala Road',
-        riderId: rider.id,
         deliveryFee: 3000,
         deliveryDate: new Date().toISOString().slice(0, 10),
       }),
@@ -352,7 +346,7 @@ describe('operations slices', () => {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${riderToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({ status: 'picked_up' }),
     });
@@ -373,12 +367,12 @@ describe('operations slices', () => {
       }),
     });
 
-    const riderList = await app.request('/api/pos/deliveries', {
-      headers: { Authorization: `Bearer ${riderToken}` },
+    const deliveryList = await app.request('/api/pos/deliveries', {
+      headers: { Authorization: `Bearer ${managerToken}` },
     });
-    expect(riderList.status).toBe(200);
-    const riderPayload = await json(riderList);
-    expect(riderPayload.deliveries).toHaveLength(1);
-    expect(riderPayload.deliveries[0].id).toBe(delivery.id);
+    expect(deliveryList.status).toBe(200);
+    const deliveryPayload = await json(deliveryList);
+    expect(deliveryPayload.deliveries).toHaveLength(2);
+    expect(deliveryPayload.deliveries.some((item: Record<string, unknown>) => item.id === delivery.id)).toBe(true);
   });
 });

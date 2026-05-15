@@ -49,7 +49,7 @@ export default function InventoryUpdatePage() {
   const [pageError, setPageError] = useState('');
   const [form, setForm] = useState<UpdateStockFormState>(emptyForm);
 
-  const canManageInventory = ['Admin', 'Branch Manager', 'Inventory Officer'].includes(user?.role.name ?? '');
+  const canManageInventory = ['Admin', 'Branch Manager'].includes(user?.role.name ?? '');
   const selectedProductId = searchParams.get('productId');
 
   const branchesQuery = useQuery({

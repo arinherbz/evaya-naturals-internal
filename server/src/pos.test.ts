@@ -399,7 +399,7 @@ describe('pos slice', () => {
     expect((await json(response)).error).toContain('Insufficient stock');
   });
 
-  it('allows cashier checkout and blocks delivery rider and accountant from POS access', async () => {
+  it('allows cashier checkout and blocks branch manager from checkout while still allowing POS visibility', async () => {
     const category = await createCategory(adminToken, 'POS Category');
     const product = await createProduct(adminToken, branchId, category.id, 'Moringa Tea');
     const futureDate = new Date();
@@ -416,27 +416,20 @@ describe('pos slice', () => {
     });
 
     await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
-    await createUser('Delivery Rider', 'rider.pos@evaya.ug', branchId);
-    await createUser('Accountant', 'accountant.pos@evaya.ug', branchId);
+    await createUser('Branch Manager', 'manager.pos@evaya.ug', branchId);
 
     const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
-    const riderToken = await login('rider.pos@evaya.ug', 'secret123');
-    const accountantToken = await login('accountant.pos@evaya.ug', 'secret123');
+    const managerToken = await login('manager.pos@evaya.ug', 'secret123');
 
     const cashierToday = await app.request('/api/pos/sales/today', {
       headers: { Authorization: `Bearer ${cashierToken}` },
     });
     expect(cashierToday.status).toBe(200);
 
-    const riderToday = await app.request('/api/pos/sales/today', {
-      headers: { Authorization: `Bearer ${riderToken}` },
+    const managerToday = await app.request('/api/pos/sales/today', {
+      headers: { Authorization: `Bearer ${managerToken}` },
     });
-    expect(riderToday.status).toBe(403);
-
-    const accountantToday = await app.request('/api/pos/sales/today', {
-      headers: { Authorization: `Bearer ${accountantToken}` },
-    });
-    expect(accountantToday.status).toBe(403);
+    expect(managerToday.status).toBe(200);
 
     await openShift(cashierToken);
 
@@ -453,31 +446,18 @@ describe('pos slice', () => {
     });
     expect(cashierCheckout.status).toBe(201);
 
-    const riderCheckout = await app.request('/api/pos/sales', {
+    const managerCheckout = await app.request('/api/pos/sales', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${riderToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         paymentMethod: 'cash',
         items: [{ productId: product.id, quantity: 1 }],
       }),
     });
-    expect(riderCheckout.status).toBe(403);
-
-    const accountantCheckout = await app.request('/api/pos/sales', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accountantToken}`,
-      },
-      body: JSON.stringify({
-        paymentMethod: 'cash',
-        items: [{ productId: product.id, quantity: 1 }],
-      }),
-    });
-    expect(accountantCheckout.status).toBe(403);
+    expect(managerCheckout.status).toBe(403);
   });
 
   it('allows only admin, branch manager, and cashier to view customers', async () => {
@@ -490,21 +470,13 @@ describe('pos slice', () => {
 
     await createUser('Cashier', 'cashier.pos@evaya.ug', branchId);
     await createUser('Branch Manager', 'manager.pos@evaya.ug', branchId);
-    await createUser('Accountant', 'accountant.pos@evaya.ug', branchId);
-    await createUser('Delivery Rider', 'rider.pos@evaya.ug', branchId);
-    await createUser('Inventory Officer', 'inventory.pos@evaya.ug', branchId);
 
     const cashierToken = await login('cashier.pos@evaya.ug', 'secret123');
     const managerToken = await login('manager.pos@evaya.ug', 'secret123');
-    const accountantToken = await login('accountant.pos@evaya.ug', 'secret123');
-    const riderToken = await login('rider.pos@evaya.ug', 'secret123');
-    const inventoryToken = await login('inventory.pos@evaya.ug', 'secret123');
 
     expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${cashierToken}` } })).status).toBe(200);
     expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${managerToken}` } })).status).toBe(200);
-    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${accountantToken}` } })).status).toBe(403);
-    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${riderToken}` } })).status).toBe(403);
-    expect((await app.request('/api/pos/customers', { headers: { Authorization: `Bearer ${inventoryToken}` } })).status).toBe(403);
+    expect((await app.request('/api/pos/expenses', { headers: { Authorization: `Bearer ${cashierToken}` } })).status).toBe(403);
   });
 
   it('opens shifts, blocks second active shift, closes with variance, and enforces approval permissions', async () => {

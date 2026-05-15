@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
   const [receiptFilter, setReceiptFilter] = useState<'shift' | 'today' | 'week' | 'month'>('shift');
 
-  const canViewSales = ['Admin', 'Cashier', 'Branch Manager', 'Accountant'].includes(user?.role.name ?? '');
+  const canViewSales = ['Admin', 'Cashier', 'Branch Manager'].includes(user?.role.name ?? '');
   const canCheckout = ['Admin', 'Cashier'].includes(user?.role.name ?? '');
 
   const todayQuery = useQuery({

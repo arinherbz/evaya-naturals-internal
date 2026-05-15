@@ -98,7 +98,7 @@ function canViewPos(user: AuthUser) {
 }
 
 function canViewReports(user: AuthUser) {
-  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 function canViewCustomers(user: AuthUser) {
@@ -122,11 +122,11 @@ function canBroadcast(user: AuthUser) {
 }
 
 function canViewExpenses(user: AuthUser) {
-  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 function canManageExpenses(user: AuthUser) {
-  return ['Admin', 'Branch Manager', 'Accountant'].includes(user.role.name);
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 function canDeleteExpenses(user: AuthUser) {
@@ -134,7 +134,7 @@ function canDeleteExpenses(user: AuthUser) {
 }
 
 function canViewDeliveries(user: AuthUser) {
-  return ['Admin', 'Branch Manager', 'Delivery Rider'].includes(user.role.name);
+  return ['Admin', 'Branch Manager'].includes(user.role.name);
 }
 
 function canManageDeliveries(user: AuthUser) {
@@ -1197,22 +1197,13 @@ posRoutes.get('/deliveries/support', async (c) => {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
-  const riders = await db.select({
-    id: schema.users.id,
-    firstName: schema.users.firstName,
-    lastName: schema.users.lastName,
-  })
-    .from(schema.users)
-    .innerJoin(schema.roles, eq(schema.users.roleId, schema.roles.id))
-    .where(eq(schema.roles.name, 'Delivery Rider'));
-
   const customers = await db.select({
     id: schema.customers.id,
     name: schema.customers.name,
     phone: schema.customers.phone,
   }).from(schema.customers).where(eq(schema.customers.isActive, true));
 
-  return c.json({ riders, customers, statuses: deliveryStatuses });
+  return c.json({ riders: [], customers, statuses: deliveryStatuses });
 });
 
 posRoutes.get('/deliveries', async (c) => {
@@ -1245,7 +1236,6 @@ posRoutes.get('/deliveries', async (c) => {
     .where(and(
       eq(schema.deliveries.branchId, branchId),
       status ? eq(schema.deliveries.status, status) : undefined,
-      user.role.name === 'Delivery Rider' ? eq(schema.deliveries.riderId, user.id) : undefined,
     ))
     .orderBy(desc(schema.deliveries.createdAt));
 
@@ -1310,10 +1300,7 @@ posRoutes.patch('/deliveries/:id', requirePermission('update_delivery_status'), 
   if (!existing || existing.branchId !== branchId) {
     return c.json({ error: 'Delivery not found' }, 404);
   }
-  if (user.role.name === 'Delivery Rider' && existing.riderId !== user.id) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  if (user.role.name !== 'Delivery Rider' && !canManageDeliveries(user)) {
+  if (!canManageDeliveries(user)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 

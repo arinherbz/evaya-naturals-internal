@@ -71,7 +71,6 @@ describe('catalog slice', () => {
     await db.delete(schema.categories).where(eq(schema.categories.name, 'Warnings Category'));
     await db.delete(schema.users).where(eq(schema.users.email, 'manager.slice@evaya.ug'));
     await db.delete(schema.users).where(eq(schema.users.email, 'cashier.slice@evaya.ug'));
-    await db.delete(schema.users).where(eq(schema.users.email, 'officer.slice@evaya.ug'));
     adminToken = await login('admin@evaya.ug', 'admin123');
   });
 
@@ -444,11 +443,9 @@ describe('catalog slice', () => {
   it('enforces branch scoping and permissions', async () => {
     const manager = await createUser('Branch Manager', 'manager.slice@evaya.ug', branchA);
     const cashier = await createUser('Cashier', 'cashier.slice@evaya.ug', branchA);
-    const officer = await createUser('Inventory Officer', 'officer.slice@evaya.ug', branchA);
 
     const managerToken = await login(manager.email, 'secret123');
     const cashierToken = await login(cashier.email, 'secret123');
-    const officerToken = await login(officer.email, 'secret123');
 
     const categoryRes = await app.request('/api/catalog/categories', {
       method: 'POST',
@@ -499,22 +496,22 @@ describe('catalog slice', () => {
     });
     expect(forbiddenScopeRes.status).toBe(403);
 
-    const officerBatchRes = await app.request('/api/catalog/inventory/batches', {
+    const managerBatchRes = await app.request('/api/catalog/inventory/batches', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${officerToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         productId: managerProduct.id,
         branchId: branchA,
-        batchNumber: 'OFFICER-B1',
+        batchNumber: 'MANAGER-B1',
         expiryDate: new Date(Date.now() + 86400000 * 5).toISOString(),
         quantityReceived: 6,
         costPrice: 5000,
       }),
     });
-    expect(officerBatchRes.status).toBe(201);
+    expect(managerBatchRes.status).toBe(201);
 
     const cashierInventoryRes = await app.request(`/api/catalog/inventory?branchId=${branchA}`, {
       headers: { Authorization: `Bearer ${cashierToken}` },
@@ -536,5 +533,22 @@ describe('catalog slice', () => {
       }),
     });
     expect(cashierAdjustRes.status).toBe(403);
+
+    const cashierReceiveRes = await app.request('/api/catalog/inventory/batches', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cashierToken}`,
+      },
+      body: JSON.stringify({
+        productId: managerProduct.id,
+        branchId: branchA,
+        batchNumber: 'CASHIER-BLOCKED',
+        expiryDate: new Date(Date.now() + 86400000 * 5).toISOString(),
+        quantityReceived: 2,
+        costPrice: 5000,
+      }),
+    });
+    expect(cashierReceiveRes.status).toBe(403);
   });
 });

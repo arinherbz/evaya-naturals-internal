@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { migrate as migrateNodePg } from 'drizzle-orm/node-postgres/migrator';
 import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
@@ -38,27 +38,12 @@ async function ensureRoles() {
     {
       name: 'Branch Manager',
       description: 'Manage branch operations',
-      permissions: ['view_dashboard', 'manage_sales', 'manage_inventory', 'view_reports', 'manage_staff', 'daily_close'],
+      permissions: ['view_dashboard', 'manage_sales', 'manage_inventory', 'view_reports', 'manage_staff', 'daily_close', 'update_delivery_status'],
     },
     {
       name: 'Cashier',
       description: 'Process sales and handle cash-up',
       permissions: ['view_dashboard', 'process_sales', 'daily_close'],
-    },
-    {
-      name: 'Inventory Officer',
-      description: 'Manage stock and inventory',
-      permissions: ['view_dashboard', 'manage_inventory', 'receive_stock'],
-    },
-    {
-      name: 'Delivery Rider',
-      description: 'Handle deliveries',
-      permissions: ['view_deliveries', 'update_delivery_status'],
-    },
-    {
-      name: 'Accountant',
-      description: 'Manage finances and reports',
-      permissions: ['view_dashboard', 'view_reports', 'daily_close', 'manage_accounts'],
     },
   ];
 
@@ -66,6 +51,58 @@ async function ensureRoles() {
     const existing = await db.select().from(schema.roles).where(eq(schema.roles.name, role.name));
     if (existing.length === 0) {
       await db.insert(schema.roles).values(role);
+    } else {
+      await db.update(schema.roles)
+        .set({
+          description: role.description,
+          permissions: role.permissions,
+          isActive: true,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(schema.roles.id, existing[0].id));
+    }
+  }
+
+  await db.update(schema.roles)
+    .set({
+      isActive: false,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(schema.roles.name, 'Inventory Officer'));
+
+  await db.update(schema.roles)
+    .set({
+      isActive: false,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(schema.roles.name, 'Delivery Rider'));
+
+  await db.update(schema.roles)
+    .set({
+      isActive: false,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(schema.roles.name, 'Accountant'));
+
+  const retiredRoles = await db.select({ id: schema.roles.id })
+    .from(schema.roles)
+    .where(inArray(schema.roles.name, ['Inventory Officer', 'Delivery Rider', 'Accountant']));
+
+  if (retiredRoles.length > 0) {
+    const retiredRoleIds = retiredRoles.map((role) => role.id);
+    const retiredUsers = await db.select({ id: schema.users.id })
+      .from(schema.users)
+      .where(inArray(schema.users.roleId, retiredRoleIds));
+
+    if (retiredUsers.length > 0) {
+      const retiredUserIds = retiredUsers.map((user) => user.id);
+      await db.update(schema.users)
+        .set({
+          isActive: false,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(inArray(schema.users.id, retiredUserIds));
+      await db.delete(schema.sessions).where(inArray(schema.sessions.userId, retiredUserIds));
     }
   }
 }

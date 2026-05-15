@@ -171,9 +171,6 @@ evaya-naturals-internal/
 | Admin | Full system access |
 | Branch Manager | Manage branch operations, staff, inventory |
 | Cashier | Process sales, daily close |
-| Inventory Officer | Manage stock, receiving, transfers |
-| Delivery Rider | View and update deliveries |
-| Accountant | View reports, manage accounts |
 
 ## API Endpoints
 

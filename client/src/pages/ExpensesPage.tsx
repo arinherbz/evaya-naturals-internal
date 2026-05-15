@@ -99,7 +99,7 @@ export default function ExpensesPage() {
   const [description, setDescription] = useState('');
   const [pageError, setPageError] = useState('');
 
-  const canManageExpenses = ['Admin', 'Branch Manager', 'Accountant'].includes(user?.role.name ?? '');
+  const canManageExpenses = ['Admin', 'Branch Manager'].includes(user?.role.name ?? '');
   const canDeleteExpenses = user?.role.name === 'Admin';
 
   const setRange = (range: QuickRange) => {
