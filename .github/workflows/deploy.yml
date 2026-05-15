@@ -73,8 +73,23 @@ jobs:
               echo "[deploy] target commit ${TARGET_COMMIT} does not match origin/main ${REMOTE_MAIN}" >&2
               exit 1
             fi
+            TMP_ENV_DIR="$(mktemp -d)"
+            for env_file in .env server/.env client/.env; do
+              if [ -f "${env_file}" ]; then
+                mkdir -p "${TMP_ENV_DIR}/$(dirname "${env_file}")"
+                cp "${env_file}" "${TMP_ENV_DIR}/${env_file}"
+              fi
+            done
             git checkout main
+            git clean -fd
             git pull --ff-only origin main
+            for env_file in .env server/.env client/.env; do
+              if [ -f "${TMP_ENV_DIR}/${env_file}" ]; then
+                mkdir -p "$(dirname "${env_file}")"
+                cp "${TMP_ENV_DIR}/${env_file}" "${env_file}"
+              fi
+            done
+            rm -rf "${TMP_ENV_DIR}"
             CURRENT_COMMIT="$(git rev-parse HEAD)"
             echo "[deploy] checked out commit: ${CURRENT_COMMIT}"
             if [ "${CURRENT_COMMIT}" != "${TARGET_COMMIT}" ]; then
